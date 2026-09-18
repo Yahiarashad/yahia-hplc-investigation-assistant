@@ -50,7 +50,6 @@ is_ar = language == "ar"
 st.markdown(
     """
     <style>
-      /* Keep content clear of Streamlit's mobile toolbar */
       .block-container {
         max-width: 820px;
         padding-top: 4.6rem;
@@ -98,14 +97,28 @@ st.markdown(
         color: #ffffff;
       }
 
+      .hero-title-ar {
+        direction: rtl;
+        unicode-bidi: plaintext;
+        text-align: right;
+        letter-spacing: 0;
+      }
+
       .hero-ar {
         direction: rtl;
-        text-align: left;
+        unicode-bidi: plaintext;
+        text-align: right;
         font-size: 1.25rem;
-        line-height: 1.35;
+        line-height: 1.4;
         font-weight: 750;
         margin: .38rem 0 .7rem 0;
         color: #e8edf5;
+      }
+
+      .ltr-term {
+        direction: ltr;
+        unicode-bidi: isolate;
+        display: inline-block;
       }
 
       .hero-tagline {
@@ -122,6 +135,13 @@ st.markdown(
         line-height: 1.55;
         color: #cbd5e1;
         margin: 0 0 .85rem 0;
+      }
+
+      .hero-description-ar {
+        direction: rtl;
+        unicode-bidi: plaintext;
+        text-align: right;
+        letter-spacing: 0;
       }
 
       .hero-byline {
@@ -158,10 +178,16 @@ st.markdown(
         text-transform: uppercase;
       }
 
+      .section-label-ar {
+        direction: rtl;
+        text-align: right;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
       .small-note {font-size: .88rem; opacity: .78;}
       .arabic-note {direction: rtl; text-align: right;}
 
-      /* Slightly cleaner select/input geometry on touch devices */
       div[data-baseweb="select"] > div {
         border-radius: 14px;
       }
@@ -178,11 +204,11 @@ st.markdown(
         }
         .hero-title {
           font-size: 1.58rem;
-          line-height: 1.12;
+          line-height: 1.2;
         }
         .hero-ar {
           font-size: 1.03rem;
-          text-align: left;
+          text-align: right;
         }
         .hero-tagline {
           font-size: .80rem;
@@ -241,30 +267,37 @@ TEXT = {
 
 if language == "ar":
     T = TEXT["ar"]
-    hero_title = "🧪 مساعد يحيى لتحقيقات HPLC"
-    hero_ar = ""
-    hero_description = T["subtitle"]
+    hero_title_html = '🧪 مساعد يحيى لتحقيقات <span class="ltr-term">HPLC</span>'
+    hero_secondary_html = ""
+    hero_description_html = 'دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية — بناءً على الأدلة'
+    title_class = "hero-title hero-title-ar"
+    description_class = "hero-description hero-description-ar"
+    language_label_html = '<div class="section-label section-label-ar">اختر اللغة</div>'
 elif language == "en":
     T = TEXT["en"]
-    hero_title = "🧪 Yahia HPLC Investigation Assistant"
-    hero_ar = ""
-    hero_description = T["subtitle"]
+    hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
+    hero_secondary_html = ""
+    hero_description_html = T["subtitle"]
+    title_class = "hero-title"
+    description_class = "hero-description"
+    language_label_html = '<div class="section-label">Choose your language</div>'
 else:
     T = TEXT["en"]
-    hero_title = "🧪 Yahia HPLC Investigation Assistant"
-    hero_ar = "مساعد يحيى لتحقيقات HPLC"
-    hero_description = "Evidence-based HPLC troubleshooting & analytical decision support | تحقيق وتحليل قائم على الأدلة"
-
-hero_ar_html = f'<div class="hero-ar">{hero_ar}</div>' if hero_ar else ""
+    hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
+    hero_secondary_html = '<div class="hero-ar">مساعد يحيى لتحقيقات <span class="ltr-term">HPLC</span></div>'
+    hero_description_html = 'Evidence-based HPLC troubleshooting & analytical decision support<br><span dir="rtl" style="display:block;text-align:right;margin-top:.3rem;">تحقيق وتحليل قائم على الأدلة في مشكلات <span class="ltr-term">HPLC</span></span>'
+    title_class = "hero-title"
+    description_class = "hero-description"
+    language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>'
 
 st.markdown(
     f"""
     <div class="hero-card">
       <div class="hero-eyebrow">Pharmaceutical QC · Analytical Decision Support</div>
-      <div class="hero-title">{hero_title}</div>
-      {hero_ar_html}
+      <div class="{title_class}">{hero_title_html}</div>
+      {hero_secondary_html}
       <div class="hero-tagline">{TAGLINE}</div>
-      <div class="hero-description">{hero_description}</div>
+      <div class="{description_class}">{hero_description_html}</div>
       <div class="hero-byline">Yahia Abdelhalim · Pharmaceutical QC Expert</div>
       <div class="badge-row">
         <span class="hero-badge">Evidence-Driven</span>
@@ -276,7 +309,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="section-label">Choose your language</div>', unsafe_allow_html=True)
+st.markdown(language_label_html, unsafe_allow_html=True)
 language_label = st.selectbox(
     T["language"],
     list(LANG_OPTIONS.keys()),
