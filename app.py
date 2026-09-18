@@ -43,28 +43,24 @@ LANG_OPTIONS = {
 if "ui_language_label" not in st.session_state:
     st.session_state.ui_language_label = "Auto — لغة المستخدم"
 
-language_label = st.selectbox(
-    "Language / اللغة",
-    list(LANG_OPTIONS.keys()),
-    index=list(LANG_OPTIONS.keys()).index(st.session_state.ui_language_label),
-    key="ui_language_label",
-)
-language = LANG_OPTIONS[language_label]
-
+# Read current choice first so the header can render before the selector.
+current_language_label = st.session_state.ui_language_label
+language = LANG_OPTIONS[current_language_label]
 is_ar = language == "ar"
 
 st.markdown(
-    f"""
+    """
     <style>
-      .block-container {{max-width: 820px; padding-top: 1rem; padding-bottom: 4rem;}}
-      h1 {{font-size: 2rem !important; line-height: 1.15 !important;}}
-      .tagline {{font-weight: 800; letter-spacing: .04em; margin-top: -.4rem; margin-bottom: .8rem;}}
-      .small-note {{font-size: .88rem; opacity: .78;}}
-      .arabic-note {{direction: rtl; text-align: right;}}
-      @media (max-width: 640px) {{
-        .block-container {{padding-left: 1rem; padding-right: 1rem; padding-top: .7rem;}}
-        h1 {{font-size: 1.62rem !important;}}
-      }}
+      .block-container {max-width: 820px; padding-top: 1.15rem; padding-bottom: 4rem;}
+      h1 {font-size: 2rem !important; line-height: 1.15 !important;}
+      .tagline {font-weight: 800; letter-spacing: .04em; margin-top: -.4rem; margin-bottom: .8rem;}
+      .small-note {font-size: .88rem; opacity: .78;}
+      .arabic-note {direction: rtl; text-align: right;}
+      .language-spacer {height: .35rem;}
+      @media (max-width: 640px) {
+        .block-container {padding-left: 1rem; padding-right: 1rem; padding-top: 1rem;}
+        h1 {font-size: 1.62rem !important;}
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -119,12 +115,21 @@ else:
     display_title = T["title"]
     display_subtitle = T["subtitle"]
 
+# Header first — language selector now sits safely below it on mobile.
 st.title(display_title)
 st.markdown(f'<div class="tagline">{TAGLINE}</div>', unsafe_allow_html=True)
 if is_ar:
     st.markdown(f'<div class="arabic-note">{display_subtitle}</div>', unsafe_allow_html=True)
 else:
     st.caption(display_subtitle)
+
+st.markdown('<div class="language-spacer"></div>', unsafe_allow_html=True)
+language_label = st.selectbox(
+    "Language / اللغة",
+    list(LANG_OPTIONS.keys()),
+    index=list(LANG_OPTIONS.keys()).index(current_language_label),
+    key="ui_language_label",
+)
 
 with st.sidebar:
     st.header(T["setup"])
