@@ -7,9 +7,12 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
+from evidence_engine import format_evidence_context, retrieve_evidence
+
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
+APP_VERSION = "v0.7"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
 st.set_page_config(
@@ -89,7 +92,6 @@ def get_case_id() -> str:
 
 
 def format_api_error(exc, language: str) -> str:
-    """Return a safe diagnostic error without exposing secrets."""
     status = getattr(exc, "status_code", None)
     code = getattr(exc, "code", None)
     body = getattr(exc, "body", None)
@@ -122,17 +124,18 @@ def format_api_error(exc, language: str) -> str:
         "rate_limit_exceeded": "The request rate limit was reached. Try again shortly.",
     }
 
-    if language == "ar":
-        explanation = ar_messages.get(code, "تعذر إكمال طلب API. استخدم رمز الخطأ أدناه لتحديد السبب.")
-        result = f"{explanation}\n\n**رمز الخطأ:** `{code}`"
-        if status:
-            result += f"\n\n**حالة HTTP:** `{status}`"
-        return result
-
-    explanation = en_messages.get(code, "The API request could not be completed. Use the error code below to identify the cause.")
-    result = f"{explanation}\n\n**Error code:** `{code}`"
+    messages = ar_messages if language == "ar" else en_messages
+    fallback = (
+        "تعذر إكمال طلب API. استخدم رمز الخطأ أدناه لتحديد السبب."
+        if language == "ar"
+        else "The API request could not be completed. Use the error code below to identify the cause."
+    )
+    explanation = messages.get(code, fallback)
+    code_label = "رمز الخطأ" if language == "ar" else "Error code"
+    status_label = "حالة HTTP" if language == "ar" else "HTTP status"
+    result = f"{explanation}\n\n**{code_label}:** `{code}`"
     if status:
-        result += f"\n\n**HTTP status:** `{status}`"
+        result += f"\n\n**{status_label}:** `{status}`"
     return result
 
 
@@ -183,7 +186,6 @@ st.markdown(
         padding-top: 4.6rem;
         padding-bottom: 4.5rem;
       }
-
       .hero-card {
         position: relative;
         overflow: hidden;
@@ -195,7 +197,6 @@ st.markdown(
         box-shadow: 0 16px 36px rgba(2, 6, 23, 0.16);
         color: #f8fafc;
       }
-
       .hero-card:before {
         content: "";
         position: absolute;
@@ -207,7 +208,6 @@ st.markdown(
         background: radial-gradient(circle, rgba(202,167,80,.22) 0%, rgba(202,167,80,0) 72%);
         pointer-events: none;
       }
-
       .hero-eyebrow {
         font-size: .74rem;
         letter-spacing: .16em;
@@ -216,7 +216,6 @@ st.markdown(
         font-weight: 800;
         margin-bottom: .45rem;
       }
-
       .hero-title {
         font-size: 2rem;
         line-height: 1.12;
@@ -224,14 +223,12 @@ st.markdown(
         margin: 0;
         color: #fff;
       }
-
       .hero-title-ar, .hero-ar, .hero-description-ar {
         direction: rtl;
         unicode-bidi: plaintext;
         text-align: right;
         letter-spacing: 0;
       }
-
       .hero-ar {
         font-size: 1.25rem;
         line-height: 1.45;
@@ -239,13 +236,11 @@ st.markdown(
         margin: .38rem 0 .7rem 0;
         color: #e8edf5;
       }
-
       .ltr-term {
         direction: ltr;
         unicode-bidi: isolate;
         display: inline-block;
       }
-
       .hero-tagline {
         font-size: .92rem;
         line-height: 1.35;
@@ -254,26 +249,22 @@ st.markdown(
         color: #d6bd78;
         margin: .15rem 0 .65rem 0;
       }
-
       .hero-description {
         font-size: .9rem;
         line-height: 1.65;
         color: #cbd5e1;
         margin: 0 0 .85rem 0;
       }
-
       .hero-byline {
         font-size: .78rem;
         color: #9fb0c5;
         margin-bottom: .85rem;
       }
-
       .badge-row {
         display: flex;
         flex-wrap: wrap;
         gap: .45rem;
       }
-
       .hero-badge {
         display: inline-flex;
         align-items: center;
@@ -286,7 +277,6 @@ st.markdown(
         font-weight: 700;
         white-space: nowrap;
       }
-
       .section-label {
         font-size: .77rem;
         font-weight: 800;
@@ -295,14 +285,12 @@ st.markdown(
         margin: .2rem 0 .2rem 0;
         text-transform: uppercase;
       }
-
       .section-label-ar {
         direction: rtl;
         text-align: right;
         letter-spacing: 0;
         text-transform: none;
       }
-
       .sidebar-note-ar {
         direction: rtl;
         unicode-bidi: plaintext;
@@ -316,23 +304,13 @@ st.markdown(
         font-size: .94rem;
         margin: .65rem 0 1rem 0;
       }
-
       .sidebar-note-ar strong { color: #084d80; }
       .sidebar-list { margin: .45rem 0 0 0; padding: 0 1.15rem 0 0; }
       .sidebar-list li { margin: .14rem 0; }
       .small-note { font-size: .88rem; opacity: .78; }
-
       div[data-baseweb="select"] > div { border-radius: 14px; }
-
-      [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-        unicode-bidi: plaintext;
-      }
-
-      [data-testid="stChatMessage"] code {
-        direction: ltr;
-        unicode-bidi: isolate;
-      }
-
+      [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] { unicode-bidi: plaintext; }
+      [data-testid="stChatMessage"] code { direction: ltr; unicode-bidi: isolate; }
       @media (max-width: 640px) {
         .block-container {
           padding-left: 1rem;
@@ -355,11 +333,7 @@ if is_ar:
     st.markdown(
         """
         <style>
-          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
-            direction: rtl;
-            text-align: right;
-            unicode-bidi: plaintext;
-          }
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
           [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
           [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li,
           [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h1,
@@ -370,19 +344,13 @@ if is_ar:
             text-align: right;
             unicode-bidi: plaintext;
           }
-          [data-testid="stChatInput"] textarea {
+          [data-testid="stChatInput"] textarea,
+          [data-testid="stChatInput"] textarea::placeholder {
             direction: rtl;
             text-align: right;
             unicode-bidi: plaintext;
           }
-          [data-testid="stChatInput"] textarea::placeholder {
-            direction: rtl;
-            text-align: right;
-          }
-          [data-testid="stSidebar"] {
-            direction: rtl;
-            text-align: right;
-          }
+          [data-testid="stSidebar"] { direction: rtl; text-align: right; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -392,7 +360,7 @@ TEXT = {
     "en": {
         "setup": "Investigation Setup",
         "area": "Closest investigation area",
-        "scope": "v0.5 scope",
+        "scope": f"{APP_VERSION} scope",
         "new": "Start new investigation",
         "start": "Start with the observation — not your diagnosis.",
         "example_label": "Example case",
@@ -405,11 +373,12 @@ TEXT = {
         "language": "Language / اللغة",
         "autosave": "Auto-save is on. Refreshing this page will restore this investigation.",
         "case": "Case",
+        "evidence_on": "Verified Evidence Engine: ON",
     },
     "ar": {
         "setup": "إعداد التحقيق",
         "area": "أقرب نوع للمشكلة",
-        "scope": "نطاق v0.5",
+        "scope": f"نطاق {APP_VERSION}",
         "new": "بدء تحقيق جديد",
         "start": "ابدأ بالملاحظة، وليس بالتشخيص.",
         "example_label": "مثال",
@@ -422,6 +391,7 @@ TEXT = {
         "language": "اللغة / Language",
         "autosave": "الحفظ التلقائي مفعّل. تحديث الصفحة سيعيد هذا التحقيق.",
         "case": "رقم التحقيق",
+        "evidence_on": "محرك الأدلة الموثقة: مفعّل",
     },
 }
 T = TEXT[effective_language]
@@ -441,7 +411,11 @@ else:
     hero_description_html = "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC"
     title_class = "hero-title"
     description_class = "hero-description"
-    language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>' if language_mode == "auto" else '<div class="section-label">Choose your language</div>'
+    language_label_html = (
+        '<div class="section-label">Choose your language · اختر اللغة</div>'
+        if language_mode == "auto"
+        else '<div class="section-label">Choose your language</div>'
+    )
 
 st.markdown(
     f"""
@@ -454,6 +428,7 @@ st.markdown(
       <div class="hero-byline">Yahia Abdelhalim · Pharmaceutical QC Expert</div>
       <div class="badge-row">
         <span class="hero-badge">Evidence-Driven</span>
+        <span class="hero-badge">Verified Sources</span>
         <span class="hero-badge">Investigation-First</span>
         <span class="hero-badge">Arabic + English</span>
       </div>
@@ -523,6 +498,8 @@ with st.sidebar:
     else:
         st.info("Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations.")
 
+    st.success(f"✓ {T['evidence_on']}")
+    st.caption("Waters · Agilent · Shimadzu · Thermo Fisher · USP · FDA · ICH")
     st.caption(f"💾 {T['autosave']}")
     st.caption(f"{T['case']}: `{CASE_ID}`")
 
@@ -591,11 +568,20 @@ if user_input:
     else:
         language_instruction = "Respond in clear professional English. Keep the response concise and mobile-friendly."
 
+    recent_user_context = "\n".join(
+        m["content"]
+        for m in st.session_state.messages[-12:]
+        if m["role"] == "user"
+    )
+    evidence_cards = retrieve_evidence(recent_user_context, area=area, limit=4)
+    evidence_context = format_evidence_context(evidence_cards)
+
     instructions = (
         CORE_PROMPT
         + f"\n\nCURRENT UI INVESTIGATION AREA: {area}\n"
         + "Treat this selected area only as a hint. If the evidence points to another area, say so.\n"
-        + f"LANGUAGE BEHAVIOR: {language_instruction}"
+        + f"LANGUAGE BEHAVIOR: {language_instruction}\n\n"
+        + evidence_context
     )
 
     api_history = [
@@ -624,6 +610,6 @@ if user_input:
 
 st.markdown("---")
 st.markdown(
-    '<div class="small-note">v0.5 · Yahia HPLC Investigation Assistant · Evidence-first bilingual QC decision support</div>',
+    f'<div class="small-note">{APP_VERSION} · Yahia HPLC Investigation Assistant · Verified Evidence Engine · Evidence-first bilingual QC decision support</div>',
     unsafe_allow_html=True,
 )
