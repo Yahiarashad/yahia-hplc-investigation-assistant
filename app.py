@@ -43,7 +43,6 @@ LANG_OPTIONS = {
 if "ui_language_label" not in st.session_state:
     st.session_state.ui_language_label = "Auto — لغة المستخدم"
 
-# Read current choice first so the header can render before the selector.
 current_language_label = st.session_state.ui_language_label
 language = LANG_OPTIONS[current_language_label]
 is_ar = language == "ar"
@@ -52,14 +51,31 @@ st.markdown(
     """
     <style>
       .block-container {max-width: 820px; padding-top: 1.15rem; padding-bottom: 4rem;}
-      h1 {font-size: 2rem !important; line-height: 1.15 !important;}
-      .tagline {font-weight: 800; letter-spacing: .04em; margin-top: -.4rem; margin-bottom: .8rem;}
+      .brand-title {
+        font-size: 2rem;
+        line-height: 1.12;
+        font-weight: 800;
+        margin: 0 0 .15rem 0;
+        word-break: normal;
+        overflow-wrap: normal;
+      }
+      .brand-ar {
+        direction: rtl;
+        text-align: left;
+        font-size: 1.35rem;
+        line-height: 1.3;
+        font-weight: 700;
+        margin: .15rem 0 .65rem 0;
+      }
+      .tagline {font-weight: 800; letter-spacing: .04em; margin: .35rem 0 .8rem 0;}
       .small-note {font-size: .88rem; opacity: .78;}
       .arabic-note {direction: rtl; text-align: right;}
       .language-spacer {height: .35rem;}
       @media (max-width: 640px) {
         .block-container {padding-left: 1rem; padding-right: 1rem; padding-top: 1rem;}
-        h1 {font-size: 1.62rem !important;}
+        .brand-title {font-size: 1.68rem; line-height: 1.15;}
+        .brand-ar {font-size: 1.14rem; text-align: left;}
+        .tagline {font-size: .98rem; letter-spacing: .025em;}
       }
     </style>
     """,
@@ -105,18 +121,25 @@ TEXT = {
     },
 }
 
-# Auto mode keeps a neutral bilingual UI while the answer language follows the user.
 if language == "auto":
     T = TEXT["en"]
-    display_title = "🧪 Yahia HPLC Investigation Assistant | مساعد تحقيقات HPLC"
+    main_title = "🧪 Yahia HPLC Investigation Assistant"
+    secondary_title = "مساعد تحقيقات HPLC"
     display_subtitle = "Evidence-based HPLC troubleshooting & analytical decision support | تحقيق وتحليل قائم على الأدلة"
+elif language == "ar":
+    T = TEXT["ar"]
+    main_title = T["title"]
+    secondary_title = ""
+    display_subtitle = T["subtitle"]
 else:
-    T = TEXT[language]
-    display_title = T["title"]
+    T = TEXT["en"]
+    main_title = T["title"]
+    secondary_title = ""
     display_subtitle = T["subtitle"]
 
-# Header first — language selector now sits safely below it on mobile.
-st.title(display_title)
+st.markdown(f'<div class="brand-title">{main_title}</div>', unsafe_allow_html=True)
+if secondary_title:
+    st.markdown(f'<div class="brand-ar">{secondary_title}</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="tagline">{TAGLINE}</div>', unsafe_allow_html=True)
 if is_ar:
     st.markdown(f'<div class="arabic-note">{display_subtitle}</div>', unsafe_allow_html=True)
