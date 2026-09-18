@@ -29,8 +29,8 @@ st.session_state["_qc_gap_prev_active"] = _current_active
 # -----------------------------------------------------------------------------
 # Mobile UX layer.
 # 1) Visually separates each answer into a card.
-# 2) Scrolls to the TRUE beginning of the next/previous stage with a safe top
-#    offset so the question stem is not hidden under Streamlit's mobile header.
+# 2) Scrolls to the EXACT first question of the active stage (6, 11, 16, ...)
+#    instead of assuming a fixed DOM position for the first assessment radio.
 # -----------------------------------------------------------------------------
 _pending_target = st.session_state.pop("_qc_gap_scroll_target", None)
 _target_js = repr(_pending_target) if _pending_target else "null"
@@ -44,17 +44,22 @@ components.html(
       const pendingTarget = {_target_js};
       let styleAttempts = 0;
 
+      function assessmentRadios() {{
+        return Array.from(doc.querySelectorAll('[data-testid="stRadio"]')).filter((widget) => {{
+          const text = (widget.innerText || '').trim();
+          return /^\d+\./.test(text);
+        }});
+      }}
+
       function decorateQuestionRadios() {{
-        const radios = Array.from(doc.querySelectorAll('[data-testid="stRadio"]'));
-        if (radios.length < 2) {{
+        const radios = assessmentRadios();
+        if (radios.length < 1) {{
           styleAttempts += 1;
           if (styleAttempts < 30) setTimeout(decorateQuestionRadios, 120);
           return;
         }}
 
-        // Radio 0 is the language selector. All following radio widgets are
-        // assessment questions and should read as visually separate cards.
-        radios.slice(1).forEach((widget) => {{
+        radios.forEach((widget) => {{
           widget.style.marginBottom = '1.55rem';
 
           const group = widget.querySelector('[role="radiogroup"]');
@@ -86,8 +91,7 @@ components.html(
         const y = el.getBoundingClientRect().top + currentY - offsetPx;
         win.scrollTo({{top: Math.max(0, y), behavior: 'smooth'}});
 
-        // Streamlit/mobile text can reflow after the first paint. Correct the
-        // position once more after layout settles so the stem stays visible.
+        // Correct again after mobile layout/text reflow settles.
         setTimeout(() => {{
           const nowY = win.pageYOffset || doc.documentElement.scrollTop || 0;
           const corrected = el.getBoundingClientRect().top + nowY - offsetPx;
@@ -96,10 +100,12 @@ components.html(
         return true;
       }}
 
-      function findFirstAssessmentQuestion() {{
-        const radios = Array.from(doc.querySelectorAll('[data-testid="stRadio"]'));
-        if (radios.length <= 1) return null;
-        return radios[1];
+      function findQuestionById(questionId) {{
+        const prefix = String(questionId) + '.';
+        return assessmentRadios().find((widget) => {{
+          const text = (widget.innerText || '').trim();
+          return text.startsWith(prefix);
+        }}) || null;
       }}
 
       function findResultHeading() {{
@@ -115,10 +121,9 @@ components.html(
         let attempts = 0;
         function attempt() {{
           let done = false;
-          if (pendingTarget === 'question') {{
-            // 118 px leaves the complete question stem visible below the
-            // mobile toolbar instead of landing in the middle of the stem.
-            done = scrollWithOffset(findFirstAssessmentQuestion(), 118);
+          if (typeof pendingTarget === 'string' && pendingTarget.startsWith('q:')) {{
+            const questionId = parseInt(pendingTarget.split(':')[1], 10);
+            done = scrollWithOffset(findQuestionById(questionId), 118);
           }} else if (pendingTarget === 'result') {{
             done = scrollWithOffset(findResultHeading(), 110);
           }} else if (pendingTarget === 'top') {{
@@ -127,7 +132,7 @@ components.html(
           }}
 
           attempts += 1;
-          if (!done && attempts < 30) setTimeout(attempt, 120);
+          if (!done && attempts < 35) setTimeout(attempt, 120);
         }}
         setTimeout(attempt, 180);
       }}
@@ -186,7 +191,6 @@ def _balanced_labels(labels, question_key):
 
     counts = [_word_count(x) for x in labels]
     target = max(counts)
-    # Avoid turning already-balanced questions into unnecessarily long cards.
     if max(counts) - min(counts) <= 3:
         return labels
 
@@ -194,7 +198,6 @@ def _balanced_labels(labels, question_key):
     for option_index, text in enumerate(labels):
         updated = text.strip()
         suffixes = _AR_SUFFIXES if _is_arabic(updated) else _EN_SUFFIXES
-        # Deterministic suffix order for this question/option.
         digest = hashlib.blake2b(
             f"{question_key}:{option_index}:padding".encode("utf-8"),
             digest_size=8,
@@ -225,15 +228,12 @@ def _anti_cue_radio(label, options, *args, **kwargs):
     display_labels = _balanced_labels(original_labels, key)
     display_map = {value: display_labels[i] for i, value in enumerate(original_options)}
 
-    # Stable random order for the current attempt and question.
     seed_material = f"{st.session_state['_qc_gap_attempt_seed']}:{key}"
     digest = hashlib.blake2b(seed_material.encode("utf-8"), digest_size=8).digest()
     rng = random.Random(int.from_bytes(digest, "big"))
     shuffled_options = original_options[:]
     rng.shuffle(shuffled_options)
 
-    # Core passes index as the position of the stored original option. Convert
-    # it to the corresponding position in the shuffled display order.
     old_index = kwargs.get("index", 0)
     if old_index is None:
         new_index = None
@@ -255,7 +255,11 @@ def _rerun_with_scroll(*args, **kwargs):
     if st.session_state.get("gap_done"):
         st.session_state["_qc_gap_scroll_target"] = "result"
     elif st.session_state.get("gap_started"):
-        st.session_state["_qc_gap_scroll_target"] = "question"
+        # The core changes gap_step BEFORE calling st.rerun(). Each stage has
+        # five questions, so this points to 1, 6, 11, 16, 21, or 26 exactly.
+        step = int(st.session_state.get("gap_step", 0))
+        first_question_id = (step * 5) + 1
+        st.session_state["_qc_gap_scroll_target"] = f"q:{first_question_id}"
     else:
         st.session_state["_qc_gap_scroll_target"] = "top"
     return _original_rerun(*args, **kwargs)
