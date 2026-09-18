@@ -30,6 +30,54 @@ def get_api_key():
     return os.environ.get("OPENAI_API_KEY")
 
 
+def format_api_error(exc, language: str) -> str:
+    """Return a safe diagnostic error without exposing secrets."""
+    status = getattr(exc, "status_code", None)
+    code = getattr(exc, "code", None)
+    body = getattr(exc, "body", None)
+
+    if not code and isinstance(body, dict):
+        error_body = body.get("error", body)
+        if isinstance(error_body, dict):
+            code = error_body.get("code") or error_body.get("type")
+
+    code = str(code or exc.__class__.__name__)
+
+    ar_messages = {
+        "credit_balance_exhausted": "لا يوجد رصيد API متاح حاليًا. راجع Billing / Credits في OpenAI Platform.",
+        "insufficient_quota": "لا توجد حصة أو رصيد كافٍ لإكمال الطلب. راجع Billing / Credits.",
+        "organization_usage_limit_exceeded": "تم الوصول إلى حد الاستخدام المسموح للمؤسسة.",
+        "organization_spend_limit_exceeded": "تم الوصول إلى حد الإنفاق المحدد للمؤسسة.",
+        "project_spend_limit_exceeded": "تم الوصول إلى حد الإنفاق المحدد للمشروع.",
+        "model_not_found": "النموذج المحدد غير متاح لهذا المشروع أو الحساب.",
+        "invalid_api_key": "مفتاح الـAPI غير صالح أو لم يعد فعالًا.",
+        "rate_limit_exceeded": "تم الوصول مؤقتًا إلى حد معدل الطلبات. حاول بعد قليل.",
+    }
+    en_messages = {
+        "credit_balance_exhausted": "No API credit is currently available. Check Billing / Credits in OpenAI Platform.",
+        "insufficient_quota": "There is not enough quota or credit to complete the request. Check Billing / Credits.",
+        "organization_usage_limit_exceeded": "The organization usage limit has been reached.",
+        "organization_spend_limit_exceeded": "The organization spend limit has been reached.",
+        "project_spend_limit_exceeded": "The project spend limit has been reached.",
+        "model_not_found": "The selected model is not available to this project or account.",
+        "invalid_api_key": "The API key is invalid or no longer active.",
+        "rate_limit_exceeded": "The request rate limit was reached. Try again shortly.",
+    }
+
+    if language == "ar":
+        explanation = ar_messages.get(code, "تعذر إكمال طلب الـAPI. استخدم رمز الخطأ أدناه لتحديد السبب.")
+        result = f"{explanation}\n\n**Error code:** `{code}`"
+        if status:
+            result += f"\n\n**HTTP status:** `{status}`"
+        return result
+
+    explanation = en_messages.get(code, "The API request could not be completed. Use the error code below to identify the cause.")
+    result = f"{explanation}\n\n**Error code:** `{code}`"
+    if status:
+        result += f"\n\n**HTTP status:** `{status}`"
+    return result
+
+
 CORE_PROMPT = load_core_prompt()
 API_KEY = get_api_key()
 
@@ -254,7 +302,6 @@ TEXT = {
         "guidance": "The assistant should separate facts from assumptions, identify the critical missing evidence, and choose the next test that best separates the hypotheses.",
         "input": "Describe the HPLC observation, or answer the last diagnostic question...",
         "spinner": "Following the evidence...",
-        "api_error": "I couldn't complete the API request. Please verify the API key, project billing/credits, and model access, then try again.",
         "no_text": "No text response was returned. Please try again.",
         "api_missing": "The app is not connected to the OpenAI API yet. Add OPENAI_API_KEY in Streamlit Secrets, then reboot the app.",
         "language": "Language / اللغة",
@@ -270,7 +317,6 @@ TEXT = {
         "guidance": "المساعد يفصل بين الحقائق والافتراضات، يحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
         "input": "اكتب ملاحظة الـHPLC أو أجب عن آخر سؤال تشخيصي...",
         "spinner": "نتتبع الأدلة...",
-        "api_error": "تعذر إكمال طلب الـAPI. راجع المفتاح، الرصيد/الفوترة، وصلاحية النموذج ثم حاول مرة أخرى.",
         "no_text": "لم يتم إرجاع رد نصي. حاول مرة أخرى.",
         "api_missing": "التطبيق غير متصل بـOpenAI API حتى الآن. أضف OPENAI_API_KEY داخل Streamlit Secrets ثم أعد تشغيل التطبيق.",
         "language": "اللغة / Language",
@@ -441,8 +487,8 @@ if user_input:
                 answer = response.output_text.strip()
                 if not answer:
                     answer = T["no_text"]
-            except Exception:
-                answer = T["api_error"]
+            except Exception as exc:
+                answer = format_api_error(exc, language)
             st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
