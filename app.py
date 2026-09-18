@@ -16,22 +16,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-st.markdown(
-    """
-    <style>
-      .block-container {max-width: 820px; padding-top: 1.4rem; padding-bottom: 4rem;}
-      h1 {font-size: 2rem !important; line-height: 1.15 !important;}
-      .tagline {font-weight: 800; letter-spacing: .04em; margin-top: -.4rem; margin-bottom: 1.2rem;}
-      .small-note {font-size: .88rem; opacity: .78;}
-      @media (max-width: 640px) {
-        .block-container {padding-left: 1rem; padding-right: 1rem; padding-top: 1rem;}
-        h1 {font-size: 1.65rem !important;}
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 
 def load_core_prompt() -> str:
     return Path(__file__).with_name("core_prompt.txt").read_text(encoding="utf-8")
@@ -50,14 +34,102 @@ def get_api_key():
 CORE_PROMPT = load_core_prompt()
 API_KEY = get_api_key()
 
-st.title("🧪 Yahia HPLC Investigation Assistant")
+LANG_OPTIONS = {
+    "Auto — لغة المستخدم": "auto",
+    "العربية": "ar",
+    "English": "en",
+}
+
+if "ui_language_label" not in st.session_state:
+    st.session_state.ui_language_label = "Auto — لغة المستخدم"
+
+language_label = st.selectbox(
+    "Language / اللغة",
+    list(LANG_OPTIONS.keys()),
+    index=list(LANG_OPTIONS.keys()).index(st.session_state.ui_language_label),
+    key="ui_language_label",
+)
+language = LANG_OPTIONS[language_label]
+
+is_ar = language == "ar"
+
+st.markdown(
+    f"""
+    <style>
+      .block-container {{max-width: 820px; padding-top: 1rem; padding-bottom: 4rem;}}
+      h1 {{font-size: 2rem !important; line-height: 1.15 !important;}}
+      .tagline {{font-weight: 800; letter-spacing: .04em; margin-top: -.4rem; margin-bottom: .8rem;}}
+      .small-note {{font-size: .88rem; opacity: .78;}}
+      .arabic-note {{direction: rtl; text-align: right;}}
+      @media (max-width: 640px) {{
+        .block-container {{padding-left: 1rem; padding-right: 1rem; padding-top: .7rem;}}
+        h1 {{font-size: 1.62rem !important;}}
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+TEXT = {
+    "en": {
+        "title": "🧪 Yahia HPLC Investigation Assistant",
+        "subtitle": "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC",
+        "setup": "Investigation Setup",
+        "area": "Closest investigation area",
+        "scope": "v0.3 scope",
+        "notice": "Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations.",
+        "new": "Start new investigation",
+        "start": "Start with the observation — not your diagnosis.",
+        "example_label": "Example case",
+        "example": "Pressure was normally 180 bar. Today it was 310 bar after about 25 injections. Same method, column, flow, and mobile phase.",
+        "guidance": "The assistant should separate facts from assumptions, identify the critical missing evidence, and choose the next test that best separates the hypotheses.",
+        "input": "Describe the HPLC observation, or answer the last diagnostic question...",
+        "spinner": "Following the evidence...",
+        "api_error": "I couldn't complete the API request. Please verify the API key, project billing/credits, and model access, then try again.",
+        "no_text": "No text response was returned. Please try again.",
+        "api_missing": "The app is not connected to the OpenAI API yet. Add OPENAI_API_KEY in Streamlit Secrets, then reboot the app.",
+    },
+    "ar": {
+        "title": "🧪 مساعد يحيى لتحقيقات HPLC",
+        "subtitle": "دعم اتخاذ القرار والتحقيق في مشكلات HPLC داخل معامل الرقابة الدوائية — بناءً على الأدلة",
+        "setup": "إعداد التحقيق",
+        "area": "أقرب نوع للمشكلة",
+        "scope": "نطاق v0.3",
+        "notice": "الأداة تدعم القرار ولا تستبدل إجراءات المعمل المعتمدة. أي تحقيق GMP رسمي يجب أن يتبع الـSOP ومتطلبات QA واللوائح المعمول بها.",
+        "new": "بدء تحقيق جديد",
+        "start": "ابدأ بالملاحظة… وليس بالتشخيص.",
+        "example_label": "مثال",
+        "example": "كان الضغط المعتاد 180 bar. اليوم أصبح 310 bar بعد حوالي 25 injection. نفس الـmethod والـcolumn والـflow والـmobile phase.",
+        "guidance": "المساعد يجب أن يفصل بين الحقائق والافتراضات، يحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
+        "input": "اكتب ملاحظة الـHPLC أو أجب عن آخر سؤال تشخيصي...",
+        "spinner": "نتتبع الأدلة...",
+        "api_error": "تعذر إكمال طلب الـAPI. راجع المفتاح، الرصيد/الفوترة، وصلاحية النموذج ثم حاول مرة أخرى.",
+        "no_text": "لم يتم إرجاع رد نصي. حاول مرة أخرى.",
+        "api_missing": "التطبيق غير متصل بـOpenAI API حتى الآن. أضف OPENAI_API_KEY داخل Streamlit Secrets ثم أعد تشغيل التطبيق.",
+    },
+}
+
+# Auto mode keeps a neutral bilingual UI while the answer language follows the user.
+if language == "auto":
+    T = TEXT["en"]
+    display_title = "🧪 Yahia HPLC Investigation Assistant | مساعد تحقيقات HPLC"
+    display_subtitle = "Evidence-based HPLC troubleshooting & analytical decision support | تحقيق وتحليل قائم على الأدلة"
+else:
+    T = TEXT[language]
+    display_title = T["title"]
+    display_subtitle = T["subtitle"]
+
+st.title(display_title)
 st.markdown(f'<div class="tagline">{TAGLINE}</div>', unsafe_allow_html=True)
-st.caption("Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC")
+if is_ar:
+    st.markdown(f'<div class="arabic-note">{display_subtitle}</div>', unsafe_allow_html=True)
+else:
+    st.caption(display_subtitle)
 
 with st.sidebar:
-    st.header("Investigation Setup")
+    st.header(T["setup"])
     area = st.selectbox(
-        "Closest investigation area",
+        T["area"],
         [
             "Auto-detect",
             "Pressure",
@@ -68,19 +140,15 @@ with st.sidebar:
         ],
     )
     st.markdown("---")
-    st.markdown("**v0.1 scope**")
+    st.markdown(f"**{T['scope']}**")
     st.markdown("Pressure · RT · Peak Shape · Baseline · Carryover/Ghost Peaks")
-    st.info(
-        "Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations."
-    )
-    if st.button("Start new investigation", use_container_width=True):
+    st.info(T["notice"])
+    if st.button(T["new"], use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
 if not API_KEY:
-    st.error(
-        "The app is not connected to the OpenAI API yet. Add OPENAI_API_KEY in Streamlit Secrets, then reboot the app."
-    )
+    st.error(T["api_missing"])
     st.stop()
 
 client = OpenAI(api_key=API_KEY)
@@ -89,32 +157,63 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if not st.session_state.messages:
-    st.markdown(
-        """
-### Start with the observation — not your diagnosis.
+    if is_ar:
+        st.markdown(
+            f"""
+<div dir="rtl" style="text-align:right">
+<h3>{T['start']}</h3>
 
-**Example case**  
-> Pressure was normally 180 bar. Today it increased to 310 bar after about 25 injections. Same method, column, flow, and mobile phase.
+<strong>{T['example_label']}</strong>
 
-The assistant should **not** immediately blame the column. It should identify the missing evidence and choose the next test that best separates the hypotheses.
-        """
-    )
+<blockquote>{T['example']}</blockquote>
+
+{T['guidance']}
+</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+### {T['start']}
+
+**{T['example_label']}**  
+> {T['example']}
+
+{T['guidance']}
+            """
+        )
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_input = st.chat_input("Describe the HPLC observation, or answer the last diagnostic question...")
+user_input = st.chat_input(T["input"])
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
+    if language == "ar":
+        language_instruction = (
+            "Respond in clear professional Arabic. Keep standard HPLC/QC technical terms in English when that is more precise or natural. "
+            "Do not translate technical terms into awkward Arabic equivalents."
+        )
+    elif language == "en":
+        language_instruction = "Respond in clear professional English."
+    else:
+        language_instruction = (
+            "Respond in the same primary language as the user's latest message. "
+            "If Arabic, use clear professional Arabic while preserving standard HPLC/QC technical terms in English where useful. "
+            "If English, respond in English. Do not switch languages unexpectedly."
+        )
+
     instructions = (
         CORE_PROMPT
         + f"\n\nCURRENT UI INVESTIGATION AREA: {area}\n"
-        + "Treat this selected area only as a hint. If the evidence points to another area, say so."
+        + "Treat this selected area only as a hint. If the evidence points to another area, say so.\n"
+        + f"LANGUAGE BEHAVIOR: {language_instruction}"
     )
 
     api_history = [
@@ -123,7 +222,7 @@ if user_input:
     ]
 
     with st.chat_message("assistant"):
-        with st.spinner("Following the evidence..."):
+        with st.spinner(T["spinner"]):
             try:
                 response = client.responses.create(
                     model=MODEL,
@@ -132,17 +231,13 @@ if user_input:
                 )
                 answer = response.output_text.strip()
                 if not answer:
-                    answer = "No text response was returned. Please try again."
+                    answer = T["no_text"]
             except Exception:
-                answer = (
-                    "I couldn't complete the API request. Please verify the API key, project billing/credits, and model access, then try again."
-                )
+                answer = T["api_error"]
             st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 st.markdown("---")
-st.markdown(
-    '<div class="small-note">v0.1 · Yahia HPLC Investigation Assistant · Pharmaceutical QC decision support</div>',
-    unsafe_allow_html=True,
-)
+footer = "v0.3 · Yahia HPLC Investigation Assistant · Bilingual Pharmaceutical QC decision support"
+st.markdown(f'<div class="small-note">{footer}</div>', unsafe_allow_html=True)
