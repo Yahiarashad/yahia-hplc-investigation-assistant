@@ -81,6 +81,7 @@ def run_beta_assessment_page():
     base_markdown = st.markdown
     base_code = st.code
     base_button = st.button
+    base_page_link = st.page_link
 
     state = {"banner": False, "tester_card": False}
 
@@ -123,12 +124,20 @@ def run_beta_assessment_page():
             display_label = "Start Founding Beta Calibration →"
         return base_button(display_label, *args, **kwargs)
 
+    def beta_page_link(page, *args, **kwargs):
+        label = kwargs.get("label")
+        if label == "🧪 عندك مشكلة HPLC الآن؟ افتح مساعد يحيى للتحقيق":
+            kwargs["label"] = "عندك مشكلة في HPLC؟ افتح مساعد يحيى للتحقيق الآن 🧪"
+        return base_page_link(page, *args, **kwargs)
+
     st.markdown = beta_markdown
     st.code = beta_code
     st.button = beta_button
+    st.page_link = beta_page_link
     try:
         run_assessment_page()
     finally:
         st.markdown = base_markdown
         st.code = base_code
         st.button = base_button
+        st.page_link = base_page_link
