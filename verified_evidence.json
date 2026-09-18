@@ -1,0 +1,142 @@
+[
+  {
+    "id": "WATERS-PEAK-SHAPE-01",
+    "authority": "Waters",
+    "title": "Troubleshooting Peak Shape Problems in HPLC",
+    "url": "https://www.waters.com/nextgen/in/en/education/primers/troubleshooting-guide-for-hplc.html",
+    "areas": ["Peak Shape", "Retention Time"],
+    "keywords": ["peak shape", "broad", "broadening", "tailing", "fronting", "split", "shoulder", "resolution", "guard column", "شكل القمة", "قمة عريضة", "تشوه", "تذييل", "فصل", "عمود حماية"],
+    "evidence": "Peak-shape changes can arise from the HPLC system, mobile phase, sample, or column. A high-value first distinction is whether all peaks are affected or only selected analytes. Waters also presents a guard-column example in which replacing the fouled guard restored peak symmetry, illustrating how a targeted intervention can confirm involvement of that component.",
+    "guardrail": "Do not infer that a guard column or column is the cause merely because peak shape changed; isolate the component and confirm the predicted response."
+  },
+  {
+    "id": "WATERS-CONNECTION-02",
+    "authority": "Waters",
+    "title": "Peak Shape Changes for a Previously Used Column",
+    "url": "https://www.waters.com/nextgen/id/en/education/primers/troubleshooting-guide-for-hplc/peak-shape-changes-for-a-previously-used-column.html",
+    "areas": ["Peak Shape"],
+    "keywords": ["connection", "fitting", "dead volume", "column connection", "tailing", "broad", "peak shape", "وصلة", "توصيل", "حجم ميت", "شكل القمة"],
+    "evidence": "When a previously acceptable column gives changed peak symmetry, comparing pressure, retention time, peak area, peak width, and symmetry can help localize the problem. In the Waters example, reseating a poor column connection restored tailing factors, confirming extra-column dead volume from the connection.",
+    "guardrail": "A connection problem is only one hypothesis; confirmation requires an isolated reconnection/reseating test and recovery of the affected metric."
+  },
+  {
+    "id": "AGILENT-TROUBLESHOOT-03",
+    "authority": "Agilent",
+    "title": "My Chromatography Has Changed: Steps for Effective Troubleshooting",
+    "url": "https://www.agilent.com/cs/library/slidepresentation/public/my-chromatography-has-change-steps-for-effective-troubleshooting-june182024.pdf",
+    "areas": ["Pressure", "Peak Shape", "Retention Time", "Baseline"],
+    "keywords": ["pressure", "peak shape", "retention", "resolution", "baseline", "high pressure", "low pressure", "leak", "ضغط", "شكل القمة", "زمن الاحتجاز", "خط الأساس", "تسريب"],
+    "evidence": "Agilent organizes changed chromatography into symptom groups including pressure, peak shape, retention/resolution, and baseline. This supports symptom-first localization rather than jumping directly to a component replacement.",
+    "guardrail": "Use the symptom grouping to structure investigation, not as proof of a specific root cause."
+  },
+  {
+    "id": "SHIMADZU-HIGH-PRESSURE-04",
+    "authority": "Shimadzu",
+    "title": "LC Troubleshooting Tips",
+    "url": "https://www.ssi.shimadzu.com/sites/ssi.shimadzu.com/files/pim/pim_document_file/ssi/applications/posters/25269/hplc-troubleshooting-poster.pdf",
+    "areas": ["Pressure"],
+    "keywords": ["high pressure", "pressure", "blocked column", "injector blockage", "flow rate", "precipitated buffer", "ضغط عالي", "ضغط", "انسداد", "معدل التدفق", "محقن"],
+    "evidence": "Shimadzu lists several distinct high-pressure mechanisms, including excessive flow setting, column blockage, incompatible/precipitated mobile phase, incorrect column characteristics, and injector blockage. These possibilities should be separated with location-specific tests instead of treated as interchangeable causes.",
+    "guardrail": "Do not backflush or replace a column unless the column manufacturer and laboratory procedure permit it and evidence localizes the restriction there."
+  },
+  {
+    "id": "THERMO-RETENTION-05",
+    "authority": "Thermo Fisher Scientific",
+    "title": "Chromatography Troubleshooting Guides — Liquid Chromatography",
+    "url": "https://www.thermofisher.com/in/en/home/industrial/chromatography/chromatography-learning-center/chromatography-consumables-resources/chromatography-troubleshooting-guides/chromatography-troubleshooting-guides-liquid-chromatography.html",
+    "areas": ["Retention Time", "Pressure"],
+    "keywords": ["retention", "retention time", "RT", "varying retention", "equilibration", "temperature", "pump mixing", "dwell volume", "air", "leak", "زمن الاحتجاز", "تغير زمن", "اتزان", "حرارة", "خلط المضخة", "هواء", "تسريب"],
+    "evidence": "Thermo Fisher identifies several separable causes of varying retention, including inadequate equilibration, leaks, temperature fluctuation, column contamination, solvent-reservoir restrictions, incorrect pump mixing, dwell-volume differences, leaking piston seals, and air in solvent lines. These should be discriminated using the case pattern and targeted checks.",
+    "guardrail": "A retention shift alone does not identify which mechanism is responsible; compare what changed and use one discriminating test at a time."
+  },
+  {
+    "id": "WATERS-AIR-06",
+    "authority": "Waters",
+    "title": "Can air bubbles in the mobile phase affect chromatography?",
+    "url": "https://support.waters.com/KB_Chem/Other/WKB69115_Can_air_bubbles_in_the_mobile_phase_have_an_affect_on_chromatography",
+    "areas": ["Pressure", "Retention Time", "Peak Shape", "Baseline"],
+    "keywords": ["air", "bubble", "bubbles", "prime", "purge", "noise", "pressure fluctuation", "peak area", "هواء", "فقاعات", "ضوضاء", "تذبذب الضغط", "مساحة القمة"],
+    "evidence": "Waters notes that air bubbles can affect multiple chromatographic responses, including peak area, peak shape, retention time, baseline noise, and back pressure.",
+    "guardrail": "Because air can produce multiple symptoms, verify direct evidence of air/flow-delivery instability before attributing the problem to bubbles."
+  },
+  {
+    "id": "THERMO-AREA-PRECISION-07",
+    "authority": "Thermo Fisher Scientific",
+    "title": "Peak Area Precision",
+    "url": "https://knowledge1.thermofisher.com/Chromatography/Liquid_Chromatography/LC_Knowledge/Peak_Area_Precision",
+    "areas": ["Peak Shape", "Carryover / Ghost Peaks"],
+    "keywords": ["peak area", "area precision", "repeatability", "response", "autosampler", "needle", "needle seat", "capillary", "مساحة القمة", "تكرارية", "استجابة", "أوتوسامبلر", "إبرة"],
+    "evidence": "Thermo Fisher lists contamination/carryover, autosampler needle or needle-seat issues, unstable environmental conditions, and improper capillary connections/dead volume among possible contributors to poor peak-area precision.",
+    "guardrail": "Poor area precision is a symptom; distinguish random/sequential behavior and common-mode versus analyte-specific effects before selecting a component test."
+  },
+  {
+    "id": "SHIMADZU-CARRYOVER-08",
+    "authority": "Shimadzu",
+    "title": "Solving Carryover Problems in HPLC",
+    "url": "https://www.ssi.shimadzu.com/service-support/faq/liquid-chromatography/knowledge-base/solving-carryover-problems-hplc/index.html",
+    "areas": ["Carryover / Ghost Peaks"],
+    "keywords": ["carryover", "blank", "ghost peak", "needle", "loop", "injection volume", "تداخل", "حقن سابق", "بلانك", "قمة وهمية", "إبرة", "حلقة العينة"],
+    "evidence": "Shimadzu distinguishes classic carryover that decreases across successive blanks from constant contamination that does not behave like true carryover. Varying blank injection volume and observing how the suspect peak responds can help distinguish blank contamination from external-needle or internal needle/loop sources.",
+    "guardrail": "Do not label every blank peak as carryover; first classify its behavior and exclude contamination of the blank itself."
+  },
+  {
+    "id": "THERMO-GHOST-09",
+    "authority": "Thermo Fisher Scientific",
+    "title": "Ghost Peaks",
+    "url": "https://knowledge1.thermofisher.com/Chromatography/Liquid_Chromatography/LC_Knowledge/Ghost_peaks",
+    "areas": ["Carryover / Ghost Peaks", "Baseline"],
+    "keywords": ["ghost peak", "ghost peaks", "contamination", "injector", "column", "reference wavelength", "bandwidth", "قمة وهمية", "قمم وهمية", "تلوث", "محقن", "عمود", "طول موجي"],
+    "evidence": "Thermo Fisher lists contamination, commonly in the injector or column, as one cause of ghost peaks and also notes detector-setting causes such as reference wavelength or bandwidth. This supports separating chemical contamination from detector/acquisition explanations.",
+    "guardrail": "A ghost peak is not proof of injector contamination; isolate with blanks and component-specific checks."
+  },
+  {
+    "id": "THERMO-BASELINE-10",
+    "authority": "Thermo Fisher Scientific",
+    "title": "HILIC Column Troubleshooting Guide — Baseline and Contamination Principles",
+    "url": "https://documents.thermofisher.com/TFS-Assets/CMD/Reference-Materials/pp-002985-ccs-hilic-columns-troubleshooting-pp002985-na-en.pdf",
+    "areas": ["Baseline", "Carryover / Ghost Peaks"],
+    "keywords": ["baseline", "noise", "drift", "spike", "mobile phase contamination", "blank", "خط الأساس", "ضوضاء", "انجراف", "قفزة", "تلوث الطور المتحرك", "بلانك"],
+    "evidence": "Thermo Fisher recommends distinguishing baseline problems with a blank and notes that mobile-phase contamination can contribute to background, spikes, and noise. Detector warm-up and column equilibration are also relevant checks.",
+    "guardrail": "Use blank behavior to localize the source; do not assume the column or detector without comparative evidence."
+  },
+  {
+    "id": "USP-621-11",
+    "authority": "USP",
+    "title": "USP <621> Chromatography",
+    "url": "https://doi.usp.org/USPNF/USPNF_M99380_01_01.html",
+    "areas": ["Pressure", "Retention Time", "Peak Shape", "Baseline", "Carryover / Ghost Peaks"],
+    "keywords": ["system suitability", "SST", "tailing factor", "resolution", "chromatography", "ملاءمة النظام", "عامل التذييل", "الفصل", "كروماتوجرافيا"],
+    "evidence": "USP <621> provides general chromatographic procedures, definitions, calculations, and system-suitability requirements. The applicable monograph/procedure remains the controlling source for method-specific acceptance criteria and permitted adjustments.",
+    "guardrail": "Do not invent a USP limit or permitted adjustment. Verify the applicable current chapter/monograph and local approved procedure before changing method conditions."
+  },
+  {
+    "id": "FDA-OOS-12",
+    "authority": "U.S. FDA",
+    "title": "Investigating Out-of-Specification (OOS) Test Results for Pharmaceutical Production",
+    "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/investigating-out-specification-oos-test-results-pharmaceutical-production-level-2-revision",
+    "areas": ["GMP Investigation"],
+    "keywords": ["OOS", "OOT", "GMP", "investigation", "retest", "retesting", "laboratory error", "data integrity", "تحقيق", "إعادة الاختبار", "خطأ معملي", "توثيق", "نتيجة خارج المواصفة"],
+    "evidence": "FDA guidance requires scientifically sound investigation of OOS results and documentation of the assessment. Retesting should not substitute for investigation or be used simply to obtain a passing result; conclusions that assign laboratory error require supporting evidence.",
+    "guardrail": "The app provides decision support only; formal OOS/OOT handling must follow the laboratory's approved SOP, QA oversight, applicable regulations, and the current guidance."
+  },
+  {
+    "id": "ICH-Q2Q14-13",
+    "authority": "ICH",
+    "title": "ICH Q2(R2) Validation of Analytical Procedures and Q14 Analytical Procedure Development",
+    "url": "https://admin.ich.org/page/quality-guidelines",
+    "areas": ["Method", "GMP Investigation"],
+    "keywords": ["Q2", "Q14", "validation", "method change", "analytical procedure", "revalidation", "method lifecycle", "تحقق", "تغيير الطريقة", "إعادة التحقق", "دورة حياة الطريقة"],
+    "evidence": "ICH Q2(R2) and Q14 frame analytical procedures across development, validation, and lifecycle management. Changes should be evaluated scientifically and with risk-based consideration of which performance characteristics may be affected and whether partial or full revalidation is needed.",
+    "guardrail": "Do not treat troubleshooting adjustments as automatically validated method changes; distinguish diagnostic testing from approved routine method conditions."
+  },
+  {
+    "id": "SHIMADZU-RT-14",
+    "authority": "Shimadzu",
+    "title": "Diagnosing HPLC Chromatography Problems & Troubleshooting",
+    "url": "https://www.ssi.shimadzu.com/service-support/faq/liquid-chromatography/knowledge-base/diagnosing-chromatography-problems-troubleshooting/index.html",
+    "areas": ["Retention Time", "Peak Shape"],
+    "keywords": ["retention time shifting", "retention shift", "pump", "peak height", "peak area", "column", "RT shift", "تغير زمن الاحتجاز", "مضخة", "ارتفاع القمة", "مساحة القمة", "عمود"],
+    "evidence": "Shimadzu illustrates how the pattern of which metrics change can help localize a problem: for example, retention-time shifts with stable area can point toward flow-delivery issues, while peak-height change with stable area and retention can indicate a different mechanism. Pattern comparison is more informative than a single symptom alone.",
+    "guardrail": "Vendor examples are diagnostic patterns, not universal proof. Confirm with measurements on the actual system."
+  }
+]
