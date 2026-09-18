@@ -4,7 +4,6 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
-
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
@@ -59,7 +58,7 @@ st.markdown(
       .hero-card {
         position: relative;
         overflow: hidden;
-        padding: 1.35rem 1.35rem 1.2rem 1.35rem;
+        padding: 1.35rem;
         margin: 0 0 1.1rem 0;
         border-radius: 22px;
         background: linear-gradient(145deg, #07101f 0%, #101b2d 58%, #161a22 100%);
@@ -91,13 +90,13 @@ st.markdown(
 
       .hero-title {
         font-size: 2rem;
-        line-height: 1.08;
+        line-height: 1.12;
         font-weight: 850;
         margin: 0;
-        color: #ffffff;
+        color: #fff;
       }
 
-      .hero-title-ar {
+      .hero-title-ar, .hero-ar, .hero-description-ar {
         direction: rtl;
         unicode-bidi: plaintext;
         text-align: right;
@@ -105,11 +104,8 @@ st.markdown(
       }
 
       .hero-ar {
-        direction: rtl;
-        unicode-bidi: plaintext;
-        text-align: right;
         font-size: 1.25rem;
-        line-height: 1.4;
+        line-height: 1.45;
         font-weight: 750;
         margin: .38rem 0 .7rem 0;
         color: #e8edf5;
@@ -132,16 +128,9 @@ st.markdown(
 
       .hero-description {
         font-size: .9rem;
-        line-height: 1.55;
+        line-height: 1.65;
         color: #cbd5e1;
         margin: 0 0 .85rem 0;
-      }
-
-      .hero-description-ar {
-        direction: rtl;
-        unicode-bidi: plaintext;
-        text-align: right;
-        letter-spacing: 0;
       }
 
       .hero-byline {
@@ -185,8 +174,33 @@ st.markdown(
         text-transform: none;
       }
 
+      .sidebar-note-ar {
+        direction: rtl;
+        text-align: right;
+        background: #dcecff;
+        border: 1px solid #c5ddf8;
+        border-radius: 14px;
+        padding: 1rem 1rem .9rem 1rem;
+        color: #0b5f9d;
+        line-height: 1.8;
+        font-size: .94rem;
+        margin: .65rem 0 1rem 0;
+      }
+
+      .sidebar-note-ar strong {
+        color: #084d80;
+      }
+
+      .sidebar-list {
+        margin: .45rem 0 0 0;
+        padding: 0 1.15rem 0 0;
+      }
+
+      .sidebar-list li {
+        margin: .14rem 0;
+      }
+
       .small-note {font-size: .88rem; opacity: .78;}
-      .arabic-note {direction: rtl; text-align: right;}
 
       div[data-baseweb="select"] > div {
         border-radius: 14px;
@@ -200,15 +214,15 @@ st.markdown(
         }
         .hero-card {
           border-radius: 19px;
-          padding: 1.15rem 1.05rem 1.05rem 1.05rem;
+          padding: 1.15rem 1.05rem;
         }
         .hero-title {
           font-size: 1.58rem;
-          line-height: 1.2;
+          line-height: 1.22;
         }
         .hero-ar {
-          font-size: 1.03rem;
-          text-align: right;
+          font-size: 1.06rem;
+          line-height: 1.5;
         }
         .hero-tagline {
           font-size: .80rem;
@@ -216,6 +230,7 @@ st.markdown(
         }
         .hero-description {
           font-size: .84rem;
+          line-height: 1.7;
         }
         .hero-byline {
           font-size: .74rem;
@@ -228,7 +243,6 @@ st.markdown(
 
 TEXT = {
     "en": {
-        "subtitle": "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC",
         "setup": "Investigation Setup",
         "area": "Closest investigation area",
         "scope": "v0.4 scope",
@@ -246,16 +260,14 @@ TEXT = {
         "language": "Language / اللغة",
     },
     "ar": {
-        "subtitle": "دعم اتخاذ القرار والتحقيق في مشكلات HPLC داخل معامل الرقابة الدوائية — بناءً على الأدلة",
         "setup": "إعداد التحقيق",
         "area": "أقرب نوع للمشكلة",
         "scope": "نطاق v0.4",
-        "notice": "الأداة تدعم القرار ولا تستبدل إجراءات المعمل المعتمدة. أي تحقيق GMP رسمي يجب أن يتبع الـSOP ومتطلبات QA واللوائح المعمول بها.",
         "new": "بدء تحقيق جديد",
         "start": "ابدأ بالملاحظة… وليس بالتشخيص.",
         "example_label": "مثال",
         "example": "كان الضغط المعتاد 180 bar. اليوم أصبح 310 bar بعد حوالي 25 injection. نفس الـmethod والـcolumn والـflow والـmobile phase.",
-        "guidance": "المساعد يجب أن يفصل بين الحقائق والافتراضات، يحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
+        "guidance": "المساعد يفصل بين الحقائق والافتراضات، يحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
         "input": "اكتب ملاحظة الـHPLC أو أجب عن آخر سؤال تشخيصي...",
         "spinner": "نتتبع الأدلة...",
         "api_error": "تعذر إكمال طلب الـAPI. راجع المفتاح، الرصيد/الفوترة، وصلاحية النموذج ثم حاول مرة أخرى.",
@@ -267,9 +279,9 @@ TEXT = {
 
 if language == "ar":
     T = TEXT["ar"]
-    hero_title_html = '🧪 مساعد يحيى لتحقيقات <span class="ltr-term">HPLC</span>'
+    hero_title_html = '🧪 مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span>'
     hero_secondary_html = ""
-    hero_description_html = 'دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية — بناءً على الأدلة'
+    hero_description_html = 'دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية، بناءً على الأدلة.'
     title_class = "hero-title hero-title-ar"
     description_class = "hero-description hero-description-ar"
     language_label_html = '<div class="section-label section-label-ar">اختر اللغة</div>'
@@ -277,15 +289,15 @@ elif language == "en":
     T = TEXT["en"]
     hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
     hero_secondary_html = ""
-    hero_description_html = T["subtitle"]
+    hero_description_html = "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC"
     title_class = "hero-title"
     description_class = "hero-description"
     language_label_html = '<div class="section-label">Choose your language</div>'
 else:
     T = TEXT["en"]
     hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
-    hero_secondary_html = '<div class="hero-ar">مساعد يحيى لتحقيقات <span class="ltr-term">HPLC</span></div>'
-    hero_description_html = 'Evidence-based HPLC troubleshooting & analytical decision support<br><span dir="rtl" style="display:block;text-align:right;margin-top:.3rem;">تحقيق وتحليل قائم على الأدلة في مشكلات <span class="ltr-term">HPLC</span></span>'
+    hero_secondary_html = '<div class="hero-ar">مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span></div>'
+    hero_description_html = 'Evidence-based HPLC troubleshooting & analytical decision support<br><span dir="rtl" style="display:block;text-align:right;margin-top:.3rem;">دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية، بناءً على الأدلة.</span>'
     title_class = "hero-title"
     description_class = "hero-description"
     language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>'
@@ -310,7 +322,7 @@ st.markdown(
 )
 
 st.markdown(language_label_html, unsafe_allow_html=True)
-language_label = st.selectbox(
+st.selectbox(
     T["language"],
     list(LANG_OPTIONS.keys()),
     index=list(LANG_OPTIONS.keys()).index(current_language_label),
@@ -322,19 +334,30 @@ with st.sidebar:
     st.header(T["setup"])
     area = st.selectbox(
         T["area"],
-        [
-            "Auto-detect",
-            "Pressure",
-            "Retention Time",
-            "Peak Shape",
-            "Baseline",
-            "Carryover / Ghost Peaks",
-        ],
+        ["Auto-detect", "Pressure", "Retention Time", "Peak Shape", "Baseline", "Carryover / Ghost Peaks"],
     )
     st.markdown("---")
     st.markdown(f"**{T['scope']}**")
     st.markdown("Pressure · RT · Peak Shape · Baseline · Carryover/Ghost Peaks")
-    st.info(T["notice"])
+
+    if language == "ar":
+        st.markdown(
+            """
+            <div class="sidebar-note-ar">
+              <strong>الأداة تدعم القرار، ولا تستبدل إجراءات المعمل المعتمدة.</strong><br>
+              أي تحقيق رسمي ضمن <span class="ltr-term">GMP</span> يجب أن يلتزم بـ:
+              <ul class="sidebar-list">
+                <li><span class="ltr-term">SOP</span> المعتمد</li>
+                <li>متطلبات <span class="ltr-term">QA</span></li>
+                <li>اللوائح والإجراءات المعمول بها</li>
+              </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info(TEXT["en"]["notice"])
+
     if st.button(T["new"], use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -352,15 +375,12 @@ if not st.session_state.messages:
     if is_ar:
         st.markdown(
             f"""
-<div dir="rtl" style="text-align:right">
-<h3>{T['start']}</h3>
-
-<strong>{T['example_label']}</strong>
-
-<blockquote>{T['example']}</blockquote>
-
-{T['guidance']}
-</div>
+            <div dir="rtl" style="text-align:right">
+              <h3>{T['start']}</h3>
+              <strong>{T['example_label']}</strong>
+              <blockquote>{T['example']}</blockquote>
+              {T['guidance']}
+            </div>
             """,
             unsafe_allow_html=True,
         )
@@ -408,10 +428,7 @@ if user_input:
         + f"LANGUAGE BEHAVIOR: {language_instruction}"
     )
 
-    api_history = [
-        {"role": m["role"], "content": m["content"]}
-        for m in st.session_state.messages
-    ]
+    api_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
     with st.chat_message("assistant"):
         with st.spinner(T["spinner"]):
@@ -431,5 +448,7 @@ if user_input:
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 st.markdown("---")
-footer = "v0.4 · Yahia HPLC Investigation Assistant · Bilingual Pharmaceutical QC decision support"
-st.markdown(f'<div class="small-note">{footer}</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="small-note">v0.4 · Yahia HPLC Investigation Assistant · Bilingual Pharmaceutical QC decision support</div>',
+    unsafe_allow_html=True,
+)
