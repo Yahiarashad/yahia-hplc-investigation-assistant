@@ -127,7 +127,9 @@ def run_beta_assessment_page():
     def beta_page_link(page, *args, **kwargs):
         label = kwargs.get("label")
         if label == "🧪 عندك مشكلة HPLC الآن؟ افتح مساعد يحيى للتحقيق":
-            kwargs["label"] = "عندك مشكلة في HPLC؟ افتح مساعد يحيى للتحقيق الآن 🧪"
+            kwargs["label"] = "\u2067عندك مشكلة في \u2066HPLC\u2069؟ افتح مساعد يحيى للتحقيق الآن 🧪\u2069"
+        elif label == "🧪 Have an HPLC problem now? Open Yahia Investigation Assistant":
+            kwargs["label"] = "\u2066🧪 Have an HPLC problem? Open Yahia HPLC Investigation Assistant\u2069"
         return base_page_link(page, *args, **kwargs)
 
     st.markdown = beta_markdown
