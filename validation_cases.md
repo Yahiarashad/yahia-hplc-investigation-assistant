@@ -191,6 +191,37 @@ PASS if the assistant:
 5. Avoids repeating injections simply to obtain acceptable numbers.
 6. Recommends only one high-value discriminating check/test at a time.
 
+### Blind test result — PASS WITH DIAGNOSTIC-PRIORITY GAP (v0.5)
+Observed investigation path during live testing:
+- The assistant first clarified whether the reported changes reflected peak areas/calculated results and asked for injection-order behavior rather than immediately blaming the injector, detector, standard, or column.
+- It used stable RT and peak shape, together with repeatable response loss, to move away from a pure chromatographic-separation explanation.
+- It compared current and historical standard behavior, preparation/calculation factors, detector/acquisition settings, reference-material information, and then preparation execution.
+- The user later volunteered that the only reported operational change was a different analyst. The assistant had not independently asked the high-value question "what changed between the last acceptable run and the current failing run?" early enough.
+- Once the analyst/preparation delta was known, the assistant correctly shifted toward execution details of standard preparation rather than treating the analyst identity itself as causal.
+- A controlled comparison between independently prepared standards localized the difference to preparation execution.
+- Subsequent evidence identified use of a filter that was not part of the approved method as the discriminating preparation difference.
+- A targeted comparison reproduced the low preservative responses when that same filter was used, while unfiltered preparation gave the expected historical behavior.
+- At that point, the assistant classified the filter-related loss as ROOT CAUSE CONFIRMED because the targeted intervention reproduced the failure in the predicted direction and the comparator behaved normally.
+- It still avoided claiming an unsupported exact physicochemical mechanism of loss and recommended preserving raw data, preparation records, filter details, chromatograms, and QA/SOP investigation documentation.
+
+### Diagnostic gap identified
+The assistant should have asked much earlier:
+**"What changed between the last acceptable analysis and the current failing analysis?"**
+
+Because a historical acceptable comparator existed, this was one of the highest-value unknowns and could have shortened the investigation materially.
+
+This finding triggered the v0.6 **Change-Delta Check** rule in the core prompt.
+
+### Case 03 score
+- Evidence discipline: 2/2
+- Diagnostic value: 1/2
+- Root-cause restraint: 2/2
+- One-variable logic: 2/2
+- GMP / data-integrity logic: 2/2
+- Clarity: 2/2
+
+**Total: 11/12 — PASS**
+
 ---
 
 # Scoring Rubric
@@ -236,6 +267,9 @@ Suggested pass threshold: 10/12 with no score of 0 in Evidence discipline, Root-
 
 - Case 01: **PASS — 12/12 (v0.5 live test)**
 - Case 02: **PASS — 12/12 (v0.5 live test)**
-- Case 03: Ready for blind test
+- Case 03: **PASS — 11/12 (v0.5 live test; diagnostic-priority gap identified)**
 
-Next step: run Case 03 as a fresh investigation and score it with the same rubric before making any new core-prompt changes.
+## v0.6 improvement triggered by Case 03
+When a prior acceptable run/result exists, the assistant must ask early what changed between the last-known-good state and the current failing state, unless that delta has already been supplied. A changed factor remains only a lead until a discriminating test supports or confirms it.
+
+Next step: rerun a fresh historical-pass/current-failure case against v0.6 to verify that the Change-Delta Check appears early without causing premature attribution.
