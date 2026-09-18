@@ -124,6 +124,29 @@ PASS if the assistant:
 4. Does not equate low concentration with root cause.
 5. Chooses a discriminating next step rather than multiple simultaneous changes.
 
+### Blind test result — PASS (v0.5)
+Observed investigation path during live testing:
+- The assistant immediately treated the broadening as selective rather than as a universal chromatographic failure.
+- It first asked whether the same broadening appeared in the standard or only in the sample, then used the repeated broadening in the standard as evidence against a sample-preparation-only explanation.
+- It requested comparison with historical standard/SST chromatograms and asked whether RT or only peak width/shape had changed.
+- The reported RT remained unchanged, historical chromatograms showed a sharp peak, repeat preparation did not restore the shape, mobile-phase pH was verified, and the method used a guard column.
+- From those facts, the assistant kept multiple hypotheses open and did not claim that low concentration itself was the root cause.
+- It proposed an isolated guard-column intervention as a discriminating test while explicitly avoiding simultaneous changes to the analytical column or mobile phase.
+- When the user asked whether the guard column could be washed instead of replaced, the assistant correctly conditioned that action on the approved SOP and manufacturer instructions and explained how to interpret the result.
+- After guard-column washing/reconditioning restored the sharp peak and the improvement persisted through the sequence, the assistant classified the guard column as a strongly supported probable cause rather than an absolutely confirmed contamination source.
+- It distinguished evidence that the guard column was involved from evidence about the exact contamination/obstruction mechanism, and requested history/documentation before stronger attribution.
+- It preserved GMP/data-integrity logic by asking for before/after chromatograms, wash details, SST/sequence results, and SOP/QA documentation where applicable.
+
+### Case 02 score
+- Evidence discipline: 2/2
+- Diagnostic value: 2/2
+- Root-cause restraint: 2/2
+- One-variable logic: 2/2
+- GMP / data-integrity logic: 2/2
+- Clarity: 2/2
+
+**Total: 12/12 — PASS**
+
 ---
 
 ## CASE 03 — Three Preservatives: Repeated Standard Injections Give Changing Results
@@ -212,7 +235,7 @@ Suggested pass threshold: 10/12 with no score of 0 in Evidence discipline, Root-
 # Validation Status
 
 - Case 01: **PASS — 12/12 (v0.5 live test)**
-- Case 02: Ready for blind test
+- Case 02: **PASS — 12/12 (v0.5 live test)**
 - Case 03: Ready for blind test
 
-Next step: run Case 02 as a fresh investigation, capture the assistant's exact path, and score it using the same rubric before making any new core-prompt changes.
+Next step: run Case 03 as a fresh investigation and score it with the same rubric before making any new core-prompt changes.
