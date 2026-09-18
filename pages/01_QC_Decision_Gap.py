@@ -29,8 +29,9 @@ st.session_state["_qc_gap_prev_active"] = _current_active
 # -----------------------------------------------------------------------------
 # Mobile UX layer.
 # 1) Visually separates each answer into a card.
-# 2) Scrolls to the EXACT first question of the active stage (6, 11, 16, ...)
-#    instead of assuming a fixed DOM position for the first assessment radio.
+# 2) Scrolls the REAL Streamlit scroll container to the first question of the
+#    active stage. Streamlit mobile pages usually scroll inside an internal
+#    container rather than window.parent, so window-based offsets are unreliable.
 # -----------------------------------------------------------------------------
 _pending_target = st.session_state.pop("_qc_gap_scroll_target", None)
 _target_js = repr(_pending_target) if _pending_target else "null"
@@ -85,27 +86,55 @@ components.html(
         }});
       }}
 
-      function scrollWithOffset(el, offsetPx) {{
-        if (!el) return false;
-        const currentY = win.pageYOffset || doc.documentElement.scrollTop || 0;
-        const y = el.getBoundingClientRect().top + currentY - offsetPx;
-        win.scrollTo({{top: Math.max(0, y), behavior: 'smooth'}});
+      function findScrollableAncestor(el) {{
+        let node = el ? el.parentElement : null;
+        while (node && node !== doc.body && node !== doc.documentElement) {{
+          const style = win.getComputedStyle(node);
+          const overflowY = style.overflowY;
+          if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 2) {{
+            return node;
+          }}
+          node = node.parentElement;
+        }}
 
-        // Correct again after mobile layout/text reflow settles.
-        setTimeout(() => {{
-          const nowY = win.pageYOffset || doc.documentElement.scrollTop || 0;
-          const corrected = el.getBoundingClientRect().top + nowY - offsetPx;
-          win.scrollTo({{top: Math.max(0, corrected), behavior: 'auto'}});
-        }}, 520);
+        // Streamlit fallbacks across recent builds.
+        const candidates = [
+          doc.querySelector('[data-testid="stMain"]'),
+          doc.querySelector('section.main'),
+          doc.querySelector('[data-testid="stAppViewContainer"]')
+        ].filter(Boolean);
+        for (const candidate of candidates) {{
+          if (candidate.scrollHeight > candidate.clientHeight + 2) return candidate;
+        }}
+        return doc.scrollingElement || doc.documentElement;
+      }}
+
+      function scrollElementToTop(el, offsetPx) {{
+        if (!el) return false;
+        const scroller = findScrollableAncestor(el);
+
+        function positionNow(behavior) {{
+          const elRect = el.getBoundingClientRect();
+          if (scroller === doc.scrollingElement || scroller === doc.documentElement || scroller === doc.body) {{
+            const current = win.scrollY || doc.documentElement.scrollTop || 0;
+            win.scrollTo({{top: Math.max(0, current + elRect.top - offsetPx), behavior}});
+          }} else {{
+            const scRect = scroller.getBoundingClientRect();
+            const target = scroller.scrollTop + (elRect.top - scRect.top) - offsetPx;
+            scroller.scrollTo({{top: Math.max(0, target), behavior}});
+          }}
+        }}
+
+        positionNow('auto');
+        // Two corrections after Streamlit finishes mobile text/layout reflow.
+        setTimeout(() => positionNow('auto'), 260);
+        setTimeout(() => positionNow('auto'), 700);
         return true;
       }}
 
-      function findQuestionById(questionId) {{
-        const prefix = String(questionId) + '.';
-        return assessmentRadios().find((widget) => {{
-          const text = (widget.innerText || '').trim();
-          return text.startsWith(prefix);
-        }}) || null;
+      function firstQuestionOfCurrentStage() {{
+        const radios = assessmentRadios();
+        return radios.length ? radios[0] : null;
       }}
 
       function findResultHeading() {{
@@ -121,20 +150,24 @@ components.html(
         let attempts = 0;
         function attempt() {{
           let done = false;
-          if (typeof pendingTarget === 'string' && pendingTarget.startsWith('q:')) {{
-            const questionId = parseInt(pendingTarget.split(':')[1], 10);
-            done = scrollWithOffset(findQuestionById(questionId), 118);
+          if (pendingTarget === 'stage') {{
+            // Current stage renders only its five questions, therefore the
+            // first assessment radio is always Q1 / Q6 / Q11 / ... correctly.
+            done = scrollElementToTop(firstQuestionOfCurrentStage(), 104);
           }} else if (pendingTarget === 'result') {{
-            done = scrollWithOffset(findResultHeading(), 110);
+            done = scrollElementToTop(findResultHeading(), 96);
           }} else if (pendingTarget === 'top') {{
-            win.scrollTo({{top: 0, behavior: 'smooth'}});
+            const root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+            const scroller = findScrollableAncestor(root);
+            if (scroller && scroller.scrollTo) scroller.scrollTo({{top: 0, behavior: 'auto'}});
+            else win.scrollTo({{top: 0, behavior: 'auto'}});
             done = true;
           }}
 
           attempts += 1;
-          if (!done && attempts < 35) setTimeout(attempt, 120);
+          if (!done && attempts < 40) setTimeout(attempt, 120);
         }}
-        setTimeout(attempt, 180);
+        setTimeout(attempt, 160);
       }}
 
       decorateQuestionRadios();
@@ -255,11 +288,9 @@ def _rerun_with_scroll(*args, **kwargs):
     if st.session_state.get("gap_done"):
         st.session_state["_qc_gap_scroll_target"] = "result"
     elif st.session_state.get("gap_started"):
-        # The core changes gap_step BEFORE calling st.rerun(). Each stage has
-        # five questions, so this points to 1, 6, 11, 16, 21, or 26 exactly.
-        step = int(st.session_state.get("gap_step", 0))
-        first_question_id = (step * 5) + 1
-        st.session_state["_qc_gap_scroll_target"] = f"q:{first_question_id}"
+        # The currently rendered stage contains only five questions. Scroll to
+        # the first one directly; this is more robust than DOM text matching.
+        st.session_state["_qc_gap_scroll_target"] = "stage"
     else:
         st.session_state["_qc_gap_scroll_target"] = "top"
     return _original_rerun(*args, **kwargs)
