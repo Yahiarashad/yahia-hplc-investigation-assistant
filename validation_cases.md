@@ -54,6 +54,32 @@ PASS if the assistant:
 4. Requests confirmation of the highest-value method/system variables before recommending changes.
 5. Avoids naming a root cause without evidence.
 
+### Blind test result — PASS (v0.5)
+Observed investigation path during live testing:
+- The assistant preserved the initial facts without inventing history or trend.
+- It treated the RT shift, distorted peak, and resolution loss as separate observations.
+- After two independently prepared mobile phases produced the same failure, it reduced support for a preparation-specific explanation without declaring a root cause.
+- A cross-system comparison using the same sample/reference conditions showed the method passed on an Alliance system while failing on the ARC system, strongly localizing the issue to the ARC system/path rather than the sample, mobile phase, method, or column alone.
+- The assistant then requested a discriminating check of actual flow and pressure rather than recommending immediate replacement of the column or method changes.
+- The reported ARC actual flow and system pressure were approximately double the Alliance values under the same method conditions, while RT on ARC was approximately 3 min vs approximately 6 min on Alliance.
+- The assistant connected the observed near-doubling of flow with the observed near-halving of RT, but still kept the conclusion provisional pending correction and confirmatory rerun.
+- It recommended preserving chromatograms, instrument records, SST/investigation evidence, and following approved SOP/QA requirements.
+
+### Case 01 score
+- Evidence discipline: 2/2
+- Diagnostic value: 2/2
+- Root-cause restraint: 2/2
+- One-variable logic: 2/2
+- GMP / data-integrity logic: 2/2
+- Clarity: 2/2
+
+**Total: 12/12 — PASS**
+
+### v0.5 UX checks during Case 01
+- Arabic RTL rendering and mixed Arabic/English technical terminology: PASS
+- Response readability on mobile: PASS
+- Conversation persistence after accidental refresh: PASS
+
 ---
 
 ## CASE 02 — Selective Peak Broadening in a Two-API Product
@@ -185,8 +211,8 @@ Suggested pass threshold: 10/12 with no score of 0 in Evidence discipline, Root-
 
 # Validation Status
 
-- Case 01: Ready for blind test
+- Case 01: **PASS — 12/12 (v0.5 live test)**
 - Case 02: Ready for blind test
 - Case 03: Ready for blind test
 
-Next step: run the current assistant against these cases, capture the exact responses, score each response, then update the core prompt only where a failure pattern is observed.
+Next step: run Case 02 as a fresh investigation, capture the assistant's exact path, and score it using the same rubric before making any new core-prompt changes.
