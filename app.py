@@ -1,4 +1,7 @@
 import os
+import re
+import sqlite3
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -7,6 +10,7 @@ from openai import OpenAI
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
+DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -30,6 +34,60 @@ def get_api_key():
     return os.environ.get("OPENAI_API_KEY")
 
 
+def contains_arabic(text: str) -> bool:
+    return bool(re.search(r"[\u0600-\u06FF]", text or ""))
+
+
+def init_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                case_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                PRIMARY KEY (case_id, seq)
+            )
+            """
+        )
+        conn.commit()
+
+
+def load_messages(case_id: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT role, content FROM messages WHERE case_id = ? ORDER BY seq",
+            (case_id,),
+        ).fetchall()
+    return [{"role": role, "content": content} for role, content in rows]
+
+
+def save_message(case_id: str, role: str, content: str):
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM messages WHERE case_id = ?",
+            (case_id,),
+        ).fetchone()
+        next_seq = int(row[0]) + 1
+        conn.execute(
+            "INSERT INTO messages (case_id, seq, role, content) VALUES (?, ?, ?, ?)",
+            (case_id, next_seq, role, content),
+        )
+        conn.commit()
+
+
+def get_case_id() -> str:
+    raw = st.query_params.get("case")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else None
+    if isinstance(raw, str) and re.fullmatch(r"[A-Za-z0-9_-]{8,64}", raw):
+        return raw
+    new_id = uuid.uuid4().hex[:16]
+    st.query_params["case"] = new_id
+    return new_id
+
+
 def format_api_error(exc, language: str) -> str:
     """Return a safe diagnostic error without exposing secrets."""
     status = getattr(exc, "status_code", None)
@@ -44,13 +102,13 @@ def format_api_error(exc, language: str) -> str:
     code = str(code or exc.__class__.__name__)
 
     ar_messages = {
-        "credit_balance_exhausted": "لا يوجد رصيد API متاح حاليًا. راجع Billing / Credits في OpenAI Platform.",
-        "insufficient_quota": "لا توجد حصة أو رصيد كافٍ لإكمال الطلب. راجع Billing / Credits.",
+        "credit_balance_exhausted": "لا يوجد رصيد متاح لواجهة OpenAI API حاليًا. راجع صفحة الفوترة والرصيد في OpenAI Platform.",
+        "insufficient_quota": "لا توجد حصة أو رصيد كافٍ لإكمال الطلب. راجع صفحة الفوترة والرصيد.",
         "organization_usage_limit_exceeded": "تم الوصول إلى حد الاستخدام المسموح للمؤسسة.",
         "organization_spend_limit_exceeded": "تم الوصول إلى حد الإنفاق المحدد للمؤسسة.",
         "project_spend_limit_exceeded": "تم الوصول إلى حد الإنفاق المحدد للمشروع.",
         "model_not_found": "النموذج المحدد غير متاح لهذا المشروع أو الحساب.",
-        "invalid_api_key": "مفتاح الـAPI غير صالح أو لم يعد فعالًا.",
+        "invalid_api_key": "مفتاح API غير صالح أو لم يعد فعالًا.",
         "rate_limit_exceeded": "تم الوصول مؤقتًا إلى حد معدل الطلبات. حاول بعد قليل.",
     }
     en_messages = {
@@ -65,10 +123,10 @@ def format_api_error(exc, language: str) -> str:
     }
 
     if language == "ar":
-        explanation = ar_messages.get(code, "تعذر إكمال طلب الـAPI. استخدم رمز الخطأ أدناه لتحديد السبب.")
-        result = f"{explanation}\n\n**Error code:** `{code}`"
+        explanation = ar_messages.get(code, "تعذر إكمال طلب API. استخدم رمز الخطأ أدناه لتحديد السبب.")
+        result = f"{explanation}\n\n**رمز الخطأ:** `{code}`"
         if status:
-            result += f"\n\n**HTTP status:** `{status}`"
+            result += f"\n\n**حالة HTTP:** `{status}`"
         return result
 
     explanation = en_messages.get(code, "The API request could not be completed. Use the error code below to identify the cause.")
@@ -78,21 +136,44 @@ def format_api_error(exc, language: str) -> str:
     return result
 
 
+init_db()
 CORE_PROMPT = load_core_prompt()
 API_KEY = get_api_key()
+CASE_ID = get_case_id()
+
+if st.session_state.get("case_id") != CASE_ID:
+    st.session_state.case_id = CASE_ID
+    st.session_state.messages = load_messages(CASE_ID)
+elif "messages" not in st.session_state:
+    st.session_state.messages = load_messages(CASE_ID)
 
 LANG_OPTIONS = {
     "Auto — لغة المستخدم": "auto",
     "العربية": "ar",
     "English": "en",
 }
+LANG_LABEL_BY_CODE = {value: key for key, value in LANG_OPTIONS.items()}
+
+query_lang = st.query_params.get("lang")
+if isinstance(query_lang, list):
+    query_lang = query_lang[0] if query_lang else None
 
 if "ui_language_label" not in st.session_state:
-    st.session_state.ui_language_label = "Auto — لغة المستخدم"
+    st.session_state.ui_language_label = LANG_LABEL_BY_CODE.get(query_lang, "Auto — لغة المستخدم")
 
 current_language_label = st.session_state.ui_language_label
-language = LANG_OPTIONS[current_language_label]
-is_ar = language == "ar"
+language_mode = LANG_OPTIONS[current_language_label]
+
+last_user_message = next(
+    (m["content"] for m in reversed(st.session_state.messages) if m["role"] == "user"),
+    "",
+)
+if language_mode == "auto":
+    effective_language = "ar" if contains_arabic(last_user_message) else "en"
+else:
+    effective_language = language_mode
+
+is_ar = effective_language == "ar"
 
 st.markdown(
     """
@@ -224,6 +305,7 @@ st.markdown(
 
       .sidebar-note-ar {
         direction: rtl;
+        unicode-bidi: plaintext;
         text-align: right;
         background: #dcecff;
         border: 1px solid #c5ddf8;
@@ -235,23 +317,20 @@ st.markdown(
         margin: .65rem 0 1rem 0;
       }
 
-      .sidebar-note-ar strong {
-        color: #084d80;
+      .sidebar-note-ar strong { color: #084d80; }
+      .sidebar-list { margin: .45rem 0 0 0; padding: 0 1.15rem 0 0; }
+      .sidebar-list li { margin: .14rem 0; }
+      .small-note { font-size: .88rem; opacity: .78; }
+
+      div[data-baseweb="select"] > div { border-radius: 14px; }
+
+      [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+        unicode-bidi: plaintext;
       }
 
-      .sidebar-list {
-        margin: .45rem 0 0 0;
-        padding: 0 1.15rem 0 0;
-      }
-
-      .sidebar-list li {
-        margin: .14rem 0;
-      }
-
-      .small-note {font-size: .88rem; opacity: .78;}
-
-      div[data-baseweb="select"] > div {
-        border-radius: 14px;
+      [data-testid="stChatMessage"] code {
+        direction: ltr;
+        unicode-bidi: isolate;
       }
 
       @media (max-width: 640px) {
@@ -260,93 +339,109 @@ st.markdown(
           padding-right: 1rem;
           padding-top: 5.8rem;
         }
-        .hero-card {
-          border-radius: 19px;
-          padding: 1.15rem 1.05rem;
-        }
-        .hero-title {
-          font-size: 1.58rem;
-          line-height: 1.22;
-        }
-        .hero-ar {
-          font-size: 1.06rem;
-          line-height: 1.5;
-        }
-        .hero-tagline {
-          font-size: .80rem;
-          letter-spacing: .035em;
-        }
-        .hero-description {
-          font-size: .84rem;
-          line-height: 1.7;
-        }
-        .hero-byline {
-          font-size: .74rem;
-        }
+        .hero-card { border-radius: 19px; padding: 1.15rem 1.05rem; }
+        .hero-title { font-size: 1.58rem; line-height: 1.22; }
+        .hero-ar { font-size: 1.06rem; line-height: 1.5; }
+        .hero-tagline { font-size: .80rem; letter-spacing: .035em; }
+        .hero-description { font-size: .84rem; line-height: 1.7; }
+        .hero-byline { font-size: .74rem; }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+if is_ar:
+    st.markdown(
+        """
+        <style>
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+            direction: rtl;
+            text-align: right;
+            unicode-bidi: plaintext;
+          }
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li,
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h1,
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h2,
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h3,
+          [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h4 {
+            direction: rtl;
+            text-align: right;
+            unicode-bidi: plaintext;
+          }
+          [data-testid="stChatInput"] textarea {
+            direction: rtl;
+            text-align: right;
+            unicode-bidi: plaintext;
+          }
+          [data-testid="stChatInput"] textarea::placeholder {
+            direction: rtl;
+            text-align: right;
+          }
+          [data-testid="stSidebar"] {
+            direction: rtl;
+            text-align: right;
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 TEXT = {
     "en": {
         "setup": "Investigation Setup",
         "area": "Closest investigation area",
-        "scope": "v0.4 scope",
-        "notice": "Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations.",
+        "scope": "v0.5 scope",
         "new": "Start new investigation",
         "start": "Start with the observation — not your diagnosis.",
         "example_label": "Example case",
         "example": "Pressure was normally 180 bar. Today it was 310 bar after about 25 injections. Same method, column, flow, and mobile phase.",
-        "guidance": "The assistant should separate facts from assumptions, identify the critical missing evidence, and choose the next test that best separates the hypotheses.",
+        "guidance": "The assistant separates facts from assumptions, identifies the critical missing evidence, and selects the next test that best separates the hypotheses.",
         "input": "Describe the HPLC observation, or answer the last diagnostic question...",
         "spinner": "Following the evidence...",
         "no_text": "No text response was returned. Please try again.",
         "api_missing": "The app is not connected to the OpenAI API yet. Add OPENAI_API_KEY in Streamlit Secrets, then reboot the app.",
         "language": "Language / اللغة",
+        "autosave": "Auto-save is on. Refreshing this page will restore this investigation.",
+        "case": "Case",
     },
     "ar": {
         "setup": "إعداد التحقيق",
         "area": "أقرب نوع للمشكلة",
-        "scope": "نطاق v0.4",
+        "scope": "نطاق v0.5",
         "new": "بدء تحقيق جديد",
-        "start": "ابدأ بالملاحظة… وليس بالتشخيص.",
+        "start": "ابدأ بالملاحظة، وليس بالتشخيص.",
         "example_label": "مثال",
-        "example": "كان الضغط المعتاد 180 bar. اليوم أصبح 310 bar بعد حوالي 25 injection. نفس الـmethod والـcolumn والـflow والـmobile phase.",
-        "guidance": "المساعد يفصل بين الحقائق والافتراضات، يحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
-        "input": "اكتب ملاحظة الـHPLC أو أجب عن آخر سؤال تشخيصي...",
+        "example": "كان ضغط النظام المعتاد 180 bar. اليوم وصل إلى 310 bar بعد نحو 25 حقنة. طريقة التحليل والعمود ومعدل التدفق والطور المتحرك كما هي.",
+        "guidance": "يفصل المساعد بين الحقائق والافتراضات، ويحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
+        "input": "اكتب ملاحظتك أو أجب عن آخر سؤال تشخيصي...",
         "spinner": "نتتبع الأدلة...",
         "no_text": "لم يتم إرجاع رد نصي. حاول مرة أخرى.",
-        "api_missing": "التطبيق غير متصل بـOpenAI API حتى الآن. أضف OPENAI_API_KEY داخل Streamlit Secrets ثم أعد تشغيل التطبيق.",
+        "api_missing": "التطبيق غير متصل بواجهة OpenAI API حتى الآن. أضف المفتاح داخل Streamlit Secrets ثم أعد تشغيل التطبيق.",
         "language": "اللغة / Language",
+        "autosave": "الحفظ التلقائي مفعّل. تحديث الصفحة سيعيد هذا التحقيق.",
+        "case": "رقم التحقيق",
     },
 }
+T = TEXT[effective_language]
 
-if language == "ar":
-    T = TEXT["ar"]
+if is_ar:
     hero_title_html = '🧪 مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span>'
     hero_secondary_html = ""
     hero_description_html = 'دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية، بناءً على الأدلة.'
     title_class = "hero-title hero-title-ar"
     description_class = "hero-description hero-description-ar"
     language_label_html = '<div class="section-label section-label-ar">اختر اللغة</div>'
-elif language == "en":
-    T = TEXT["en"]
+else:
     hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
     hero_secondary_html = ""
+    if language_mode == "auto":
+        hero_secondary_html = '<div class="hero-ar">مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span></div>'
     hero_description_html = "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC"
     title_class = "hero-title"
     description_class = "hero-description"
-    language_label_html = '<div class="section-label">Choose your language</div>'
-else:
-    T = TEXT["en"]
-    hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
-    hero_secondary_html = '<div class="hero-ar">مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span></div>'
-    hero_description_html = 'Evidence-based HPLC troubleshooting & analytical decision support<br><span dir="rtl" style="display:block;text-align:right;margin-top:.3rem;">دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية، بناءً على الأدلة.</span>'
-    title_class = "hero-title"
-    description_class = "hero-description"
-    language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>'
+    language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>' if language_mode == "auto" else '<div class="section-label">Choose your language</div>'
 
 st.markdown(
     f"""
@@ -376,25 +471,49 @@ st.selectbox(
     label_visibility="collapsed",
 )
 
+selected_language_code = LANG_OPTIONS[st.session_state.ui_language_label]
+if st.query_params.get("lang") != selected_language_code:
+    st.query_params["lang"] = selected_language_code
+
+AREA_EN = {
+    "Auto-detect": "Auto-detect",
+    "Pressure": "Pressure",
+    "Retention Time": "Retention Time",
+    "Peak Shape": "Peak Shape",
+    "Baseline": "Baseline",
+    "Carryover / Ghost Peaks": "Carryover / Ghost Peaks",
+}
+AREA_AR = {
+    "تحديد تلقائي": "Auto-detect",
+    "الضغط": "Pressure",
+    "زمن الاحتجاز (RT)": "Retention Time",
+    "شكل القمة": "Peak Shape",
+    "خط الأساس": "Baseline",
+    "التداخل من الحقن السابق / القمم الوهمية": "Carryover / Ghost Peaks",
+}
+area_options = AREA_AR if is_ar else AREA_EN
+
 with st.sidebar:
     st.header(T["setup"])
-    area = st.selectbox(
-        T["area"],
-        ["Auto-detect", "Pressure", "Retention Time", "Peak Shape", "Baseline", "Carryover / Ghost Peaks"],
-    )
+    area_label = st.selectbox(T["area"], list(area_options.keys()))
+    area = area_options[area_label]
+
     st.markdown("---")
     st.markdown(f"**{T['scope']}**")
-    st.markdown("Pressure · RT · Peak Shape · Baseline · Carryover/Ghost Peaks")
+    if is_ar:
+        st.markdown("الضغط · زمن الاحتجاز · شكل القمة · خط الأساس · التداخل والقمم الوهمية")
+    else:
+        st.markdown("Pressure · RT · Peak Shape · Baseline · Carryover/Ghost Peaks")
 
-    if language == "ar":
+    if is_ar:
         st.markdown(
             """
             <div class="sidebar-note-ar">
               <strong>الأداة تدعم القرار، ولا تستبدل إجراءات المعمل المعتمدة.</strong><br>
               أي تحقيق رسمي ضمن <span class="ltr-term">GMP</span> يجب أن يلتزم بـ:
               <ul class="sidebar-list">
-                <li><span class="ltr-term">SOP</span> المعتمد</li>
-                <li>متطلبات <span class="ltr-term">QA</span></li>
+                <li>إجراء العمل المعتمد (<span class="ltr-term">SOP</span>)</li>
+                <li>متطلبات ضمان الجودة (<span class="ltr-term">QA</span>)</li>
                 <li>اللوائح والإجراءات المعمول بها</li>
               </ul>
             </div>
@@ -402,9 +521,15 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
     else:
-        st.info(TEXT["en"]["notice"])
+        st.info("Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations.")
+
+    st.caption(f"💾 {T['autosave']}")
+    st.caption(f"{T['case']}: `{CASE_ID}`")
 
     if st.button(T["new"], use_container_width=True):
+        new_case_id = uuid.uuid4().hex[:16]
+        st.query_params["case"] = new_case_id
+        st.session_state.case_id = new_case_id
         st.session_state.messages = []
         st.rerun()
 
@@ -414,18 +539,15 @@ if not API_KEY:
 
 client = OpenAI(api_key=API_KEY)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
 if not st.session_state.messages:
     if is_ar:
         st.markdown(
             f"""
-            <div dir="rtl" style="text-align:right">
+            <div dir="rtl" style="text-align:right; unicode-bidi:plaintext;">
               <h3>{T['start']}</h3>
               <strong>{T['example_label']}</strong>
               <blockquote>{T['example']}</blockquote>
-              {T['guidance']}
+              <p>{T['guidance']}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -450,22 +572,24 @@ user_input = st.chat_input(T["input"])
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
+    save_message(CASE_ID, "user", user_input)
+
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    if language == "ar":
+    response_language = effective_language
+    if language_mode == "auto":
+        response_language = "ar" if contains_arabic(user_input) else "en"
+
+    if response_language == "ar":
         language_instruction = (
-            "Respond in clear professional Arabic. Keep standard HPLC/QC technical terms in English when that is more precise or natural. "
-            "Do not translate technical terms into awkward Arabic equivalents."
+            "Respond in natural professional Arabic. Begin headings and bullets in Arabic. "
+            "Keep useful standard HPLC/QC abbreviations in English only when they improve precision, preferably in parentheses after the Arabic term. "
+            "Avoid awkward mixed Arabic-English constructions such as Arabic definite articles attached to English terms. "
+            "Keep paragraphs short and mobile-friendly."
         )
-    elif language == "en":
-        language_instruction = "Respond in clear professional English."
     else:
-        language_instruction = (
-            "Respond in the same primary language as the user's latest message. "
-            "If Arabic, use clear professional Arabic while preserving standard HPLC/QC technical terms in English where useful. "
-            "If English, respond in English. Do not switch languages unexpectedly."
-        )
+        language_instruction = "Respond in clear professional English. Keep the response concise and mobile-friendly."
 
     instructions = (
         CORE_PROMPT
@@ -474,10 +598,14 @@ if user_input:
         + f"LANGUAGE BEHAVIOR: {language_instruction}"
     )
 
-    api_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+    api_history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages
+    ]
 
     with st.chat_message("assistant"):
-        with st.spinner(T["spinner"]):
+        spinner_text = TEXT[response_language]["spinner"]
+        with st.spinner(spinner_text):
             try:
                 response = client.responses.create(
                     model=MODEL,
@@ -486,15 +614,16 @@ if user_input:
                 )
                 answer = response.output_text.strip()
                 if not answer:
-                    answer = T["no_text"]
+                    answer = TEXT[response_language]["no_text"]
+                st.markdown(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})
+                save_message(CASE_ID, "assistant", answer)
             except Exception as exc:
-                answer = format_api_error(exc, language)
-            st.markdown(answer)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+                answer = format_api_error(exc, response_language)
+                st.markdown(answer)
 
 st.markdown("---")
 st.markdown(
-    '<div class="small-note">v0.4 · Yahia HPLC Investigation Assistant · Bilingual Pharmaceutical QC decision support</div>',
+    '<div class="small-note">v0.5 · Yahia HPLC Investigation Assistant · Evidence-first bilingual QC decision support</div>',
     unsafe_allow_html=True,
 )
