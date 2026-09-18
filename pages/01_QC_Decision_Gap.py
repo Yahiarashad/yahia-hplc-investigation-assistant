@@ -1,29 +1,41 @@
 from pathlib import Path
+from collections import Counter
 import hashlib
 import random
 import runpy
 import secrets
 import re
+import time
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 # Thin wrapper around the assessment core.
-# It adds mobile-friendly scroll behavior and an anti-cue presentation layer
-# without changing the scoring or bilingual analytical logic in qc_gap_core.py.
+# It adds mobile-friendly scroll behavior, anti-cue presentation, and an
+# assessment-confidence layer without changing the core scoring logic.
 
 CORE_PATH = Path(__file__).resolve().parents[1] / "qc_gap_core.py"
 
 # -----------------------------------------------------------------------------
-# Attempt seed: keeps answer order stable during one attempt, but changes on a
-# new attempt. Language switching does not reshuffle answered questions.
+# Attempt lifecycle
+# - Stable answer order within one attempt.
+# - New random order on a fresh attempt.
+# - Track elapsed time and displayed answer positions for confidence analysis.
 # -----------------------------------------------------------------------------
 _current_active = bool(st.session_state.get("gap_started") or st.session_state.get("gap_done"))
 _previous_active = bool(st.session_state.get("_qc_gap_prev_active", False))
+
 if "_qc_gap_attempt_seed" not in st.session_state:
     st.session_state["_qc_gap_attempt_seed"] = secrets.randbits(48)
+
+if _current_active and "_qc_gap_started_at" not in st.session_state:
+    st.session_state["_qc_gap_started_at"] = time.time()
+    st.session_state["_qc_gap_display_positions"] = {}
 elif not _current_active and _previous_active:
     st.session_state["_qc_gap_attempt_seed"] = secrets.randbits(48)
+    st.session_state.pop("_qc_gap_started_at", None)
+    st.session_state.pop("_qc_gap_display_positions", None)
+
 st.session_state["_qc_gap_prev_active"] = _current_active
 
 # -----------------------------------------------------------------------------
@@ -97,7 +109,6 @@ components.html(
           node = node.parentElement;
         }}
 
-        // Streamlit fallbacks across recent builds.
         const candidates = [
           doc.querySelector('[data-testid="stMain"]'),
           doc.querySelector('section.main'),
@@ -126,7 +137,6 @@ components.html(
         }}
 
         positionNow('auto');
-        // Two corrections after Streamlit finishes mobile text/layout reflow.
         setTimeout(() => positionNow('auto'), 260);
         setTimeout(() => positionNow('auto'), 700);
         return true;
@@ -151,8 +161,6 @@ components.html(
         function attempt() {{
           let done = false;
           if (pendingTarget === 'stage') {{
-            // Current stage renders only its five questions, therefore the
-            // first assessment radio is always Q1 / Q6 / Q11 / ... correctly.
             done = scrollElementToTop(firstQuestionOfCurrentStage(), 104);
           }} else if (pendingTarget === 'result') {{
             done = scrollElementToTop(findResultHeading(), 96);
@@ -173,7 +181,6 @@ components.html(
       decorateQuestionRadios();
       performPendingScroll();
 
-      // Keep the card treatment after Streamlit rerenders widgets locally.
       const observer = new MutationObserver(() => decorateQuestionRadios());
       observer.observe(doc.body, {{childList: true, subtree: true}});
       setTimeout(() => observer.disconnect(), 5000);
@@ -213,12 +220,6 @@ def _word_count(text):
 
 
 def _balanced_labels(labels, question_key):
-    """Pad shorter choices with neutral analytical clauses.
-
-    The action itself is never changed, and scoring still uses the original
-    option index. Only the displayed wording is balanced to reduce test-taking
-    cues based on length or reasoning density.
-    """
     if not labels:
         return labels
 
@@ -278,7 +279,179 @@ def _anti_cue_radio(label, options, *args, **kwargs):
 
     kwargs["index"] = new_index
     kwargs["format_func"] = lambda value: display_map[value]
-    return _original_radio(label, shuffled_options, *args, **kwargs)
+    selected = _original_radio(label, shuffled_options, *args, **kwargs)
+
+    if selected is not None:
+        try:
+            question_id = int(key.split("_", 1)[1])
+            displayed_position = shuffled_options.index(selected)
+            positions = st.session_state.setdefault("_qc_gap_display_positions", {})
+            positions[question_id] = displayed_position
+        except (ValueError, TypeError):
+            pass
+
+    return selected
+
+
+# -----------------------------------------------------------------------------
+# Assessment Confidence
+# This never changes the score. It estimates whether the response behavior is
+# sufficiently credible for the professional interpretation to be trusted.
+# -----------------------------------------------------------------------------
+def _longest_same_position_streak(position_map):
+    longest = 0
+    current = 0
+    previous = None
+    for question_id in sorted(position_map):
+        value = position_map[question_id]
+        if value == previous:
+            current += 1
+        else:
+            current = 1
+            previous = value
+        longest = max(longest, current)
+    return longest
+
+
+def _assessment_confidence():
+    position_map = dict(st.session_state.get("_qc_gap_display_positions", {}))
+    positions = [position_map[q] for q in sorted(position_map)]
+    n = len(positions)
+    started_at = st.session_state.get("_qc_gap_started_at")
+    elapsed = (time.time() - float(started_at)) if started_at else None
+
+    if n == 0:
+        return {"level": "moderate", "dominant": 0.0, "streak": 0, "elapsed": elapsed, "signals": ["tracking_incomplete"]}
+
+    counts = Counter(positions)
+    dominant = max(counts.values()) / n
+    streak = _longest_same_position_streak(position_map)
+
+    low_signals = []
+    moderate_signals = []
+
+    if n >= 20 and dominant >= 0.80:
+        low_signals.append("dominant_position")
+    elif n >= 20 and dominant >= 0.60:
+        moderate_signals.append("dominant_position")
+
+    if streak >= 12:
+        low_signals.append("long_streak")
+    elif streak >= 8:
+        moderate_signals.append("long_streak")
+
+    if elapsed is not None and n >= 25:
+        if elapsed < 120:
+            low_signals.append("very_fast")
+        elif elapsed < 180:
+            moderate_signals.append("fast")
+
+    if n < 30:
+        moderate_signals.append("tracking_incomplete")
+
+    if low_signals or len(set(moderate_signals)) >= 2:
+        level = "low"
+        signals = low_signals + moderate_signals
+    elif moderate_signals:
+        level = "moderate"
+        signals = moderate_signals
+    else:
+        level = "high"
+        signals = []
+
+    return {
+        "level": level,
+        "dominant": dominant,
+        "streak": streak,
+        "elapsed": elapsed,
+        "signals": list(dict.fromkeys(signals)),
+    }
+
+
+def _confidence_card_html(snapshot, lang):
+    level = snapshot["level"]
+    palette = {
+        "high": ("#2E7D32", "مرتفعة", "High"),
+        "moderate": ("#9A7412", "متوسطة", "Moderate"),
+        "low": ("#B23A3A", "منخفضة", "Low"),
+    }
+    color, ar_level, en_level = palette[level]
+
+    if lang == "ar":
+        title = "موثوقية النتيجة"
+        level_text = ar_level
+        if level == "high":
+            body = "نمط الإجابات ووقت الإكمال لا يظهران إشارات واضحة على نقر آلي أو نمط متكرر؛ لذلك يمكن تفسير الـScore والفجوات المهنية بدرجة ثقة جيدة."
+        elif level == "moderate":
+            body = "الدرجة الحسابية صحيحة، لكن ظهرت إشارة سلوكية تستدعي بعض الحذر عند تفسير الـPrimary Gap أو المستوى المهني."
+        else:
+            body = "الدرجة الحسابية صحيحة، لكن نمط المحاولة يقلل ثقتنا في التفسير المهني للنتيجة. لا ننصح باعتبار الـPrimary Gap أو الـProfessional Level تقييمًا دقيقًا قبل إعادة الاختبار بقراءة كل Scenario واختيار أفضل قرار."
+
+        signal_labels = {
+            "dominant_position": f"تم اختيار نفس موضع الإجابة في نحو {round(snapshot['dominant'] * 100)}% من الأسئلة",
+            "long_streak": f"ظهرت سلسلة متتالية من {snapshot['streak']} إجابات في نفس الموضع",
+            "very_fast": "تم إنهاء الاختبار بسرعة شديدة بالنسبة إلى 30 سؤالًا تحليليًا",
+            "fast": "وقت الإكمال أسرع من المتوقع لاختبار تحليلي بهذا الطول",
+            "tracking_incomplete": "بيانات سلوك المحاولة غير مكتملة",
+        }
+        signals = [signal_labels[x] for x in snapshot["signals"] if x in signal_labels]
+        signals_html = ("<p class='mini'><b>الإشارات:</b> " + " · ".join(signals) + "</p>") if signals else ""
+        direction = "rtl"
+        align = "right"
+    else:
+        title = "Assessment Confidence"
+        level_text = en_level
+        if level == "high":
+            body = "The response pattern and completion time show no clear signs of mechanical clicking or repetitive selection, so the score and professional gaps can be interpreted with good confidence."
+        elif level == "moderate":
+            body = "The numerical score is valid, but one behavioral signal suggests some caution when interpreting the Primary Gap or professional level."
+        else:
+            body = "The numerical score is valid, but the attempt pattern reduces confidence in the professional interpretation. Retake the assessment carefully before treating the Primary Gap or Professional Level as a reliable evaluation."
+
+        signal_labels = {
+            "dominant_position": f"The same displayed answer position was selected in about {round(snapshot['dominant'] * 100)}% of questions",
+            "long_streak": f"A run of {snapshot['streak']} consecutive answers used the same displayed position",
+            "very_fast": "The assessment was completed unusually quickly for 30 analytical questions",
+            "fast": "Completion time was faster than expected for an assessment of this depth",
+            "tracking_incomplete": "Attempt-behavior data is incomplete",
+        }
+        signals = [signal_labels[x] for x in snapshot["signals"] if x in signal_labels]
+        signals_html = ("<p class='mini'><b>Signals:</b> " + " · ".join(signals) + "</p>") if signals else ""
+        direction = "ltr"
+        align = "left"
+
+    return f"""
+    <div class='section-card' style='border:1px solid {color}55; direction:{direction}; text-align:{align};'>
+      <div class='result-label' style='color:{color};'>{title}</div>
+      <h3 style='margin-top:.35rem;'>{level_text}</h3>
+      <p>{body}</p>
+      {signals_html}
+    </div>
+    """
+
+
+_original_markdown = st.markdown
+_confidence_snapshot = _assessment_confidence() if st.session_state.get("gap_done") else None
+_confidence_injected = False
+
+
+def _markdown_with_confidence(body, *args, **kwargs):
+    global _confidence_injected
+    result = _original_markdown(body, *args, **kwargs)
+
+    if (
+        _confidence_snapshot
+        and not _confidence_injected
+        and isinstance(body, str)
+        and "section-card" in body
+        and "result-label" in body
+        and "/100" in body
+    ):
+        lang = "ar" if st.session_state.get("gap_lang", "العربية") == "العربية" else "en"
+        _original_markdown(_confidence_card_html(_confidence_snapshot, lang), unsafe_allow_html=True)
+        _confidence_injected = True
+
+    return result
 
 
 _original_rerun = st.rerun
@@ -288,8 +461,6 @@ def _rerun_with_scroll(*args, **kwargs):
     if st.session_state.get("gap_done"):
         st.session_state["_qc_gap_scroll_target"] = "result"
     elif st.session_state.get("gap_started"):
-        # The currently rendered stage contains only five questions. Scroll to
-        # the first one directly; this is more robust than DOM text matching.
         st.session_state["_qc_gap_scroll_target"] = "stage"
     else:
         st.session_state["_qc_gap_scroll_target"] = "top"
@@ -297,9 +468,11 @@ def _rerun_with_scroll(*args, **kwargs):
 
 
 st.radio = _anti_cue_radio
+st.markdown = _markdown_with_confidence
 st.rerun = _rerun_with_scroll
 try:
     runpy.run_path(str(CORE_PATH), run_name="__main__")
 finally:
     st.radio = _original_radio
+    st.markdown = _original_markdown
     st.rerun = _original_rerun
