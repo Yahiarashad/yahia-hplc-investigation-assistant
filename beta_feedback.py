@@ -62,22 +62,60 @@ def init_feedback_db():
         conn.commit()
 
 
+def external_storage_configured():
+    return bool(_secret("BETA_FEEDBACK_WEBHOOK"))
+
+
 def _post_webhook(payload):
     webhook = _secret("BETA_FEEDBACK_WEBHOOK")
     if not webhook:
         return False
+
+    outbound = dict(payload)
+    token = _secret("BETA_FEEDBACK_WEBHOOK_TOKEN", "")
+    if token:
+        outbound["token"] = str(token)
+
     try:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(outbound, ensure_ascii=False).encode("utf-8")
         req = request.Request(
             webhook,
             data=body,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with request.urlopen(req, timeout=5) as resp:
-            return 200 <= int(resp.status) < 300
+        with request.urlopen(req, timeout=8) as resp:
+            status_ok = 200 <= int(resp.status) < 300
+            if not status_ok:
+                return False
+            raw = resp.read().decode("utf-8", errors="replace").strip()
+            if not raw:
+                return True
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict) and "ok" in parsed:
+                    return parsed.get("ok") is True
+            except Exception:
+                pass
+            return True
     except Exception:
         return False
+
+
+def test_external_storage():
+    if not external_storage_configured():
+        return False
+    return _post_webhook(
+        {
+            "type": "event",
+            "session_id": "dashboard-storage-test",
+            "source": "beta_dashboard",
+            "event": "storage_test",
+            "language": "en",
+            "metadata": {"purpose": "connection_test"},
+            "created_at": _now_iso(),
+        }
+    )
 
 
 def record_event(session_id, source, event, language="", metadata=None):
