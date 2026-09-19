@@ -171,20 +171,37 @@ def run_beta_assessment_page():
         st.button = base_button
         st.page_link = base_page_link
 
-    if state["tester_card"]:
+    # The completion state is the authoritative trigger for feedback.
+    # Do not depend on result-card HTML detection, which can change with UI wording/layout.
+    assessment_done = bool(st.session_state.get("gap_done"))
+
+    if assessment_done:
         if not st.session_state.get("_beta_assessment_complete_logged"):
             record_event(tester_id, "decision_gap", "assessment_completed", _lang())
             st.session_state["_beta_assessment_complete_logged"] = True
 
         if _lang() == "ar":
             st.markdown(
-                "<div dir='rtl' style='text-align:right;margin:.8rem 0 .25rem;font-weight:800;'>"
-                "قبل ما تقفل النتيجة، ساعدني بملاحظة سريعة — دقيقة واحدة فقط 💬"
-                "</div>",
+                """
+                <div dir="rtl" style="text-align:right;margin:1rem 0 .35rem;padding:.9rem 1rem;
+                            border-radius:16px;background:#fffaf0;border:1px solid #dfc77c;line-height:1.8;">
+                  <b>قبل ما تقفل النتيجة 💬</b><br>
+                  ساعدني بملاحظة سريعة — دقيقة واحدة فقط. ملاحظتك تدخل مباشرة في تطوير النسخة القادمة.
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
         else:
-            st.markdown("**Before you leave your result, share one quick note — about 60 seconds 💬**")
+            st.markdown(
+                """
+                <div style="margin:1rem 0 .35rem;padding:.9rem 1rem;border-radius:16px;
+                            background:#fffaf0;border:1px solid #dfc77c;line-height:1.7;">
+                  <b>Before you leave your result 💬</b><br>
+                  Share one quick note — about 60 seconds. Your feedback directly shapes the next release.
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         render_feedback_form(
             source="decision_gap",
