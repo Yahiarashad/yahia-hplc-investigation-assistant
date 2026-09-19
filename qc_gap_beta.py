@@ -175,9 +175,20 @@ def run_beta_assessment_page():
         if not st.session_state.get("_beta_assessment_complete_logged"):
             record_event(tester_id, "decision_gap", "assessment_completed", _lang())
             st.session_state["_beta_assessment_complete_logged"] = True
+
+        if _lang() == "ar":
+            st.markdown(
+                "<div dir='rtl' style='text-align:right;margin:.8rem 0 .25rem;font-weight:800;'>"
+                "قبل ما تقفل النتيجة، ساعدني بملاحظة سريعة — دقيقة واحدة فقط 💬"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("**Before you leave your result, share one quick note — about 60 seconds 💬**")
+
         render_feedback_form(
             source="decision_gap",
             session_id=tester_id,
             language=_lang(),
-            compact=True,
+            compact=False,
         )
