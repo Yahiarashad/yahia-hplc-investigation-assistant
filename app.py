@@ -138,6 +138,28 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
+# Add one dedicated main tab without changing the core tab indexes. Login and
+# nested tab groups are left untouched.
+_real_tabs = st.tabs
+_MAIN_TABS = [
+    "Command Center",
+    "Instrument Passport",
+    "Lifecycle",
+    "Events",
+    "Investigation Intelligence",
+    "Guide",
+]
+
+
+def _tabs_with_acquisition(labels, *args, **kwargs):
+    items = list(labels)
+    if items == _MAIN_TABS:
+        items = items + ["Acquisition Journey"]
+    return _real_tabs(items, *args, **kwargs)
+
+
+st.tabs = _tabs_with_acquisition
+
 # The core file configures the page too; this wrapper already did it.
 _real_set_page_config = st.set_page_config
 st.set_page_config = lambda *args, **kwargs: None
@@ -147,5 +169,27 @@ try:
     exec(compile(_core.read_text(encoding="utf-8"), str(_core), "exec"), globals(), globals())
 finally:
     st.set_page_config = _real_set_page_config
+    st.tabs = _real_tabs
     # Keep the latest rotated refresh token after any successful app run.
     _write_auth_cookie()
+
+# The core main tab list is stored in `tabs`. The wrapper appends one empty tab;
+# fill it here using the same authenticated database helpers and RLS context.
+try:
+    main_tabs = globals().get("tabs")
+    if isinstance(main_tabs, list) and len(main_tabs) >= 7 and globals().get("_auth_token"):
+        if _auth_token():
+            journey_module = Path(__file__).resolve().parent / "instrument_acquisition_journey.py"
+            with main_tabs[-1]:
+                exec(
+                    compile(journey_module.read_text(encoding="utf-8"), str(journey_module), "exec"),
+                    globals(),
+                    globals(),
+                )
+except Exception as exc:
+    try:
+        with main_tabs[-1]:
+            st.error("Acquisition Journey could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
