@@ -244,3 +244,47 @@ def _camera_selectbox(label, options, *args, **kwargs):
 st.form = _camera_form
 st.text_input = _camera_text_input
 st.selectbox = _camera_selectbox
+
+
+# Extend the practical top-of-page guide with the product-value explanation.
+# Excel remains a useful input bridge; the app adds lifecycle/decision intelligence.
+_existing_user_guide = globals().get("render_v03_user_guide")
+if callable(_existing_user_guide):
+    def render_v03_user_guide():
+        _existing_user_guide()
+        with st.expander("⭐ عندي Excel Tracker بالفعل — لماذا أستخدم التطبيق؟", expanded=False):
+            st.markdown(
+                """
+### Excel يحفظ البيانات. التطبيق يحوّل تاريخ الجهاز إلى قرار.
+
+لو عندك Excel Tracker جيد، **لا تبدأ من الصفر ولا تتخلص منه**. استخدمه كمدخل للتطبيق، ثم دع التطبيق يضيف الطبقة التي يصعب على ملف Excel وحده تقديمها باستمرار.
+
+**ما الذي يضيفه التطبيق فوق الـExcel؟**
+
+- **Next Action وليس مجرد Row** — بدل أن ترى تاريخ PO أو Calibration فقط، التطبيق يوضح Current Stage، Missing Evidence، Next Controlled Milestone وما الذي يحتاج متابعة الآن.
+- **Lifecycle واحدة مترابطة** — Need → URS → Quotation → PR → PO → Receiving → Installation → IQ/OQ/PQ → Release → First Run → Routine Control → Performance Review → Retirement؛ بدل توزيع القصة على Sheets وملفات منفصلة.
+- **Priority Attention Queue** — يجمع Calibration/PM overdue، OOC، Open Events، Receiving delays والمراحل الناقصة ويضعها حسب الأولوية.
+- **Instrument Memory** — Calibration، PM، Components، Failures وInvestigations ترتبط بنفس الجهاز وبنفس التاريخ، فتستفيد منها عند ظهور المشكلة التالية.
+- **Investigation Intelligence** — يربط المشكلة الحالية بتاريخ الجهاز ويفصل Observed / Inferred / Unknown، ويقترح Next Evidence Action بدل trial-and-error.
+- **Lifecycle Readiness + Operational Status + Health** — ثلاث إشارات مختلفة بدل Green/Red cell واحدة قد تكون مضللة.
+- **Camera-assisted entry** — تصوير Nameplate يساعد في إدخال Manufacturer / Model / S/N وتقليل أخطاء النقل اليدوي، مع مراجعة المستخدم قبل الحفظ.
+- **Multi-user data isolation** — كل حساب يرى صفوفه فقط عبر Supabase Row Level Security، بدل تداول نسخ متعددة من نفس الـTracker.
+- **Performance Review** — التاريخ المتراكم يساعدك على رؤية تكرار الأعطال، الالتزام بالمواعيد والحاجة إلى monitoring أو upgrade أو replacement أو retirement.
+- **Evidence-first workflow** — المعلومة المفقودة تظل Missing / Unknown؛ التطبيق لا يفترض اكتمال milestone ولا يحول pattern إلى Root Cause.
+
+#### هل التطبيق بديل للـExcel؟
+
+ليس الهدف أن تحارب Excel. أفضل Workflow هو:
+
+**Existing Excel Tracker → Import → Lifecycle Intelligence → Priorities / Decisions → Investigation Memory / Reports**
+
+يمكنك رفع ملف Excel الموجود لديك. التطبيق يتعرف **فقط على الأعمدة التي تحمل نفس اسم الحقل المستخدم داخل التطبيق**. أي اسم مختلف لا يتم تخمينه أو ربطه تلقائيًا. الأفضل تنزيل Template التطبيق أولًا أو توحيد أسماء أعمدة الـTracker الحالي معه.
+
+> **Excel tracks instruments. Yahia QC Instrument Lifecycle helps you decide what needs attention next — and why.**
+
+> **الإكسل يحفظ بيانات الجهاز. التطبيق يحول تاريخ الجهاز إلى قرار.**
+"""
+            )
+            st.info(
+                "لأعلى استفادة: لا تستخدم التطبيق فقط وقت المشكلة. حافظ على Passport وLifecycle وCalibration/PM وComponents وEvents محدثة؛ كلما كان التاريخ أفضل، أصبحت الأولويات والتحقيقات المستقبلية أكثر فائدة."
+            )
