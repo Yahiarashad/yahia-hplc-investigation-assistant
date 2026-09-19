@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 
@@ -78,6 +79,100 @@ c5.metric("Avg feedback", f"{avg_rating:.1f}/5" if ratings else "—")
 if assessment_starts:
     completion_rate = assessment_completions / assessment_starts * 100
     st.metric("Assessment completion rate", f"{completion_rate:.1f}%")
+
+
+def _metadata(row):
+    try:
+        value = json.loads(row.get("metadata_json") or "{}")
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def _campaign_breakdown(rows):
+    buckets = {}
+    tracked_sessions = set()
+    linkedin_sessions = set()
+
+    for row in rows:
+        meta = _metadata(row)
+        source = str(meta.get("utm_source") or "").strip()
+        if not source:
+            continue
+
+        medium = str(meta.get("utm_medium") or "").strip() or "—"
+        campaign = str(meta.get("utm_campaign") or "").strip() or "—"
+        key = (source, medium, campaign)
+        session_id = str(row.get("session_id") or "")
+        event = str(row.get("event") or "")
+
+        tracked_sessions.add(session_id)
+        if source.lower() == "linkedin":
+            linkedin_sessions.add(session_id)
+
+        if key not in buckets:
+            buckets[key] = {
+                "Source": source,
+                "Medium": medium,
+                "Campaign": campaign,
+                "Sessions": set(),
+                "Assessment starts": set(),
+                "Assessment completions": set(),
+                "Investigation starts": set(),
+                "Feedback submissions": set(),
+            }
+
+        bucket = buckets[key]
+        bucket["Sessions"].add(session_id)
+        if event == "assessment_started":
+            bucket["Assessment starts"].add(session_id)
+        elif event == "assessment_completed":
+            bucket["Assessment completions"].add(session_id)
+        elif event == "investigation_started":
+            bucket["Investigation starts"].add(session_id)
+        elif event == "feedback_submitted":
+            bucket["Feedback submissions"].add(session_id)
+
+    table = []
+    for bucket in buckets.values():
+        table.append(
+            {
+                "Source": bucket["Source"],
+                "Medium": bucket["Medium"],
+                "Campaign": bucket["Campaign"],
+                "Sessions": len(bucket["Sessions"]),
+                "Assessment starts": len(bucket["Assessment starts"]),
+                "Assessment completions": len(bucket["Assessment completions"]),
+                "Investigation starts": len(bucket["Investigation starts"]),
+                "Feedback submissions": len(bucket["Feedback submissions"]),
+            }
+        )
+
+    table.sort(key=lambda x: (-x["Sessions"], x["Source"], x["Campaign"]))
+    return table, len(tracked_sessions), len(linkedin_sessions)
+
+
+campaign_rows, tracked_campaign_sessions, linkedin_sessions = _campaign_breakdown(events)
+
+st.subheader("Campaign attribution")
+a1, a2 = st.columns(2)
+a1.metric("Tracked campaign sessions", tracked_campaign_sessions)
+a2.metric("LinkedIn sessions", linkedin_sessions)
+
+if campaign_rows:
+    st.dataframe(campaign_rows, use_container_width=True, hide_index=True)
+    st.caption(
+        "First-touch attribution is preserved for the Streamlit session and mirrored inside metadata_json in the durable Google Sheets event log. "
+        "No LinkedIn identity, IP address, browser fingerprint, or HPLC case text is collected."
+    )
+else:
+    st.info("No UTM-tagged visits have been recorded on this running instance yet.")
+
+st.caption("LinkedIn launch tracking link")
+st.code(
+    "https://yahiaqc.streamlit.app/?utm_source=linkedin&utm_medium=organic_social&utm_campaign=founding_beta_launch&utm_content=launch_post",
+    language=None,
+)
 
 st.subheader("Feedback")
 if feedback:
