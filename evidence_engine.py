@@ -15,8 +15,50 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _track_hplc_beta_usage(query: str, area: str):
+    """Track anonymous usage signals only. Never stores the HPLC case text."""
+    try:
+        import streamlit as st
+        from beta_feedback import record_event
+
+        case_id = st.query_params.get("case")
+        if isinstance(case_id, list):
+            case_id = case_id[0] if case_id else None
+        if not case_id:
+            return
+
+        language = "ar" if re.search(r"[\u0600-\u06FF]", query or "") else "en"
+        started_key = f"_beta_hplc_started_{case_id}"
+        count_key = f"_beta_hplc_message_count_{case_id}"
+
+        if not st.session_state.get(started_key):
+            record_event(
+                case_id,
+                "hplc_assistant",
+                "investigation_started",
+                language,
+                metadata={"area": area or "Auto-detect"},
+            )
+            st.session_state[started_key] = True
+
+        count = int(st.session_state.get(count_key, 0)) + 1
+        st.session_state[count_key] = count
+        record_event(
+            case_id,
+            "hplc_assistant",
+            "investigation_message",
+            language,
+            metadata={"area": area or "Auto-detect", "message_number": count},
+        )
+    except Exception:
+        # Analytics must never interrupt an HPLC investigation.
+        return
+
+
 def retrieve_evidence(query: str, area: str = "Auto-detect", limit: int = 4):
     """Return a small set of relevant curated evidence cards without external API calls."""
+    _track_hplc_beta_usage(query, area)
+
     cards = _load_cards()
     haystack = _normalize(query)
     scored = []
