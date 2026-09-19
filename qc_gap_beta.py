@@ -1,15 +1,26 @@
+import re
 import secrets
 import streamlit as st
 
+from beta_feedback import record_event, render_feedback_form
 from qc_gap_runtime import run_assessment_page
 
 DISPLAY_VERSION = "v0.4 · Founding Beta Calibration"
 
 
 def _beta_id():
+    raw = st.query_params.get("tester")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else None
+    if isinstance(raw, str) and re.fullmatch(r"FB-\d{6}", raw):
+        st.session_state["_qc_gap_beta_tester_id"] = raw
+        return raw
+
     if "_qc_gap_beta_tester_id" not in st.session_state:
         st.session_state["_qc_gap_beta_tester_id"] = f"FB-{secrets.randbelow(1_000_000):06d}"
-    return st.session_state["_qc_gap_beta_tester_id"]
+    tester_id = st.session_state["_qc_gap_beta_tester_id"]
+    st.query_params["tester"] = tester_id
+    return tester_id
 
 
 def _lang():
@@ -81,6 +92,11 @@ def _share_suffix(lang, tester_id):
 
 def run_beta_assessment_page():
     tester_id = _beta_id()
+    lang = _lang()
+
+    if not st.session_state.get("_beta_assessment_view_logged"):
+        record_event(tester_id, "decision_gap", "assessment_viewed", lang)
+        st.session_state["_beta_assessment_view_logged"] = True
 
     base_markdown = st.markdown
     base_code = st.code
@@ -126,7 +142,14 @@ def run_beta_assessment_page():
             display_label = "ابدأ Founding Beta Calibration ←"
         elif label == "Start Expert Calibration →":
             display_label = "Start Founding Beta Calibration →"
-        return base_button(display_label, *args, **kwargs)
+
+        clicked = base_button(display_label, *args, **kwargs)
+        if clicked:
+            if label in ("ابدأ Expert Calibration ←", "Start Expert Calibration →"):
+                record_event(tester_id, "decision_gap", "assessment_started", _lang())
+            elif label in ("إعادة الاختبار", "Retake assessment"):
+                record_event(tester_id, "decision_gap", "assessment_retake", _lang())
+        return clicked
 
     def beta_page_link(page, *args, **kwargs):
         label = kwargs.get("label")
@@ -147,3 +170,14 @@ def run_beta_assessment_page():
         st.code = base_code
         st.button = base_button
         st.page_link = base_page_link
+
+    if state["tester_card"]:
+        if not st.session_state.get("_beta_assessment_complete_logged"):
+            record_event(tester_id, "decision_gap", "assessment_completed", _lang())
+            st.session_state["_beta_assessment_complete_logged"] = True
+        render_feedback_form(
+            source="decision_gap",
+            session_id=tester_id,
+            language=_lang(),
+            compact=True,
+        )
