@@ -7,12 +7,13 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
+from beta_feedback import record_event, render_feedback_form
 from evidence_engine import format_evidence_context, retrieve_evidence
 
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
-APP_VERSION = "v1.0"
+APP_VERSION = "v1.1"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
 st.set_page_config(
@@ -89,6 +90,30 @@ def get_case_id() -> str:
     new_id = uuid.uuid4().hex[:16]
     st.query_params["case"] = new_id
     return new_id
+
+
+def _assistant_turn_count(messages):
+    return sum(1 for message in messages if message.get("role") == "assistant")
+
+
+def _conclusion_detected(messages):
+    last_answer = next(
+        (message.get("content", "") for message in reversed(messages) if message.get("role") == "assistant"),
+        "",
+    )
+    text = last_answer.casefold()
+    markers = (
+        "root cause confirmed",
+        "root cause probable",
+        "root cause not yet identified",
+        "not yet identified",
+        "السبب الجذري مؤكد",
+        "السبب الجذري المرجح",
+        "السبب الجذري محتمل",
+        "لم يتم تحديد السبب الجذري",
+        "السبب الجذري غير محدد",
+    )
+    return bool(last_answer) and any(marker.casefold() in text for marker in markers)
 
 
 def format_api_error(exc, language: str) -> str:
@@ -172,6 +197,10 @@ else:
     effective_language = language_mode
 is_ar = effective_language == "ar"
 
+if not st.session_state.get(f"_hplc_view_logged_{CASE_ID}"):
+    record_event(CASE_ID, "hplc_assistant", "assistant_viewed", effective_language)
+    st.session_state[f"_hplc_view_logged_{CASE_ID}"] = True
+
 TEXT = {
     "en": {
         "setup": "Investigation Setup",
@@ -189,6 +218,7 @@ TEXT = {
         "evidence_on": "Verified Evidence Engine: ON",
         "guide": "📘 How to use Yahia HPLC Investigation Assistant",
         "start_note": "Start with what you observed — not the diagnosis you suspect.",
+        "finish": "I've finished this investigation — share feedback 💬",
     },
     "ar": {
         "setup": "إعداد التحقيق",
@@ -206,6 +236,7 @@ TEXT = {
         "evidence_on": "محرك الأدلة الموثقة: مفعّل",
         "guide": "📘 دليل استخدام مساعد يحيى للتحقيق في HPLC",
         "start_note": "ابدأ بما لاحظته فعليًا — وليس بالسبب الذي تتوقعه.",
+        "finish": "أنهيت التحقيق — أرسل ملاحظتي 💬",
     },
 }
 T = TEXT[effective_language]
@@ -251,6 +282,8 @@ st.markdown(
       .start-item { border-radius:14px; border:1px solid #e2e8f0; background:#fff; padding:.7rem .75rem; color:#4b5563; font-size:.79rem; line-height:1.5; }
       .start-item strong { display:block; color:#172033; margin-bottom:.18rem; font-size:.82rem; }
       .small-note { font-size:.82rem; opacity:.72; }
+      .feedback-nudge { margin:1rem 0 .55rem; padding:.85rem 1rem; border-radius:16px; border:1px solid #dfc77c; background:#fffaf0; color:#374151; line-height:1.7; }
+      .feedback-nudge-ar { direction:rtl; text-align:right; }
       div[data-baseweb="select"] > div { border-radius:14px; }
       [data-testid="stTextArea"] textarea { border-radius:16px !important; min-height:170px !important; }
       [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] { unicode-bidi:plaintext; }
@@ -498,8 +531,11 @@ else:
     user_input = st.chat_input(T["input"])
 
 if user_input:
+    first_user_message = not any(message["role"] == "user" for message in st.session_state.messages)
     st.session_state.messages.append({"role": "user", "content": user_input})
     save_message(CASE_ID, "user", user_input)
+    if first_user_message:
+        record_event(CASE_ID, "hplc_assistant", "investigation_started", effective_language)
 
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -553,11 +589,75 @@ if user_input:
                 st.markdown(answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
+                record_event(
+                    CASE_ID,
+                    "hplc_assistant",
+                    "assistant_turn_completed",
+                    response_language,
+                    {"assistant_turn": _assistant_turn_count(st.session_state.messages)},
+                )
             except Exception as exc:
                 answer = format_api_error(exc, response_language)
                 st.markdown(answer)
 
 if st.session_state.messages:
+    feedback_ready_key = f"_hplc_feedback_ready_{CASE_ID}"
+    feedback_logged_key = f"_hplc_feedback_prompt_logged_{CASE_ID}"
+    assistant_turns = _assistant_turn_count(st.session_state.messages)
+
+    if _conclusion_detected(st.session_state.messages):
+        st.session_state[feedback_ready_key] = True
+        if not st.session_state.get(feedback_logged_key):
+            record_event(
+                CASE_ID,
+                "hplc_assistant",
+                "feedback_prompted",
+                effective_language,
+                {"trigger": "investigation_conclusion", "assistant_turns": assistant_turns},
+            )
+            st.session_state[feedback_logged_key] = True
+
+    if not st.session_state.get(feedback_ready_key) and assistant_turns >= 2:
+        nudge_class = "feedback-nudge feedback-nudge-ar" if is_ar else "feedback-nudge"
+        nudge_text = (
+            "لو وصلت للنقطة اللي كنت محتاجها، أنهِ التحقيق وسأظهر لك Feedback قصير لتحسين النسخة القادمة."
+            if is_ar
+            else "If you reached the decision you needed, finish the investigation and a short feedback form will open."
+        )
+        st.markdown(f'<div class="{nudge_class}">{nudge_text}</div>', unsafe_allow_html=True)
+        if st.button(T["finish"], use_container_width=True, key=f"finish_investigation_{CASE_ID}"):
+            st.session_state[feedback_ready_key] = True
+            if not st.session_state.get(feedback_logged_key):
+                record_event(
+                    CASE_ID,
+                    "hplc_assistant",
+                    "feedback_prompted",
+                    effective_language,
+                    {"trigger": "user_finished", "assistant_turns": assistant_turns},
+                )
+                st.session_state[feedback_logged_key] = True
+            st.rerun()
+
+    if st.session_state.get(feedback_ready_key):
+        if is_ar:
+            st.markdown(
+                "<div class='feedback-nudge feedback-nudge-ar'><b>قبل ما تقفل التحقيق 👋</b><br>"
+                "ملاحظتك دقيقة واحدة فقط، وبتدخل مباشرة في تطوير النسخة القادمة.</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<div class='feedback-nudge'><b>Before you close the investigation 👋</b><br>"
+                "Your 60-second feedback directly helps shape the next release.</div>",
+                unsafe_allow_html=True,
+            )
+        render_feedback_form(
+            source="hplc_assistant",
+            session_id=CASE_ID,
+            language=effective_language,
+            compact=False,
+        )
+
     st.markdown("---")
     st.markdown(
         f'<div class="small-note">{APP_VERSION} · Yahia HPLC Investigation Assistant · Verified Evidence Engine · Evidence-first bilingual QC decision support</div>',
