@@ -27,8 +27,6 @@ controller = CookieController(key="ilm_auth_cookie_controller")
 COOKIE_NAME = "yahia_qc_ilm_refresh_v1"
 
 # Mobile RTL polish for Arabic guidance blocks.
-# The Arabic quick guide is the final list in its Markdown container, so this
-# keeps English content LTR while moving Arabic bullets and alignment to the right.
 st.markdown(
     """
 <style>
@@ -155,7 +153,6 @@ if not st.session_state.get("_ilm_auth"):
     restored = _refresh_supabase(refresh_token)
     if restored:
         st.session_state._ilm_auth = restored
-        # Supabase may rotate refresh tokens; persist the newest one.
         _write_auth_cookie()
     elif cookie_value:
         try:
@@ -176,8 +173,8 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
-# Add one dedicated main tab without changing the core tab indexes. Login and
-# nested tab groups are left untouched.
+# Insert a dedicated acquisition tab directly after Instrument Passport while
+# preserving the six tab indexes expected by the core application.
 _real_tabs = st.tabs
 _MAIN_TABS = [
     "Command Center",
@@ -192,7 +189,27 @@ _MAIN_TABS = [
 def _tabs_with_acquisition(labels, *args, **kwargs):
     items = list(labels)
     if items == _MAIN_TABS:
-        items = items + ["Acquisition Journey"]
+        display_items = [
+            items[0],
+            items[1],
+            "URS · PR · PO",
+            items[2],
+            items[3],
+            items[4],
+            items[5],
+        ]
+        rendered = _real_tabs(display_items, *args, **kwargs)
+        # Return the six core tabs in their original logical order, then expose
+        # the custom acquisition tab as item 7 for the wrapper below.
+        return [
+            rendered[0],  # Command Center
+            rendered[1],  # Instrument Passport
+            rendered[3],  # Lifecycle
+            rendered[4],  # Events
+            rendered[5],  # Investigation Intelligence
+            rendered[6],  # Guide
+            rendered[2],  # URS · PR · PO
+        ]
     return _real_tabs(items, *args, **kwargs)
 
 
@@ -208,11 +225,10 @@ try:
 finally:
     st.set_page_config = _real_set_page_config
     st.tabs = _real_tabs
-    # Keep the latest rotated refresh token after any successful app run.
     _write_auth_cookie()
 
-# The core main tab list is stored in `tabs`. The wrapper appends one empty tab;
-# fill it here using the same authenticated database helpers and RLS context.
+# The core main tab list is stored in `tabs`. The custom acquisition tab is the
+# seventh logical item returned by the wrapper, but visually appears third.
 try:
     main_tabs = globals().get("tabs")
     if isinstance(main_tabs, list) and len(main_tabs) >= 7 and globals().get("_auth_token"):
@@ -227,7 +243,7 @@ try:
 except Exception as exc:
     try:
         with main_tabs[-1]:
-            st.error("Acquisition Journey could not load.")
+            st.error("URS · PR · PO journey could not load.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
