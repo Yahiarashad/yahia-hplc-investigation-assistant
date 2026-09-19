@@ -1,18 +1,23 @@
-# Yahia QC Instrument Lifecycle & Investigation Intelligence
-# Standalone Streamlit entrypoint — Supabase multi-user edition.
-# Each authenticated user receives an isolated dataset enforced by Supabase RLS.
+# Yahia QC Instrument Lifecycle & Investigation Intelligence™
+# v0.2 — multi-user, evidence-first instrument lifecycle platform.
+# Supabase Auth + Row Level Security are the authority for user data isolation.
 
 from __future__ import annotations
 
+import io
 import json
-import uuid
-from pathlib import Path
+from datetime import date, timedelta
 from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
 import pandas as pd
 import streamlit as st
+
+try:
+    import qrcode
+except Exception:
+    qrcode = None
 
 st.set_page_config(
     page_title="Yahia QC Instrument Lifecycle & Investigation Intelligence",
@@ -21,16 +26,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-INSTRUMENT_COLUMNS = [
-    "instrument_id", "instrument_name", "instrument_type", "manufacturer", "model",
-    "serial_number", "location", "status", "owner", "qualification_due",
-    "pm_due", "calibration_due", "created_at"
-]
-EVENT_COLUMNS = [
-    "event_id", "instrument_id", "event_date", "event_type", "severity", "subsystem",
-    "status", "observed_facts", "immediate_action", "root_cause_status", "root_cause",
-    "reference", "created_at"
-]
+APP_VERSION = "v0.2"
+PRODUCT_NAME = "Yahia QC Instrument Lifecycle & Investigation Intelligence™"
+TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
+HPLC_ASSISTANT_URL = "https://yahiaqc.streamlit.app"
 
 
 def _secret(name: str) -> str:
@@ -41,7 +40,6 @@ def _secret(name: str) -> str:
 
 
 SUPABASE_URL = _secret("SUPABASE_URL").rstrip("/")
-# Support both names so existing Streamlit Secrets do not have to be renamed.
 SUPABASE_KEY = _secret("SUPABASE_PUBLISHABLE_KEY") or _secret("SUPABASE_KEY")
 
 
@@ -49,20 +47,7 @@ def _supabase_configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_KEY)
 
 
-def _normalize_df(data, columns):
-    if isinstance(data, pd.DataFrame):
-        df = data.copy()
-    elif isinstance(data, list):
-        df = pd.DataFrame(data)
-    else:
-        df = pd.DataFrame()
-    for col in columns:
-        if col not in df.columns:
-            df[col] = ""
-    return df[columns].fillna("")
-
-
-def _safe_json(raw: bytes | str):
+def _safe_json(raw):
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", errors="replace")
     if not raw:
@@ -73,28 +58,22 @@ def _safe_json(raw: bytes | str):
         return None
 
 
-def _http_json(url: str, *, method: str = "GET", payload=None, headers=None, timeout: int = 15):
-    request_headers = dict(headers or {})
+def _http_json(url: str, *, method="GET", payload=None, headers=None, timeout=15):
+    req_headers = dict(headers or {})
     data = None
     if payload is not None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        request_headers.setdefault("Content-Type", "application/json")
-
-    req = urlrequest.Request(url, data=data, headers=request_headers, method=method)
+        req_headers.setdefault("Content-Type", "application/json")
+    req = urlrequest.Request(url, data=data, headers=req_headers, method=method)
     try:
         with urlrequest.urlopen(req, timeout=timeout) as response:
-            raw = response.read()
-            return True, _safe_json(raw), response.status, ""
+            return True, _safe_json(response.read()), response.status, ""
     except urlerror.HTTPError as exc:
-        try:
-            body = _safe_json(exc.read())
-            if isinstance(body, dict):
-                message = body.get("msg") or body.get("message") or body.get("error_description") or body.get("error")
-            else:
-                message = None
-        except Exception:
-            message = None
-        return False, None, exc.code, str(message or f"HTTP {exc.code}")
+        body = _safe_json(exc.read())
+        msg = None
+        if isinstance(body, dict):
+            msg = body.get("msg") or body.get("message") or body.get("error_description") or body.get("error") or body.get("hint")
+        return False, body, exc.code, str(msg or f"HTTP {exc.code}")
     except urlerror.URLError as exc:
         return False, None, 0, f"Connection error: {getattr(exc, 'reason', 'unreachable')}"
     except TimeoutError:
@@ -103,80 +82,80 @@ def _http_json(url: str, *, method: str = "GET", payload=None, headers=None, tim
         return False, None, 0, type(exc).__name__
 
 
-# -----------------------------------------------------------------------------
-# Supabase Auth
-# -----------------------------------------------------------------------------
-
+# Authentication --------------------------------------------------------------
 def _auth_headers():
     return {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}
 
 
+def _set_auth(data: dict):
+    st.session_state._ilm_auth = {
+        "access_token": data.get("access_token", ""),
+        "refresh_token": data.get("refresh_token", ""),
+        "expires_at": data.get("expires_at"),
+        "user": data.get("user") or {},
+    }
+
+
 def _auth_login(email: str, password: str):
-    url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
-    ok, data, status, err = _http_json(
-        url,
+    ok, data, _, err = _http_json(
+        f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
         method="POST",
         payload={"email": email.strip(), "password": password},
         headers=_auth_headers(),
     )
     if ok and isinstance(data, dict) and data.get("access_token"):
-        st.session_state._ilm_auth = {
-            "access_token": data.get("access_token", ""),
-            "refresh_token": data.get("refresh_token", ""),
-            "expires_at": data.get("expires_at"),
-            "user": data.get("user") or {},
-        }
+        _set_auth(data)
         return True, ""
-    return False, err or "Login failed"
+    return False, err or "Login failed."
 
 
 def _auth_signup(email: str, password: str, display_name: str):
-    url = f"{SUPABASE_URL}/auth/v1/signup"
-    payload = {
-        "email": email.strip(),
-        "password": password,
-        "data": {"display_name": display_name.strip()} if display_name.strip() else {},
-    }
-    ok, data, status, err = _http_json(url, method="POST", payload=payload, headers=_auth_headers())
+    ok, data, _, err = _http_json(
+        f"{SUPABASE_URL}/auth/v1/signup",
+        method="POST",
+        payload={
+            "email": email.strip(),
+            "password": password,
+            "data": {"display_name": display_name.strip()} if display_name.strip() else {},
+        },
+        headers=_auth_headers(),
+    )
     if not ok:
-        return False, err or "Sign-up failed", False
+        return False, err or "Sign-up failed.", False
     if isinstance(data, dict) and data.get("access_token"):
-        st.session_state._ilm_auth = {
-            "access_token": data.get("access_token", ""),
-            "refresh_token": data.get("refresh_token", ""),
-            "expires_at": data.get("expires_at"),
-            "user": data.get("user") or {},
-        }
+        _set_auth(data)
         return True, "Account created and signed in.", True
     return True, "Account created. Check your email to confirm the account, then sign in.", False
 
 
 def _auth_refresh() -> bool:
     auth = st.session_state.get("_ilm_auth") or {}
-    refresh_token = str(auth.get("refresh_token") or "")
-    if not refresh_token:
+    token = str(auth.get("refresh_token") or "")
+    if not token:
         return False
-    url = f"{SUPABASE_URL}/auth/v1/token?grant_type=refresh_token"
-    ok, data, status, err = _http_json(
-        url,
+    ok, data, _, _ = _http_json(
+        f"{SUPABASE_URL}/auth/v1/token?grant_type=refresh_token",
         method="POST",
-        payload={"refresh_token": refresh_token},
+        payload={"refresh_token": token},
         headers=_auth_headers(),
     )
     if ok and isinstance(data, dict) and data.get("access_token"):
-        st.session_state._ilm_auth = {
-            "access_token": data.get("access_token", ""),
-            "refresh_token": data.get("refresh_token") or refresh_token,
-            "expires_at": data.get("expires_at"),
-            "user": data.get("user") or auth.get("user") or {},
-        }
+        _set_auth(data)
         return True
     return False
 
 
+def _auth_token() -> str:
+    return str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
+
+
+def _auth_user() -> dict:
+    user = (st.session_state.get("_ilm_auth") or {}).get("user") or {}
+    return user if isinstance(user, dict) else {}
+
+
 def _auth_logout():
-    auth = st.session_state.get("_ilm_auth") or {}
-    token = str(auth.get("access_token") or "")
+    token = _auth_token()
     if token:
         _http_json(
             f"{SUPABASE_URL}/auth/v1/logout",
@@ -185,26 +164,12 @@ def _auth_logout():
             headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         )
     for key in list(st.session_state.keys()):
-        if key.startswith("ilm_") or key.startswith("_ilm_") or key == "inv_instrument":
+        if key.startswith("_ilm_") or key.startswith("ilm_") or key.startswith("form_"):
             st.session_state.pop(key, None)
 
 
-def _auth_user():
-    auth = st.session_state.get("_ilm_auth") or {}
-    user = auth.get("user") or {}
-    return user if isinstance(user, dict) else {}
-
-
-def _auth_token() -> str:
-    return str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
-
-
-# -----------------------------------------------------------------------------
-# PostgREST helpers. The user's JWT is always used so database RLS remains the
-# authority for data isolation. No service-role/secret key is used in the app.
-# -----------------------------------------------------------------------------
-
-def _db_headers(prefer: str | None = None):
+# Database --------------------------------------------------------------------
+def _db_headers(prefer=None):
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {_auth_token()}",
@@ -216,9 +181,8 @@ def _db_headers(prefer: str | None = None):
 
 
 def _db_request(path: str, *, method="GET", payload=None, prefer=None, retry_auth=True):
-    url = f"{SUPABASE_URL}/rest/v1/{path.lstrip('/')}"
     ok, data, status, err = _http_json(
-        url,
+        f"{SUPABASE_URL}/rest/v1/{path.lstrip('/')}",
         method=method,
         payload=payload,
         headers=_db_headers(prefer),
@@ -232,401 +196,592 @@ def _db_request(path: str, *, method="GET", payload=None, prefer=None, retry_aut
     return ok, data, status, err
 
 
-def _instrument_to_db(row):
-    def text(name):
-        value = row.get(name, "")
-        return "" if value is None else str(value)
-
-    return {
-        "instrument_code": text("instrument_id").strip().upper(),
-        "instrument_name": text("instrument_name").strip(),
-        "instrument_type": text("instrument_type"),
-        "manufacturer": text("manufacturer"),
-        "model": text("model"),
-        "serial_number": text("serial_number"),
-        "location": text("location"),
-        "operational_status": text("status") or "Active",
-        "responsible_team": text("owner"),
-        "qualification_due": text("qualification_due") or None,
-        "pm_due": text("pm_due") or None,
-        "calibration_due": text("calibration_due") or None,
-    }
+def _db_list(table: str, select="*", order=None):
+    path = f"{table}?select={urlparse.quote(select, safe=',()*')}"
+    if order:
+        path += f"&order={urlparse.quote(order, safe='.,')}"
+    ok, data, _, err = _db_request(path)
+    return (data if ok and isinstance(data, list) else []), err, ok
 
 
-def _event_to_db(row, instrument_uuid_by_code):
-    def text(name):
-        value = row.get(name, "")
-        return "" if value is None else str(value)
+def _db_insert(table: str, payload: dict):
+    return _db_request(table, method="POST", payload=payload, prefer="return=representation")
 
-    code = text("instrument_id").strip().upper()
-    instrument_uuid = instrument_uuid_by_code.get(code)
-    if not instrument_uuid:
+
+def _db_patch(table: str, row_id: str, payload: dict):
+    return _db_request(
+        f"{table}?id=eq.{urlparse.quote(str(row_id))}",
+        method="PATCH", payload=payload, prefer="return=representation"
+    )
+
+
+def _db_delete(table: str, row_id: str):
+    return _db_request(
+        f"{table}?id=eq.{urlparse.quote(str(row_id))}",
+        method="DELETE", prefer="return=minimal"
+    )
+
+
+# Date + intelligence helpers --------------------------------------------------
+def _parse_date(value):
+    if not value:
         return None
-    return {
-        "instrument_id": instrument_uuid,
-        "event_date": text("event_date") or None,
-        "event_type": text("event_type") or "Other",
-        "severity": text("severity") or "Medium",
-        "subsystem": text("subsystem"),
-        "event_status": text("status") or "Open",
-        "observed_facts": text("observed_facts"),
-        "immediate_action": text("immediate_action"),
-        "root_cause_status": text("root_cause_status") or "Not identified",
-        "root_cause": text("root_cause"),
-        "investigation_reference": text("reference"),
-    }
+    try:
+        return pd.to_datetime(value).date()
+    except Exception:
+        return None
 
 
-def _load_supabase_state() -> bool:
-    ok, instruments, _, err = _db_request(
-        "instruments?select=id,instrument_code,instrument_name,instrument_type,manufacturer,model,serial_number,location,operational_status,responsible_team,qualification_due,pm_due,calibration_due,created_at&order=created_at.asc"
+def _days_to(value):
+    d = _parse_date(value)
+    return (d - date.today()).days if d else None
+
+
+def _due_label(value):
+    days = _days_to(value)
+    if days is None: return "Not set"
+    if days < 0: return f"OVERDUE by {abs(days)}d"
+    if days == 0: return "Due today"
+    if days <= 30: return f"Due in {days}d"
+    return f"{days}d remaining"
+
+
+def _severity_weight(severity: str) -> int:
+    return {"Critical": 15, "High": 8, "Medium": 3, "Low": 1}.get(str(severity), 2)
+
+
+def health_score_v2(inst, events, components):
+    score = 100
+    reasons = []
+    status = str(inst.get("operational_status") or "Active")
+    if status == "Out of Service":
+        score -= 35; reasons.append("Instrument is Out of Service")
+    elif status == "Restricted":
+        score -= 15; reasons.append("Instrument use is Restricted")
+    elif status == "Under Maintenance":
+        score -= 10; reasons.append("Instrument is Under Maintenance")
+
+    for label, field in [("Qualification","qualification_due"),("Preventive maintenance","pm_due"),("Calibration","calibration_due")]:
+        days = _days_to(inst.get(field))
+        if days is None:
+            score -= 2; reasons.append(f"{label} due date is not set")
+        elif days < 0:
+            score -= 12; reasons.append(f"{label} overdue by {abs(days)} days")
+        elif days <= 30:
+            score -= 5; reasons.append(f"{label} due within {days} days")
+
+    inst_events = [e for e in events if str(e.get("instrument_id")) == str(inst.get("id"))]
+    open_events = [e for e in inst_events if str(e.get("event_status")) != "Closed"]
+    penalty = min(30, sum(_severity_weight(e.get("severity")) for e in open_events))
+    if penalty:
+        score -= penalty; reasons.append(f"{len(open_events)} open event(s) require attention")
+
+    cutoff = date.today() - timedelta(days=90)
+    recent = [e for e in inst_events if (_parse_date(e.get("event_date")) or date.min) >= cutoff]
+    counts = {}
+    for e in recent:
+        key = str(e.get("subsystem") or "Unknown")
+        counts[key] = counts.get(key, 0) + 1
+    repeated = [(k,v) for k,v in counts.items() if v >= 3 and k not in ("", "Unknown", "General / Unknown")]
+    if repeated:
+        score -= 8
+        reasons.append("Repeated 90-day subsystem pattern: " + ", ".join(f"{k} ×{v}" for k,v in repeated[:2]))
+
+    overdue_components = 0
+    for comp in components:
+        if str(comp.get("instrument_id")) != str(inst.get("id")): continue
+        days = _days_to(comp.get("replacement_due"))
+        if days is not None and days < 0 and str(comp.get("status") or "Active") == "Active":
+            overdue_components += 1
+    if overdue_components:
+        score -= min(20, overdue_components * 10)
+        reasons.append(f"{overdue_components} component lifecycle item(s) overdue")
+    return max(0, min(100, score)), reasons
+
+
+def health_state(score):
+    if score >= 90: return "Healthy"
+    if score >= 75: return "Attention"
+    if score >= 55: return "At Risk"
+    return "Critical"
+
+
+def _instrument_code_maps(instruments):
+    return (
+        {str(x.get("id")): str(x.get("instrument_code") or "") for x in instruments},
+        {str(x.get("instrument_code") or ""): str(x.get("id")) for x in instruments},
     )
-    if not ok or not isinstance(instruments, list):
-        return False
-
-    instrument_rows = []
-    instrument_map = {}
-    reverse_instrument_map = {}
-    for row in instruments:
-        code = str(row.get("instrument_code") or "").strip().upper()
-        db_id = str(row.get("id") or "")
-        if code and db_id:
-            instrument_map[code] = db_id
-            reverse_instrument_map[db_id] = code
-        instrument_rows.append({
-            "instrument_id": code,
-            "instrument_name": row.get("instrument_name") or "",
-            "instrument_type": row.get("instrument_type") or "",
-            "manufacturer": row.get("manufacturer") or "",
-            "model": row.get("model") or "",
-            "serial_number": row.get("serial_number") or "",
-            "location": row.get("location") or "",
-            "status": row.get("operational_status") or "Active",
-            "owner": row.get("responsible_team") or "",
-            "qualification_due": row.get("qualification_due") or "",
-            "pm_due": row.get("pm_due") or "",
-            "calibration_due": row.get("calibration_due") or "",
-            "created_at": row.get("created_at") or "",
-        })
-
-    ok, events, _, err = _db_request(
-        "instrument_events?select=id,instrument_id,event_date,event_type,severity,subsystem,event_status,observed_facts,immediate_action,root_cause_status,root_cause,investigation_reference,created_at&order=event_date.desc"
-    )
-    if not ok or not isinstance(events, list):
-        return False
-
-    event_rows = []
-    event_map = {}
-    for row in events:
-        db_id = str(row.get("id") or "")
-        ui_event_id = "EVT-" + db_id.replace("-", "")[:10].upper() if db_id else "EVT-" + uuid.uuid4().hex[:10].upper()
-        if db_id:
-            event_map[ui_event_id] = db_id
-        event_rows.append({
-            "event_id": ui_event_id,
-            "instrument_id": reverse_instrument_map.get(str(row.get("instrument_id") or ""), ""),
-            "event_date": row.get("event_date") or "",
-            "event_type": row.get("event_type") or "",
-            "severity": row.get("severity") or "",
-            "subsystem": row.get("subsystem") or "",
-            "status": row.get("event_status") or "Open",
-            "observed_facts": row.get("observed_facts") or "",
-            "immediate_action": row.get("immediate_action") or "",
-            "root_cause_status": row.get("root_cause_status") or "Not identified",
-            "root_cause": row.get("root_cause") or "",
-            "reference": row.get("investigation_reference") or "",
-            "created_at": row.get("created_at") or "",
-        })
-
-    st.session_state.ilm_instruments = _normalize_df(instrument_rows, INSTRUMENT_COLUMNS)
-    st.session_state.ilm_events = _normalize_df(event_rows, EVENT_COLUMNS)
-    st.session_state._ilm_instrument_db_ids = instrument_map
-    st.session_state._ilm_event_db_ids = event_map
-
-    # Restore the most recent investigation brief/result for continuity.
-    ok, investigations, _, _ = _db_request(
-        "investigations?select=generated_brief,identified_patterns,risk_notes,unknowns,next_actions,conclusion,created_at&order=created_at.desc&limit=1"
-    )
-    if ok and isinstance(investigations, list) and investigations:
-        latest = investigations[0]
-        brief = latest.get("generated_brief") or ""
-        if brief:
-            st.session_state.ilm_last_brief = brief
-            st.session_state.ilm_last_result = {
-                "patterns": latest.get("identified_patterns") or [],
-                "risks": latest.get("risk_notes") or [],
-                "unknowns": latest.get("unknowns") or [],
-                "next_actions": latest.get("next_actions") or [],
-                "conclusion": latest.get("conclusion") or "ROOT CAUSE NOT YET IDENTIFIED",
-            }
-            st.session_state._ilm_last_persisted_brief = brief
-
-    st.session_state._ilm_loaded_user_id = str(_auth_user().get("id") or "")
-    st.session_state._ilm_last_snapshot = _state_snapshot()
-    return True
 
 
-def _state_snapshot():
-    instruments = _normalize_df(st.session_state.get("ilm_instruments"), INSTRUMENT_COLUMNS)
-    events = _normalize_df(st.session_state.get("ilm_events"), EVENT_COLUMNS)
-    payload = {
-        "instruments": instruments.astype(str).to_dict(orient="records"),
-        "events": events.astype(str).to_dict(orient="records"),
-    }
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def _save_supabase_state() -> bool:
-    if not _auth_token():
-        return False
-
-    current_snapshot = _state_snapshot()
-    previous_snapshot = st.session_state.get("_ilm_last_snapshot")
-
-    # No instrument/event changes: only persist a new investigation if needed.
-    data_changed = current_snapshot != previous_snapshot
-
-    instrument_df = _normalize_df(st.session_state.get("ilm_instruments"), INSTRUMENT_COLUMNS)
-    event_df = _normalize_df(st.session_state.get("ilm_events"), EVENT_COLUMNS)
-    instrument_map = dict(st.session_state.get("_ilm_instrument_db_ids") or {})
-    event_map = dict(st.session_state.get("_ilm_event_db_ids") or {})
-
-    if data_changed:
-        current_codes = set(instrument_df["instrument_id"].astype(str).str.strip().str.upper().tolist())
-
-        # Delete instruments removed in the UI. FK cascade removes their events.
-        for code, db_id in list(instrument_map.items()):
-            if code not in current_codes:
-                ok, _, _, _ = _db_request(f"instruments?id=eq.{urlparse.quote(db_id)}", method="DELETE", prefer="return=minimal")
-                if not ok:
-                    return False
-                instrument_map.pop(code, None)
-
-        # Upsert/update instruments one at a time so we retain a stable UUID map.
-        for _, row in instrument_df.iterrows():
-            body = _instrument_to_db(row)
-            code = body["instrument_code"]
-            if not code:
-                continue
-            db_id = instrument_map.get(code)
-            if db_id:
-                ok, data, _, _ = _db_request(
-                    f"instruments?id=eq.{urlparse.quote(db_id)}",
-                    method="PATCH",
-                    payload=body,
-                    prefer="return=representation",
-                )
-            else:
-                ok, data, _, _ = _db_request(
-                    "instruments",
-                    method="POST",
-                    payload=body,
-                    prefer="return=representation",
-                )
-            if not ok:
-                return False
-            if isinstance(data, list) and data and data[0].get("id"):
-                instrument_map[code] = str(data[0]["id"])
-
-        current_event_ids = set(event_df["event_id"].astype(str).tolist())
-        for ui_event_id, db_id in list(event_map.items()):
-            if ui_event_id not in current_event_ids:
-                ok, _, _, _ = _db_request(
-                    f"instrument_events?id=eq.{urlparse.quote(db_id)}",
-                    method="DELETE",
-                    prefer="return=minimal",
-                )
-                if not ok:
-                    return False
-                event_map.pop(ui_event_id, None)
-
-        for _, row in event_df.iterrows():
-            ui_event_id = str(row.get("event_id") or "").strip()
-            body = _event_to_db(row, instrument_map)
-            if not ui_event_id or body is None:
-                continue
-            db_id = event_map.get(ui_event_id)
-            if db_id:
-                ok, data, _, _ = _db_request(
-                    f"instrument_events?id=eq.{urlparse.quote(db_id)}",
-                    method="PATCH",
-                    payload=body,
-                    prefer="return=representation",
-                )
-            else:
-                ok, data, _, _ = _db_request(
-                    "instrument_events",
-                    method="POST",
-                    payload=body,
-                    prefer="return=representation",
-                )
-            if not ok:
-                return False
-            if isinstance(data, list) and data and data[0].get("id"):
-                event_map[ui_event_id] = str(data[0]["id"])
-
-        st.session_state._ilm_instrument_db_ids = instrument_map
-        st.session_state._ilm_event_db_ids = event_map
-        st.session_state._ilm_last_snapshot = _state_snapshot()
-
-    # Persist each newly generated evidence brief into the investigations table.
-    brief = st.session_state.get("ilm_last_brief")
-    if isinstance(brief, str) and brief.strip() and brief != st.session_state.get("_ilm_last_persisted_brief"):
-        result = st.session_state.get("ilm_last_result") or {}
-        instrument_code = str(st.session_state.get("inv_instrument") or "").strip().upper()
-        instrument_uuid = instrument_map.get(instrument_code)
-        body = {
-            "instrument_id": instrument_uuid,
-            "title": f"QC Investigation — {instrument_code or 'Instrument'}",
-            "identified_patterns": result.get("patterns") or [],
-            "risk_notes": result.get("risks") or [],
-            "unknowns": result.get("unknowns") or [],
-            "next_actions": result.get("next_actions") or [],
-            "conclusion": result.get("conclusion") or "ROOT CAUSE NOT YET IDENTIFIED",
-            "generated_brief": brief,
-        }
-        ok, data, _, _ = _db_request(
-            "investigations",
-            method="POST",
-            payload=body,
-            prefer="return=representation",
-        )
-        if not ok:
-            return False
-        st.session_state._ilm_last_persisted_brief = brief
-
-    return True
-
-
-# -----------------------------------------------------------------------------
-# Configuration / login gate
-# -----------------------------------------------------------------------------
+# Visual identity --------------------------------------------------------------
 st.markdown(
     """
-    <style>
-      .block-container { max-width: 1180px; padding-top: 3.2rem !important; padding-bottom: 4rem; }
-      div[data-baseweb="tab-list"] { overflow-x:auto !important; flex-wrap:nowrap !important; scrollbar-width:none; }
-      div[data-baseweb="tab-list"]::-webkit-scrollbar { display:none; }
-      button[data-baseweb="tab"] { white-space:nowrap !important; flex:0 0 auto !important; }
-      @media (max-width:700px) {
-        .block-container { padding-top: 3.8rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
-      }
-    </style>
-    """,
+<style>
+.block-container { max-width: 1180px; padding-top: 4.0rem !important; padding-bottom: 4rem; }
+div[data-baseweb="tab-list"] { overflow-x:auto !important; flex-wrap:nowrap !important; scrollbar-width:none; gap:.15rem; }
+div[data-baseweb="tab-list"]::-webkit-scrollbar { display:none; }
+button[data-baseweb="tab"] { white-space:nowrap !important; flex:0 0 auto !important; }
+.hero { background:linear-gradient(145deg,#07111f,#111827); color:white; border:1px solid rgba(201,165,74,.55); border-radius:26px; padding:28px 28px 24px; margin:8px 0 18px; }
+.hero-kicker { color:#d6b85f; font-weight:800; letter-spacing:.12em; font-size:.82rem; }
+.hero h1 { color:white; font-size:2.15rem; line-height:1.08; margin:.55rem 0 .5rem; }
+.hero p { color:#d1d5db; font-size:1.02rem; margin:.3rem 0; }
+.gold { color:#d6b85f; font-weight:800; }
+.cta { border:1px solid #cbd5e1; border-left:5px solid #d6b85f; border-radius:16px; padding:15px 16px; background:#f8fafc; margin:.6rem 0 1rem; }
+@media (max-width:700px) {
+ .block-container { padding-top:3.8rem !important; padding-left:.9rem !important; padding-right:.9rem !important; }
+ .hero { padding:20px 18px; border-radius:22px; }
+ .hero h1 { font-size:1.72rem; }
+ .hero p { font-size:.95rem; }
+ h1 { font-size:2rem !important; }
+ h2 { font-size:1.55rem !important; }
+}
+</style>
+""",
     unsafe_allow_html=True,
 )
 
+
+# Configuration / login --------------------------------------------------------
 if not _supabase_configured():
     st.title("🧪 Yahia QC Instrument Lifecycle")
-    st.error("Secure multi-user storage is not configured yet.")
-    st.code(
-        'SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"\n'
-        'SUPABASE_KEY = "sb_publishable_..."',
-        language="toml",
-    )
-    st.caption("Add the values in Streamlit → Manage app → Settings → Secrets. Do not put a service-role/secret key in the app.")
+    st.error("Secure multi-user storage is not configured.")
+    st.code('SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"\nSUPABASE_KEY = "sb_publishable_..."', language="toml")
     st.stop()
 
 if not _auth_token():
-    st.title("🧪 Yahia QC Instrument Lifecycle")
-    st.caption("Secure instrument lifecycle & investigation intelligence · Each account sees only its own data.")
+    st.markdown(
+        f"""<div class="hero"><div class="hero-kicker">PHARMACEUTICAL QC · INSTRUMENT LIFECYCLE · INVESTIGATION INTELLIGENCE</div><h1>🧪 Yahia QC Instrument Lifecycle</h1><p>Turn instrument history into better laboratory decisions.</p><p class="gold">{TAGLINE}</p></div>""",
+        unsafe_allow_html=True,
+    )
+    st.info("🔐 Each account has its own isolated dataset protected by Supabase Row Level Security.")
     login_tab, signup_tab = st.tabs(["Sign in", "Create account"])
-
     with login_tab:
-        with st.form("ilm_login"):
+        with st.form("login_form"):
             email = st.text_input("Email", autocomplete="email")
             password = st.text_input("Password", type="password", autocomplete="current-password")
-            submit_login = st.form_submit_button("Sign in", use_container_width=True)
-        if submit_login:
-            if not email.strip() or not password:
-                st.error("Email and password are required.")
+            login = st.form_submit_button("Sign in", use_container_width=True)
+        if login:
+            if not email.strip() or not password: st.error("Email and password are required.")
             else:
-                ok, message = _auth_login(email, password)
-                if ok:
-                    st.rerun()
-                else:
-                    st.error(message)
-
+                ok, msg = _auth_login(email, password)
+                if ok: st.rerun()
+                else: st.error(msg)
     with signup_tab:
-        with st.form("ilm_signup"):
+        with st.form("signup_form"):
             display_name = st.text_input("Name")
             new_email = st.text_input("Email", key="signup_email", autocomplete="email")
             new_password = st.text_input("Password", type="password", key="signup_password", autocomplete="new-password")
-            confirm_password = st.text_input("Confirm password", type="password", autocomplete="new-password")
-            submit_signup = st.form_submit_button("Create account", use_container_width=True)
-        if submit_signup:
-            if not new_email.strip() or not new_password:
-                st.error("Email and password are required.")
-            elif len(new_password) < 8:
-                st.error("Use a password of at least 8 characters.")
-            elif new_password != confirm_password:
-                st.error("Passwords do not match.")
+            confirm = st.text_input("Confirm password", type="password", autocomplete="new-password")
+            create = st.form_submit_button("Create account", use_container_width=True)
+        if create:
+            if not new_email.strip() or not new_password: st.error("Email and password are required.")
+            elif len(new_password) < 8: st.error("Use a password of at least 8 characters.")
+            elif new_password != confirm: st.error("Passwords do not match.")
             else:
-                ok, message, signed_in = _auth_signup(new_email, new_password, display_name)
-                if ok and signed_in:
-                    st.rerun()
-                elif ok:
-                    st.success(message)
-                else:
-                    st.error(message)
+                ok, msg, signed_in = _auth_signup(new_email, new_password, display_name)
+                if ok and signed_in: st.rerun()
+                elif ok: st.success(msg)
+                else: st.error(msg)
     st.stop()
 
 user = _auth_user()
-user_id = str(user.get("id") or "")
 user_email = str(user.get("email") or "")
+meta = user.get("user_metadata") or {}
+display_name = str(meta.get("display_name") or user_email.split("@")[0] or "QC Analyst")
 
-# Ensure app data never carries over when a different user logs in on the same
-# Streamlit worker/session.
-if st.session_state.get("_ilm_loaded_user_id") != user_id:
-    for key in [
-        "ilm_instruments", "ilm_events", "ilm_last_brief", "ilm_last_result",
-        "_ilm_instrument_db_ids", "_ilm_event_db_ids", "_ilm_last_snapshot",
-        "_ilm_last_persisted_brief", "inv_instrument"
-    ]:
-        st.session_state.pop(key, None)
-    if not _load_supabase_state():
-        st.session_state.ilm_instruments = _normalize_df([], INSTRUMENT_COLUMNS)
-        st.session_state.ilm_events = _normalize_df([], EVENT_COLUMNS)
-        st.session_state._ilm_instrument_db_ids = {}
-        st.session_state._ilm_event_db_ids = {}
-        st.session_state._ilm_loaded_user_id = user_id
-        st.session_state._ilm_last_snapshot = _state_snapshot()
+with st.sidebar:
+    st.markdown(f"### 👤 {display_name}")
+    st.caption(user_email)
+    st.caption("🔒 Private dataset · RLS protected")
+    if st.button("Log out", use_container_width=True):
+        _auth_logout(); st.rerun()
+    st.divider()
+    st.caption(f"{APP_VERSION} · Founding build")
+    st.caption(TAGLINE)
 
-account_left, account_right = st.columns([5, 1])
-account_left.caption(f"🔐 Signed in as {user_email or 'authenticated user'} · Data isolated by Row Level Security")
-if account_right.button("Log out", use_container_width=True):
-    _save_supabase_state()
-    _auth_logout()
-    st.rerun()
-
-_original_rerun = st.rerun
+st.caption(f"🔐 Signed in as **{user_email}** · Your data is isolated by Row Level Security")
 
 
-def _persistent_rerun(*args, **kwargs):
-    if not _save_supabase_state():
-        st.session_state._ilm_save_warning = st.session_state.get("_ilm_db_error") or "Could not sync with Supabase"
-    return _original_rerun(*args, **kwargs)
+# Load data -------------------------------------------------------------------
+instrument_select = "id,instrument_code,instrument_name,instrument_type,manufacturer,model,serial_number,location,operational_status,responsible_team,qualification_due,pm_due,calibration_due,notes,created_at,updated_at"
+event_select = "id,instrument_id,event_date,event_type,severity,subsystem,event_status,observed_facts,immediate_action,root_cause_status,root_cause,investigation_reference,created_at,updated_at"
+instruments, _, inst_ok = _db_list("instruments", instrument_select, "created_at.asc")
+events, _, evt_ok = _db_list("instrument_events", event_select, "event_date.desc")
+
+OPTIONAL_TABLES = {
+    "maintenance_records": "id,instrument_id,maintenance_date,maintenance_type,provider,work_order,actions_taken,parts_replaced,result,next_due,notes,created_at",
+    "lifecycle_records": "id,instrument_id,record_type,performed_date,result,provider,reference,next_due,notes,created_at",
+    "instrument_components": "id,instrument_id,component_name,component_type,part_number,serial_number,installed_date,replacement_due,status,notes,created_at",
+}
+optional = {}
+migration_ready = True
+for table, select in OPTIONAL_TABLES.items():
+    rows, err, ok = _db_list(table, select, "created_at.desc")
+    optional[table] = rows
+    if not ok: migration_ready = False
+maintenance = optional["maintenance_records"]
+lifecycle_records = optional["lifecycle_records"]
+components = optional["instrument_components"]
+
+if not (inst_ok and evt_ok):
+    st.error("Could not load your core dataset from Supabase.")
+    if st.session_state.get("_ilm_db_error"): st.caption(f"Diagnostic: {st.session_state._ilm_db_error}")
+    st.stop()
+
+id_to_code, code_to_id = _instrument_code_maps(instruments)
+deep_code = ""
+try: deep_code = str(st.query_params.get("instrument", "") or "").upper()
+except Exception: pass
+valid_codes = [str(i.get("instrument_code") or "") for i in instruments]
+if deep_code and deep_code not in valid_codes: deep_code = ""
 
 
-st.rerun = _persistent_rerun
+# Welcome / importance / CTA ---------------------------------------------------
+st.markdown(
+    f"""<div class="hero"><div class="hero-kicker">PHARMACEUTICAL QC · INSTRUMENT LIFECYCLE · INVESTIGATION INTELLIGENCE</div><h1>Welcome, {display_name} 👋</h1><p><b>{PRODUCT_NAME}</b></p><p>Bring lifecycle dates, maintenance, failures, components, and investigations into one evidence-first view.</p><p class="gold">{TAGLINE}</p></div>""",
+    unsafe_allow_html=True,
+)
 
-# The UI source calls set_page_config itself. We already configured the page
-# before the auth gate, so temporarily no-op the duplicate call.
-_original_set_page_config = st.set_page_config
-st.set_page_config = lambda *args, **kwargs: None
+with st.expander("Why this application matters | لماذا هذا التطبيق مهم؟", expanded=(len(instruments) == 0)):
+    st.markdown("""
+**The problem:** instrument information is often scattered across logbooks, spreadsheets, work orders, emails, and individual memory.
 
-_ui_source = Path(__file__).resolve().parent / "instrument_lifecycle_app.py"
-try:
-    exec(
-        compile(_ui_source.read_text(encoding="utf-8"), str(_ui_source), "exec"),
-        globals(),
-        globals(),
-    )
-finally:
-    st.set_page_config = _original_set_page_config
-    _save_supabase_state()
+**This application helps you:**
+- see what is due before it becomes overdue,
+- preserve a usable instrument history,
+- detect repeated failure patterns without calling them root cause,
+- connect maintenance and component history to investigations,
+- prioritize attention with an explainable Health Score,
+- keep each user's data private and isolated.
 
-if st.session_state.get("_ilm_db_error"):
-    st.caption(f"⚠️ Supabase sync diagnostic: {st.session_state.get('_ilm_db_error')}")
+**Important:** this is decision-support software, not a validated GxP system of record. Official GMP records remain in your approved systems and SOP-controlled forms.
+
+**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.
+""")
+
+open_events = [e for e in events if str(e.get("event_status")) != "Closed"]
+overdue_items = 0
+due_30 = 0
+for inst in instruments:
+    for f in ("qualification_due","pm_due","calibration_due"):
+        days = _days_to(inst.get(f))
+        if days is not None and days < 0: overdue_items += 1
+        elif days is not None and days <= 30: due_30 += 1
+for comp in components:
+    days = _days_to(comp.get("replacement_due"))
+    if days is not None and str(comp.get("status") or "Active") == "Active":
+        if days < 0: overdue_items += 1
+        elif days <= 30: due_30 += 1
+
+m1,m2 = st.columns(2); m1.metric("Instruments", len(instruments)); m2.metric("Open events", len(open_events))
+m3,m4 = st.columns(2); m3.metric("Overdue items", overdue_items); m4.metric("Due ≤30 days", due_30)
+
+if len(instruments) == 0:
+    cta = "Recommended next action → Create your first Instrument Passport.|Start with identity, location, ownership, and the three critical lifecycle dates: qualification, PM, and calibration."
+elif overdue_items:
+    cta = f"Recommended next action → Review {overdue_items} overdue lifecycle item(s).|Resolve the due-date picture before relying on Health Score for prioritization."
+elif open_events:
+    cta = f"Recommended next action → Review {len(open_events)} open event(s).|Use Investigation Intelligence when evidence is incomplete or recurrence may matter."
 else:
-    st.caption("☁️ Secure storage: Supabase · 🔒 Row Level Security enabled")
+    cta = "Recommended next action → Keep the history alive.|Log maintenance, qualification/calibration, component changes, and failures when they occur."
+cta_title, cta_text = cta.split("|",1)
+st.markdown(f'<div class="cta"><b>{cta_title}</b><br>{cta_text}</div>', unsafe_allow_html=True)
+
+if not migration_ready:
+    st.warning("v0.2 lifecycle modules are not installed yet. Core Instruments / Events / Investigation remain available. Run `supabase_v02_migration.sql` in Supabase SQL Editor to enable Maintenance, Qualification/Calibration, and Components.")
+
+tabs = st.tabs(["Command Center","Instrument Passport","Lifecycle","Events","Investigation Intelligence","Guide"])
+
+
+# Command Center ---------------------------------------------------------------
+with tabs[0]:
+    st.header("Instrument Command Center")
+    if not instruments:
+        st.info("No instruments yet. Open **Instrument Passport** and create your first instrument.")
+    else:
+        rows=[]; attention=[]
+        for inst in instruments:
+            score,reasons = health_score_v2(inst, events, components)
+            rows.append({"Instrument":inst.get("instrument_code"),"Name":inst.get("instrument_name"),"Type":inst.get("instrument_type"),"Status":inst.get("operational_status"),"Health":score,"State":health_state(score),"Primary signal":reasons[0] if reasons else "No major signal detected"})
+            if score < 90 or reasons: attention.append((score,inst,reasons))
+        st.dataframe(pd.DataFrame(rows).sort_values(["Health","Instrument"]), use_container_width=True, hide_index=True)
+        st.subheader("Priority attention queue")
+        if not attention: st.success("No major lifecycle or event signal is currently detected.")
+        else:
+            for score,inst,reasons in sorted(attention,key=lambda x:x[0])[:8]:
+                with st.expander(f"{inst.get('instrument_code')} · {health_state(score)} · {score}/100"):
+                    for reason in reasons: st.write(f"• {reason}")
+                    st.caption("Health Score prioritizes attention. It does not determine compliance, release, or qualification validity.")
+        st.subheader("Upcoming lifecycle actions")
+        due_rows=[]
+        for inst in instruments:
+            for label,field in [("Qualification","qualification_due"),("PM","pm_due"),("Calibration","calibration_due")]:
+                days=_days_to(inst.get(field))
+                if days is not None and days <= 60: due_rows.append({"Instrument":inst.get("instrument_code"),"Action":label,"Due date":inst.get(field),"Days":days,"Status":"OVERDUE" if days<0 else "Upcoming"})
+        for comp in components:
+            days=_days_to(comp.get("replacement_due"))
+            if days is not None and days <= 60 and str(comp.get("status") or "Active") == "Active":
+                due_rows.append({"Instrument":id_to_code.get(str(comp.get("instrument_id")),""),"Action":f"Component: {comp.get('component_name')}","Due date":comp.get("replacement_due"),"Days":days,"Status":"OVERDUE" if days<0 else "Upcoming"})
+        if due_rows: st.dataframe(pd.DataFrame(due_rows).sort_values("Days"),use_container_width=True,hide_index=True)
+        else: st.success("No lifecycle item is due within the next 60 days.")
+
+
+# Instrument Passport ----------------------------------------------------------
+with tabs[1]:
+    st.header("Digital Instrument Passport")
+    st.caption("One instrument identity. One lifecycle view. One history you can actually use.")
+    with st.expander("➕ Add new instrument", expanded=(len(instruments)==0)):
+        with st.form("add_instrument", clear_on_submit=True):
+            c1,c2=st.columns(2); code=c1.text_input("Instrument ID *",placeholder="HPLC-001"); name=c2.text_input("Instrument name *",placeholder="Waters Alliance")
+            c1,c2,c3=st.columns(3); inst_type=c1.selectbox("Type",["HPLC","UHPLC","GC","LC-MS","LC-MS/MS","UV-Vis","Dissolution","Balance","pH Meter","Other"]); manufacturer=c2.text_input("Manufacturer"); model=c3.text_input("Model")
+            c1,c2,c3=st.columns(3); serial=c1.text_input("Serial number"); location=c2.text_input("Location"); owner=c3.text_input("Responsible team")
+            status=st.selectbox("Operational status",["Active","Restricted","Under Maintenance","Out of Service","Retired"])
+            c1,c2,c3=st.columns(3); q_due=c1.date_input("Qualification due",value=date.today()+timedelta(days=365)); pm_due=c2.date_input("PM due",value=date.today()+timedelta(days=180)); cal_due=c3.date_input("Calibration due",value=date.today()+timedelta(days=180))
+            notes=st.text_area("Notes"); submit=st.form_submit_button("Create Instrument Passport",use_container_width=True)
+        if submit:
+            clean=code.strip().upper()
+            if not clean or not name.strip(): st.error("Instrument ID and name are required.")
+            elif clean in code_to_id: st.error("This Instrument ID already exists in your account.")
+            else:
+                ok,_,_,err=_db_insert("instruments",{"instrument_code":clean,"instrument_name":name.strip(),"instrument_type":inst_type,"manufacturer":manufacturer.strip(),"model":model.strip(),"serial_number":serial.strip(),"location":location.strip(),"operational_status":status,"responsible_team":owner.strip(),"qualification_due":q_due.isoformat(),"pm_due":pm_due.isoformat(),"calibration_due":cal_due.isoformat(),"notes":notes.strip()})
+                if ok: st.success(f"{clean} created."); st.rerun()
+                else: st.error(err or "Could not create instrument.")
+    if instruments:
+        codes=[str(x.get("instrument_code")) for x in instruments]; default_index=codes.index(deep_code) if deep_code in codes else 0
+        selected_code=st.selectbox("Open Instrument Passport",codes,index=default_index,key="passport_selected")
+        inst=next(x for x in instruments if str(x.get("instrument_code"))==selected_code); inst_id=str(inst.get("id")); score,reasons=health_score_v2(inst,events,components)
+        c1,c2,c3=st.columns(3); c1.metric("Health Score",f"{score}/100",health_state(score)); c2.metric("Status",inst.get("operational_status") or "—"); c3.metric("Open events",len([e for e in events if str(e.get("instrument_id"))==inst_id and str(e.get("event_status"))!="Closed"]))
+        st.markdown(f"### {selected_code} · {inst.get('instrument_name')}")
+        details={"Type":inst.get("instrument_type") or "—","Manufacturer / Model":f"{inst.get('manufacturer') or '—'} / {inst.get('model') or '—'}","Serial number":inst.get("serial_number") or "—","Location":inst.get("location") or "—","Responsible team":inst.get("responsible_team") or "—","Qualification":f"{inst.get('qualification_due') or 'Not set'} · {_due_label(inst.get('qualification_due'))}","PM":f"{inst.get('pm_due') or 'Not set'} · {_due_label(inst.get('pm_due'))}","Calibration":f"{inst.get('calibration_due') or 'Not set'} · {_due_label(inst.get('calibration_due'))}"}
+        st.dataframe(pd.DataFrame([details]).T.rename(columns={0:"Value"}),use_container_width=True)
+        if reasons:
+            with st.expander("Why this Health Score?"):
+                for reason in reasons: st.write(f"• {reason}")
+        with st.expander("QR Digital Passport"):
+            st.write("Scan the QR to reopen this instrument after authentication. RLS still controls access.")
+            try: app_url=str(st.context.url)
+            except Exception: app_url=""
+            if app_url:
+                link=app_url.split("?")[0]+f"?instrument={urlparse.quote(selected_code)}"; st.code(link)
+                if qrcode:
+                    qr=qrcode.make(link); buf=io.BytesIO(); qr.save(buf,format="PNG"); st.image(buf.getvalue(),width=190); st.download_button("Download QR",buf.getvalue(),file_name=f"{selected_code}_passport_qr.png",mime="image/png")
+                else: st.caption("QR rendering package is not installed; the deep link above is ready to use.")
+            else: st.caption("Open the deployed app URL to generate a QR deep link.")
+        with st.expander("✏️ Edit instrument"):
+            with st.form(f"edit_{inst_id}"):
+                c1,c2=st.columns(2); e_name=c1.text_input("Instrument name",value=str(inst.get("instrument_name") or "")); types=["HPLC","UHPLC","GC","LC-MS","LC-MS/MS","UV-Vis","Dissolution","Balance","pH Meter","Other"]; cur_type=str(inst.get("instrument_type") or "Other"); e_type=c2.selectbox("Type",types,index=types.index(cur_type) if cur_type in types else len(types)-1)
+                c1,c2,c3=st.columns(3); e_manu=c1.text_input("Manufacturer",value=str(inst.get("manufacturer") or "")); e_model=c2.text_input("Model",value=str(inst.get("model") or "")); e_serial=c3.text_input("Serial number",value=str(inst.get("serial_number") or ""))
+                c1,c2,c3=st.columns(3); e_loc=c1.text_input("Location",value=str(inst.get("location") or "")); statuses=["Active","Restricted","Under Maintenance","Out of Service","Retired"]; cur_status=str(inst.get("operational_status") or "Active"); e_status=c2.selectbox("Operational status",statuses,index=statuses.index(cur_status) if cur_status in statuses else 0); e_owner=c3.text_input("Responsible team",value=str(inst.get("responsible_team") or ""))
+                def valdate(v,fallback): return _parse_date(v) or fallback
+                c1,c2,c3=st.columns(3); e_q=c1.date_input("Qualification due",value=valdate(inst.get("qualification_due"),date.today())); e_pm=c2.date_input("PM due",value=valdate(inst.get("pm_due"),date.today())); e_cal=c3.date_input("Calibration due",value=valdate(inst.get("calibration_due"),date.today()))
+                e_notes=st.text_area("Notes",value=str(inst.get("notes") or "")); save=st.form_submit_button("Save changes",use_container_width=True)
+            if save:
+                ok,_,_,err=_db_patch("instruments",inst_id,{"instrument_name":e_name.strip(),"instrument_type":e_type,"manufacturer":e_manu.strip(),"model":e_model.strip(),"serial_number":e_serial.strip(),"location":e_loc.strip(),"operational_status":e_status,"responsible_team":e_owner.strip(),"qualification_due":e_q.isoformat(),"pm_due":e_pm.isoformat(),"calibration_due":e_cal.isoformat(),"notes":e_notes.strip()})
+                if ok: st.success("Instrument updated."); st.rerun()
+                else: st.error(err or "Could not update instrument.")
+        with st.expander("🗑️ Retire / delete instrument"):
+            st.warning("Deleting an instrument also removes linked event history through database cascade rules. Export first if needed.")
+            confirm_code=st.text_input("Type the Instrument ID to confirm deletion",key=f"delete_confirm_{inst_id}")
+            if st.button("Delete instrument permanently",key=f"delete_{inst_id}",use_container_width=True):
+                if confirm_code.strip().upper()!=selected_code.upper(): st.error("Instrument ID confirmation does not match.")
+                else:
+                    ok,_,_,err=_db_delete("instruments",inst_id)
+                    if ok: st.success("Instrument deleted."); st.rerun()
+                    else: st.error(err or "Could not delete instrument.")
+
+
+# Lifecycle -------------------------------------------------------------------
+with tabs[2]:
+    st.header("Lifecycle Control")
+    st.caption("Maintenance, calibration/qualification, and component life — connected to the same instrument history.")
+    if not instruments: st.info("Create an Instrument Passport first.")
+    elif not migration_ready: st.error("v0.2 lifecycle tables are not installed. Run `supabase_v02_migration.sql` in Supabase SQL Editor.")
+    else:
+        codes=[str(x.get("instrument_code")) for x in instruments]; lifecycle_code=st.selectbox("Instrument",codes,key="lifecycle_instrument"); lifecycle_inst_id=code_to_id[lifecycle_code]
+        sub1,sub2,sub3=st.tabs(["Maintenance","Calibration & Qualification","Components"])
+        with sub1:
+            with st.form("maintenance_form",clear_on_submit=True):
+                c1,c2=st.columns(2); m_date=c1.date_input("Maintenance date",value=date.today()); m_type=c2.selectbox("Maintenance type",["Preventive Maintenance","Corrective Maintenance","Inspection","Cleaning / Service","Vendor Service","Other"])
+                c1,c2=st.columns(2); provider=c1.text_input("Provider / technician"); wo=c2.text_input("Work-order / service reference")
+                actions=st.text_area("Actions taken *"); parts=st.text_area("Parts replaced")
+                c1,c2=st.columns(2); result=c1.selectbox("Result",["Completed / Pass","Completed with observation","Pending","Failed / Follow-up required"]); next_due=c2.date_input("Next due",value=date.today()+timedelta(days=180))
+                notes=st.text_area("Notes",key="maint_notes"); save=st.form_submit_button("Save maintenance record",use_container_width=True)
+            if save:
+                if not actions.strip(): st.error("Actions taken are required.")
+                else:
+                    ok,_,_,err=_db_insert("maintenance_records",{"instrument_id":lifecycle_inst_id,"maintenance_date":m_date.isoformat(),"maintenance_type":m_type,"provider":provider.strip(),"work_order":wo.strip(),"actions_taken":actions.strip(),"parts_replaced":parts.strip(),"result":result,"next_due":next_due.isoformat(),"notes":notes.strip()})
+                    if ok:
+                        if m_type=="Preventive Maintenance": _db_patch("instruments",lifecycle_inst_id,{"pm_due":next_due.isoformat()})
+                        st.success("Maintenance record saved."); st.rerun()
+                    else: st.error(err or "Could not save maintenance record.")
+            rows=[x for x in maintenance if str(x.get("instrument_id"))==lifecycle_inst_id]
+            if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+            else: st.info("No maintenance history yet.")
+        with sub2:
+            with st.form("lifecycle_record_form",clear_on_submit=True):
+                c1,c2=st.columns(2); record_type=c1.selectbox("Record type",["Calibration","Qualification","Requalification","IQ","OQ","PQ","Verification","Other"]); performed=c2.date_input("Performed date",value=date.today())
+                c1,c2=st.columns(2); lc_result=c1.selectbox("Result",["Pass","Pass with observation","Pending","Fail"]); lc_provider=c2.text_input("Provider / executed by")
+                reference=st.text_input("Certificate / protocol / report reference"); next_due=st.date_input("Next due",value=date.today()+timedelta(days=365),key="lc_next_due"); lc_notes=st.text_area("Notes",key="lc_notes"); save_lc=st.form_submit_button("Save lifecycle record",use_container_width=True)
+            if save_lc:
+                ok,_,_,err=_db_insert("lifecycle_records",{"instrument_id":lifecycle_inst_id,"record_type":record_type,"performed_date":performed.isoformat(),"result":lc_result,"provider":lc_provider.strip(),"reference":reference.strip(),"next_due":next_due.isoformat(),"notes":lc_notes.strip()})
+                if ok:
+                    if record_type=="Calibration": _db_patch("instruments",lifecycle_inst_id,{"calibration_due":next_due.isoformat()})
+                    elif record_type in ("Qualification","Requalification","IQ","OQ","PQ"): _db_patch("instruments",lifecycle_inst_id,{"qualification_due":next_due.isoformat()})
+                    st.success("Lifecycle record saved."); st.rerun()
+                else: st.error(err or "Could not save lifecycle record.")
+            rows=[x for x in lifecycle_records if str(x.get("instrument_id"))==lifecycle_inst_id]
+            if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+            else: st.info("No calibration / qualification history yet.")
+        with sub3:
+            with st.form("component_form",clear_on_submit=True):
+                c1,c2=st.columns(2); comp_name=c1.text_input("Component name *",placeholder="Pump seal / lamp / check valve"); comp_type=c2.selectbox("Component type",["Consumable","Wear part","Critical component","Detector component","Pump component","Injector component","Other"])
+                c1,c2=st.columns(2); part_no=c1.text_input("Part number"); comp_serial=c2.text_input("Serial number")
+                c1,c2=st.columns(2); installed=c1.date_input("Installed date",value=date.today()); replacement=c2.date_input("Replacement / review due",value=date.today()+timedelta(days=365))
+                comp_status=st.selectbox("Status",["Active","Monitor","Replace soon","Replaced","Retired"]); comp_notes=st.text_area("Notes",key="comp_notes"); save_comp=st.form_submit_button("Add component",use_container_width=True)
+            if save_comp:
+                if not comp_name.strip(): st.error("Component name is required.")
+                else:
+                    ok,_,_,err=_db_insert("instrument_components",{"instrument_id":lifecycle_inst_id,"component_name":comp_name.strip(),"component_type":comp_type,"part_number":part_no.strip(),"serial_number":comp_serial.strip(),"installed_date":installed.isoformat(),"replacement_due":replacement.isoformat(),"status":comp_status,"notes":comp_notes.strip()})
+                    if ok: st.success("Component added."); st.rerun()
+                    else: st.error(err or "Could not add component.")
+            rows=[x for x in components if str(x.get("instrument_id"))==lifecycle_inst_id]
+            if rows:
+                comp_df=pd.DataFrame(rows); comp_df["Due status"]=comp_df["replacement_due"].apply(_due_label); st.dataframe(comp_df,use_container_width=True,hide_index=True)
+                st.caption("Component due dates are planning signals. Confirm replacement criteria against approved procedures and manufacturer recommendations.")
+            else: st.info("No tracked components yet.")
+
+
+# Events ----------------------------------------------------------------------
+with tabs[3]:
+    st.header("Instrument Event / Failure Log")
+    st.caption("Record observations first. Diagnosis comes later.")
+    if not instruments: st.info("Create an Instrument Passport first.")
+    else:
+        codes=[str(x.get("instrument_code")) for x in instruments]
+        with st.form("event_form",clear_on_submit=True):
+            c1,c2=st.columns(2); event_code=c1.selectbox("Instrument *",codes); event_date=c2.date_input("Event date",value=date.today())
+            c1,c2,c3=st.columns(3); event_type=c1.selectbox("Event type",["High Pressure","Low Pressure","Leak","Retention Time Shift","Peak Shape","Baseline","Carryover","SST Failure","Communication / Software","Temperature","Autosampler / Injector","Detector","Pump","Other"]); severity=c2.selectbox("Severity",["Low","Medium","High","Critical"]); subsystem=c3.selectbox("Subsystem",["Flow Path","Pump","Injector / Autosampler","Column Compartment","Detector","Degasser","Software / CDS","Electrical","Gas Supply","General / Unknown","Other"])
+            status=st.selectbox("Status",["Open","Under Investigation","Monitoring","Closed"]); observed=st.text_area("Observed facts *",placeholder="What was actually observed or reported? Avoid embedding the suspected diagnosis."); immediate=st.text_area("Immediate action / containment")
+            c1,c2=st.columns(2); rc_status=c1.selectbox("Root cause status",["Not identified","Probable","Confirmed"]); root_cause=c2.text_input("Root cause / hypothesis")
+            reference=st.text_input("Deviation / investigation / work-order reference"); save_event=st.form_submit_button("Save event",use_container_width=True)
+        if save_event:
+            if not observed.strip(): st.error("Observed facts are required.")
+            elif rc_status=="Confirmed" and not root_cause.strip(): st.error("A confirmed root cause must include the confirmed cause.")
+            else:
+                ok,_,_,err=_db_insert("instrument_events",{"instrument_id":code_to_id[event_code],"event_date":event_date.isoformat(),"event_type":event_type,"severity":severity,"subsystem":subsystem,"event_status":status,"observed_facts":observed.strip(),"immediate_action":immediate.strip(),"root_cause_status":rc_status,"root_cause":root_cause.strip(),"investigation_reference":reference.strip()})
+                if ok: st.success("Event saved."); st.rerun()
+                else: st.error(err or "Could not save event.")
+        if events:
+            event_rows=[]
+            for e in events:
+                row=dict(e); row["instrument"]=id_to_code.get(str(e.get("instrument_id")),""); event_rows.append(row)
+            st.dataframe(pd.DataFrame(event_rows),use_container_width=True,hide_index=True)
+        else: st.info("No instrument events yet.")
+
+
+# Investigation Intelligence ---------------------------------------------------
+with tabs[4]:
+    st.header("QC Investigation Intelligence™")
+    st.caption("Evidence-first decision support. Recurrence is a clue — never automatic proof of root cause.")
+    if not instruments: st.info("Create an Instrument Passport first.")
+    else:
+        codes=[str(x.get("instrument_code")) for x in instruments]; inv_code=st.selectbox("Instrument under investigation",codes,key="inv_code"); inv_id=code_to_id[inv_code]; inst=next(x for x in instruments if str(x.get("id"))==inv_id); score,score_reasons=health_score_v2(inst,events,components)
+        c1,c2=st.columns(2); c1.metric("Current Health",f"{score}/100",health_state(score)); c2.metric("Open events",len([e for e in events if str(e.get("instrument_id"))==inv_id and str(e.get("event_status"))!="Closed"]))
+        with st.form("investigation_form"):
+            expected=st.text_area("1) What was expected?"); observed=st.text_area("2) What happened actually?"); changed=st.text_area("3) What changed recently?"); unchanged=st.text_area("4) What stayed unchanged?"); evidence=st.text_area("5) Objective evidence available"); analyze=st.form_submit_button("Build evidence brief",use_container_width=True)
+        if analyze:
+            inst_events=[e for e in events if str(e.get("instrument_id"))==inv_id]; cutoff=date.today()-timedelta(days=90); recent=[e for e in inst_events if (_parse_date(e.get("event_date")) or date.min)>=cutoff]
+            patterns=[]; by_type={}; by_sub={}
+            for e in recent:
+                t=str(e.get("event_type") or "Unknown"); s=str(e.get("subsystem") or "Unknown"); by_type[t]=by_type.get(t,0)+1; by_sub[s]=by_sub.get(s,0)+1
+            for k,v in sorted(by_type.items(),key=lambda x:-x[1]):
+                if v>=2: patterns.append(f"{k} appeared {v} times in the last 90 days.")
+            for k,v in sorted(by_sub.items(),key=lambda x:-x[1]):
+                if v>=3 and k not in ("Unknown","General / Unknown",""): patterns.append(f"{k} subsystem appears in {v} recent events.")
+            if score_reasons: patterns.extend([f"Lifecycle / health signal: {x}" for x in score_reasons[:4]])
+            inst_components=[c for c in components if str(c.get("instrument_id"))==inv_id]; overdue_comps=[c for c in inst_components if (_days_to(c.get("replacement_due")) if _days_to(c.get("replacement_due")) is not None else 99999)<0 and str(c.get("status") or "Active")=="Active"]
+            if overdue_comps: patterns.append("Overdue component lifecycle: "+", ".join(str(c.get("component_name")) for c in overdue_comps[:3]))
+            risks=[]
+            for label,field in [("Qualification","qualification_due"),("PM","pm_due"),("Calibration","calibration_due")]:
+                d=_days_to(inst.get(field))
+                if d is not None and d<0: risks.append(f"{label} is overdue by {abs(d)} days.")
+                elif d is not None and d<=30: risks.append(f"{label} is due within {d} days.")
+            if any(str(e.get("severity")) in ("High","Critical") and str(e.get("event_status"))!="Closed" for e in inst_events): risks.append("There is an open High/Critical event in this instrument history.")
+            unknowns=[]
+            if not expected.strip(): unknowns.append("Expected behavior / acceptance target is not documented in this brief.")
+            if not observed.strip(): unknowns.append("Actual observed behavior is not sufficiently described.")
+            if not changed.strip(): unknowns.append("Recent changes are unknown or not documented.")
+            if not unchanged.strip(): unknowns.append("Controls / factors that stayed unchanged are not documented.")
+            if not evidence.strip(): unknowns.append("Objective evidence has not been listed.")
+            next_actions=["Preserve the current objective evidence before changing the system.","Separate observed/reported facts from hypotheses and unknowns."]
+            if patterns: next_actions.append("Use the strongest historical pattern to choose one discriminating test — do not treat recurrence as proof.")
+            else: next_actions.append("Localize the problem by subsystem before replacing parts or changing multiple variables.")
+            text=(observed+" "+expected).lower()
+            if "pressure" in text: next_actions.append("For a pressure symptom, localize restriction stepwise across the flow path under approved conditions before blaming the column.")
+            if "carryover" in text: next_actions.append("For carryover, discriminate sample-path memory from wash / needle / seat / sequence effects with one controlled test at a time.")
+            next_actions.append("Only call the root cause confirmed when a targeted intervention changes the outcome as predicted and credible alternatives are reasonably excluded.")
+            conclusion="ROOT CAUSE NOT YET IDENTIFIED"
+            brief=f"""# QC Investigation Evidence Brief — {inv_code}\n\n## OBSERVED / REPORTED\n**Expected:** {expected.strip() or 'Not provided'}\n**Actual:** {observed.strip() or 'Not provided'}\n**Changed:** {changed.strip() or 'Not established'}\n**Unchanged:** {unchanged.strip() or 'Not established'}\n**Objective evidence:** {evidence.strip() or 'Not listed'}\n\n## HISTORICAL PATTERNS / SIGNALS\n{chr(10).join('- '+x for x in patterns) if patterns else '- No repeated pattern detected from current history.'}\n\n## RISK / ATTENTION NOTES\n{chr(10).join('- '+x for x in risks) if risks else '- No lifecycle alert detected from current data.'}\n\n## UNKNOWN / MISSING EVIDENCE\n{chr(10).join('- '+x for x in unknowns) if unknowns else '- No major evidence gap flagged by the current rule set.'}\n\n## NEXT EVIDENCE ACTION\n{chr(10).join('- '+x for x in next_actions)}\n\n## CONCLUSION\n**{conclusion}**\n\n> Recurrence, overdue maintenance, or a component lifecycle signal can strengthen a hypothesis. None of them independently confirms root cause.\n"""
+            st.session_state.ilm_last_brief=brief; st.session_state.ilm_last_result={"patterns":patterns,"risks":risks,"unknowns":unknowns,"next_actions":next_actions,"conclusion":conclusion}
+            ok,_,_,err=_db_insert("investigations",{"instrument_id":inv_id,"title":f"QC Investigation — {inv_code}","expected_behavior":expected.strip(),"observed_behavior":observed.strip(),"what_changed":changed.strip(),"what_stayed_unchanged":unchanged.strip(),"objective_evidence":evidence.strip(),"identified_patterns":patterns,"risk_notes":risks,"unknowns":unknowns,"next_actions":next_actions,"conclusion":conclusion,"generated_brief":brief})
+            if not ok: st.warning(f"Brief generated, but database save did not complete: {err or 'unknown error'}")
+        if st.session_state.get("ilm_last_brief"):
+            result=st.session_state.get("ilm_last_result") or {}; st.subheader("Evidence Map"); c1,c2=st.columns(2)
+            with c1:
+                st.markdown("**Patterns / signals**"); [st.write(f"• {x}") for x in (result.get("patterns") or ["No repeat pattern detected."])]
+                st.markdown("**Risk notes**"); [st.write(f"• {x}") for x in (result.get("risks") or ["No current lifecycle alert detected."])]
+            with c2:
+                st.markdown("**Unknown / missing evidence**"); [st.write(f"• {x}") for x in (result.get("unknowns") or ["No major evidence gap flagged."])]
+                st.markdown("**Next evidence action**"); [st.write(f"• {x}") for x in (result.get("next_actions") or [])]
+            st.warning(result.get("conclusion") or "ROOT CAUSE NOT YET IDENTIFIED")
+            with st.expander("Full investigation brief"): st.markdown(st.session_state.ilm_last_brief)
+            st.download_button("Download investigation brief (.md)",data=st.session_state.ilm_last_brief.encode("utf-8"),file_name=f"{inv_code}_investigation_brief.md",mime="text/markdown",use_container_width=True)
+            st.link_button("Open Yahia HPLC Investigation Assistant ↗",HPLC_ASSISTANT_URL,use_container_width=True)
+
+
+# Guide -----------------------------------------------------------------------
+with tabs[5]:
+    st.header("How to Use | دليل الاستخدام")
+    st.markdown("""
+### Welcome
+This application is designed for Pharmaceutical QC teams who want instrument history to support decisions — not sit unused in disconnected files.
+
+### Quick start — 5 steps
+1. **Create the Instrument Passport** — Add identity, owner/location, status, and current Qualification / PM / Calibration due dates.
+2. **Build the lifecycle history** — Log maintenance, calibration/qualification, and key component installation/replacement dates.
+3. **Log failures as observations** — Record what happened, severity, subsystem, containment, and investigation reference. Avoid writing a suspected diagnosis as an observed fact.
+4. **Use the Command Center** — Health Score helps prioritize attention by combining lifecycle dates, open events, recurrence, and component status.
+5. **Use Investigation Intelligence when a problem appears** — Enter Expected → Actual → Changed → Unchanged → Evidence. The app connects the issue with instrument history and proposes the next evidence action.
+
+---
+### What the Health Score means
+**Health Score is a prioritization aid, not a GMP disposition.** A lower score means more signals require attention. It does **not** independently mean the instrument is non-compliant or unfit for use.
+
+### Evidence rules
+- **OBSERVED / REPORTED** = what is actually known.
+- **INFERRED** = supported interpretation, not confirmed fact.
+- **UNKNOWN** = information still needed.
+- Repeated failures are a **pattern**, not automatic root cause.
+- Change **one discriminating variable at a time** where scientifically and procedurally appropriate.
+- Do not retest into pass or create unofficial injections / unofficial data.
+
+### Data privacy
+Each account sees only its own database rows. Supabase Row Level Security is the enforcement layer.
+
+### Important GMP boundary
+This application is **decision-support software**, not a validated GxP system of record. Keep official records, approvals, deviations, maintenance evidence, certificates, and SOP-controlled forms in your approved company systems.
+
+---
+### دليل سريع بالعربي
+- ابدأ بعمل **Passport** لكل جهاز.
+- سجّل مواعيد **PM / Calibration / Qualification** الحالية.
+- سجّل الصيانة وتغيير الأجزاء المهمة وقت حدوثها.
+- عند ظهور مشكلة، سجّل **ما حدث فعلاً** قبل كتابة أي تشخيص.
+- استخدم **Investigation Intelligence** لربط الحالة بتاريخ الجهاز وتحديد أقوى خطوة تالية للحصول على دليل.
+- تكرار المشكلة يقوّي الفرضية، لكنه **لا يثبت Root Cause وحده**.
+""")
+    st.markdown(f'<div class="cta"><b>Ready for the next decision?</b><br>Keep this application as the instrument memory, then use the evidence to decide what to test next.<br><b>{TAGLINE}</b></div>',unsafe_allow_html=True)
+    st.link_button("Investigate an HPLC problem with Yahia HPLC Assistant ↗",HPLC_ASSISTANT_URL,use_container_width=True)
+
+st.divider()
+st.caption(f"Yahia Abdelhalim · Pharmaceutical QC Expert · {APP_VERSION} · Helping Pharmaceutical Analysts Make Better Laboratory Decisions")
