@@ -7,7 +7,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from beta_feedback import dashboard_snapshot, rows_to_csv
+from beta_feedback import (
+    dashboard_snapshot,
+    external_storage_configured,
+    rows_to_csv,
+    test_external_storage,
+)
 
 st.set_page_config(page_title="Founding Beta Dashboard", page_icon="📊", layout="wide")
 
@@ -29,6 +34,29 @@ if pin != expected_pin:
     if pin:
         st.error("Incorrect PIN.")
     st.stop()
+
+st.subheader("Durable storage")
+if external_storage_configured():
+    st.success("External beta mirror is configured. Local storage remains as a temporary fallback.")
+    if st.button("Test Google Sheets / webhook connection", use_container_width=True):
+        with st.spinner("Testing durable storage..."):
+            if test_external_storage():
+                st.success("Connection verified. A harmless storage_test event was accepted by the external store.")
+            else:
+                st.error(
+                    "The external URL is configured, but the test was not accepted. "
+                    "Check the Apps Script deployment URL and BETA_FEEDBACK_WEBHOOK_TOKEN."
+                )
+else:
+    st.warning("Durable Google Sheets mirroring is not configured yet. Local Streamlit storage can reset after redeploy/restart.")
+    st.code(
+        'BETA_FEEDBACK_WEBHOOK = "https://script.google.com/macros/s/.../exec"\n'
+        'BETA_FEEDBACK_WEBHOOK_TOKEN = "same-private-token-as-apps-script"',
+        language="toml",
+    )
+    st.caption("Repository guide: GOOGLE_SHEETS_SETUP.md")
+
+st.divider()
 
 events, feedback = dashboard_snapshot()
 
@@ -82,7 +110,12 @@ if events:
 else:
     st.info("No beta events recorded yet.")
 
-st.warning(
-    "Current beta storage is local to the running Streamlit instance. Export regularly. "
-    "For durable launch analytics, connect BETA_FEEDBACK_WEBHOOK to Google Sheets, Make, Zapier, or a database endpoint."
-)
+if external_storage_configured():
+    st.info(
+        "Durable mirroring is enabled. Keep the webhook token private. "
+        "The analytics mirror does not include HPLC case text."
+    )
+else:
+    st.warning(
+        "Current beta storage is local to the running Streamlit instance. Export regularly until the Google Sheets mirror is connected."
+    )
