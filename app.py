@@ -181,6 +181,15 @@ try:
 except Exception:
     pass
 
+# Load camera-assisted nameplate capture before the core Passport is rendered.
+# It patches only the existing add_instrument form and leaves all other forms unchanged.
+try:
+    _camera_module = Path(__file__).resolve().parent / "instrument_camera_capture.py"
+    if _camera_module.exists():
+        exec(compile(_camera_module.read_text(encoding="utf-8"), str(_camera_module), "exec"), globals(), globals())
+except Exception as exc:
+    st.session_state._ilm_camera_module_error = type(exc).__name__
+
 # Re-map the original six core tabs into compact lifecycle-first navigation.
 _real_tabs = st.tabs
 _MAIN_TABS = [
