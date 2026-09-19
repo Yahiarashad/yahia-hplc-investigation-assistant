@@ -219,12 +219,12 @@ def _labels(language, source):
         return {
             "title": "ساعدني أبني النسخة القادمة — دقيقة واحدة فقط",
             "intro": "ملاحظتك هنا أهم من المجاملة. نريد أن نعرف ما الذي نجح فعلًا وما الذي يحتاج تطويرًا.",
-            "rating": "تقييم التجربة",
+            "rating": "كيف تقيّم التجربة من 1 إلى 5؟",
             "outcome": "هل ساعدتك التجربة؟",
             "outcome_options": ["ساعدتني جدًا", "ساعدتني جزئيًا", "لم تساعدني بعد"],
-            "accuracy": "هل النتيجة/التحليل عبّر عنك أو عن الحالة بدقة؟",
+            "accuracy": "هل عبّرت النتيجة أو التحليل عنك أو عن الحالة بدقة؟",
             "accuracy_options": ["نعم", "إلى حد ما", "لا"],
-            "most": "أكثر شيء كان مفيدًا لك",
+            "most": "ما أكثر شيء كان مفيدًا لك؟",
             "improve": "لو هنطوّر حاجة واحدة فورًا، تكون إيه؟",
             "feature": "أي ميزة ستكون الأكثر قيمة لك مستقبلًا؟",
             "features": [
@@ -238,17 +238,18 @@ def _labels(language, source):
             "name": "الاسم — اختياري",
             "contact": "LinkedIn أو Email — اختياري",
             "consent": "أوافق على استخدام ملاحظاتي بصورة مجهولة لتحسين النسخة التأسيسية.",
-            "privacy": "لا نطلب منك كتابة أي بيانات سرية تخص الشركة أو المنتج أو الطريقة التحليلية هنا.",
+            "privacy": "لا تكتب أي بيانات سرية تخص الشركة أو المنتج أو الطريقة التحليلية.",
             "submit": "إرسال الملاحظة",
             "thanks": "وصلت ملاحظتك 🙌 شكرًا لأنك جزء من النسخة التأسيسية.",
+            "required": "من فضلك اختَر التقييم، ومدى الاستفادة، ودقة النتيجة أو التحليل قبل الإرسال.",
         }
     return {
         "title": "Help shape the next version — about 60 seconds",
         "intro": "Useful feedback matters more than praise. Tell us what worked and what should improve.",
-        "rating": "Overall experience",
+        "rating": "How would you rate the experience from 1 to 5?",
         "outcome": "Did the experience help you?",
         "outcome_options": ["A lot", "Partly", "Not yet"],
-        "accuracy": "Did the result/analysis accurately reflect your thinking or case?",
+        "accuracy": "Did the result or analysis accurately reflect your thinking or case?",
         "accuracy_options": ["Yes", "Partly", "No"],
         "most": "What was most useful?",
         "improve": "If we improve one thing next, what should it be?",
@@ -267,7 +268,53 @@ def _labels(language, source):
         "privacy": "Do not enter confidential company, product, method, or patient information here.",
         "submit": "Send feedback",
         "thanks": "Feedback received 🙌 Thank you for helping shape the founding beta.",
+        "required": "Please choose a rating, helpfulness answer, and accuracy answer before submitting.",
     }
+
+
+def _inject_feedback_css(is_ar):
+    if not is_ar:
+        return
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stExpander"] details > summary {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        div[data-testid="stExpander"] details > summary p {
+            direction: rtl !important;
+            text-align: right !important;
+            width: 100% !important;
+        }
+        div[data-testid="stForm"] {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        div[data-testid="stForm"] label,
+        div[data-testid="stForm"] p,
+        div[data-testid="stForm"] div[data-testid="stMarkdownContainer"] {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        div[data-testid="stForm"] div[role="radiogroup"] {
+            direction: rtl !important;
+            align-items: stretch !important;
+        }
+        div[data-testid="stForm"] div[role="radiogroup"] > label {
+            direction: rtl !important;
+            justify-content: flex-start !important;
+            text-align: right !important;
+        }
+        div[data-testid="stForm"] input,
+        div[data-testid="stForm"] textarea {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_feedback_form(source, session_id, language="en", compact=False):
@@ -279,13 +326,15 @@ def render_feedback_form(source, session_id, language="en", compact=False):
         st.success(labels["thanks"])
         return
 
-    expander_label = labels["title"]
-    container = st.expander(expander_label, expanded=not compact)
+    _inject_feedback_css(is_ar)
+
+    container = st.expander(labels["title"], expanded=not compact)
     with container:
         if is_ar:
             st.markdown(
-                "<div style='direction:rtl;text-align:right;unicode-bidi:plaintext;'>"
-                f"<b>{labels['intro']}</b><br><span style='color:#6b7280'>{labels['privacy']}</span>"
+                "<div dir='rtl' style='text-align:right;line-height:1.9'>"
+                f"<b>{labels['intro']}</b><br>"
+                f"<span style='color:#6b7280'>{labels['privacy']}</span>"
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -294,37 +343,64 @@ def render_feedback_form(source, session_id, language="en", compact=False):
             st.caption(labels["privacy"])
 
         with st.form(f"{key_prefix}_form", clear_on_submit=False):
-            rating = st.slider(labels["rating"], 1, 5, 4)
-            outcome = st.radio(labels["outcome"], labels["outcome_options"], horizontal=True)
-            accuracy = st.radio(labels["accuracy"], labels["accuracy_options"], horizontal=True)
-            most_useful = st.text_area(labels["most"], height=80)
-            improvement = st.text_area(labels["improve"], height=80)
-            desired_feature = st.selectbox(labels["feature"], labels["features"])
+            rating = st.radio(
+                labels["rating"],
+                [1, 2, 3, 4, 5],
+                index=None,
+                horizontal=not is_ar,
+                key=f"{key_prefix}_rating",
+            )
+            outcome = st.radio(
+                labels["outcome"],
+                labels["outcome_options"],
+                index=None,
+                horizontal=not is_ar,
+                key=f"{key_prefix}_outcome",
+            )
+            accuracy = st.radio(
+                labels["accuracy"],
+                labels["accuracy_options"],
+                index=None,
+                horizontal=not is_ar,
+                key=f"{key_prefix}_accuracy",
+            )
+            most_useful = st.text_area(labels["most"], height=80, key=f"{key_prefix}_most")
+            improvement = st.text_area(labels["improve"], height=80, key=f"{key_prefix}_improve")
+            desired_feature = st.selectbox(
+                labels["feature"],
+                labels["features"],
+                index=None,
+                placeholder="اختر ميزة" if is_ar else "Choose a feature",
+                key=f"{key_prefix}_feature",
+            )
             c1, c2 = st.columns(2)
             with c1:
-                name = st.text_input(labels["name"])
+                name = st.text_input(labels["name"], key=f"{key_prefix}_name")
             with c2:
-                contact = st.text_input(labels["contact"])
-            consent = st.checkbox(labels["consent"], value=True)
+                contact = st.text_input(labels["contact"], key=f"{key_prefix}_contact")
+            consent = st.checkbox(labels["consent"], value=False, key=f"{key_prefix}_consent")
             submitted = st.form_submit_button(labels["submit"], use_container_width=True, type="primary")
 
         if submitted:
-            save_feedback(
-                session_id=session_id,
-                source=source,
-                language=language,
-                rating=rating,
-                outcome=outcome,
-                accuracy=accuracy,
-                most_useful=most_useful,
-                improvement=improvement,
-                desired_feature=desired_feature,
-                name=name,
-                contact=contact,
-                consent_research=consent,
-            )
-            st.session_state[f"{key_prefix}_done"] = True
-            st.success(labels["thanks"])
+            if rating is None or outcome is None or accuracy is None:
+                st.warning(labels["required"])
+            else:
+                save_feedback(
+                    session_id=session_id,
+                    source=source,
+                    language=language,
+                    rating=rating,
+                    outcome=outcome,
+                    accuracy=accuracy,
+                    most_useful=most_useful,
+                    improvement=improvement,
+                    desired_feature=desired_feature or "",
+                    name=name,
+                    contact=contact,
+                    consent_research=consent,
+                )
+                st.session_state[f"{key_prefix}_done"] = True
+                st.success(labels["thanks"])
 
 
 def dashboard_snapshot():
