@@ -166,24 +166,37 @@ def save_feedback(
     consent_research,
 ):
     init_feedback_db()
-    created_at = _now_iso()
-    row = {
-        "type": "feedback",
-        "session_id": str(session_id),
-        "source": str(source),
-        "language": str(language or ""),
-        "rating": int(rating) if rating else None,
-        "outcome": str(outcome or ""),
-        "accuracy": str(accuracy or ""),
-        "most_useful": str(most_useful or "").strip(),
-        "improvement": str(improvement or "").strip(),
-        "desired_feature": str(desired_feature or ""),
-        "name": str(name or "").strip(),
-        "contact": str(contact or "").strip(),
-        "consent_research": bool(consent_research),
-        "created_at": created_at,
-    }
+    session_id = str(session_id)
+    source = str(source)
+
+    # Idempotency guard: one submitted feedback record per beta session + tool.
+    # This prevents double-taps / Streamlit reruns from inflating analytics.
     with sqlite3.connect(DB_PATH) as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM beta_feedback WHERE session_id = ? AND source = ? LIMIT 1",
+            (session_id, source),
+        ).fetchone()
+        if exists:
+            return False
+
+        created_at = _now_iso()
+        row = {
+            "type": "feedback",
+            "session_id": session_id,
+            "source": source,
+            "language": str(language or ""),
+            "rating": int(rating) if rating else None,
+            "outcome": str(outcome or ""),
+            "accuracy": str(accuracy or ""),
+            "most_useful": str(most_useful or "").strip(),
+            "improvement": str(improvement or "").strip(),
+            "desired_feature": str(desired_feature or ""),
+            "name": str(name or "").strip(),
+            "contact": str(contact or "").strip(),
+            "consent_research": bool(consent_research),
+            "created_at": created_at,
+        }
+
         conn.execute(
             """
             INSERT INTO beta_feedback(
@@ -209,8 +222,10 @@ def save_feedback(
             ),
         )
         conn.commit()
+
     _post_webhook(row)
     record_event(session_id, source, "feedback_submitted", language)
+    return True
 
 
 def _labels(language, source):
@@ -385,7 +400,7 @@ def render_feedback_form(source, session_id, language="en", compact=False):
             if rating is None or outcome is None or accuracy is None:
                 st.warning(labels["required"])
             else:
-                save_feedback(
+                saved = save_feedback(
                     session_id=session_id,
                     source=source,
                     language=language,
@@ -400,7 +415,12 @@ def render_feedback_form(source, session_id, language="en", compact=False):
                     consent_research=consent,
                 )
                 st.session_state[f"{key_prefix}_done"] = True
-                st.success(labels["thanks"])
+                if saved:
+                    st.success(labels["thanks"])
+                else:
+                    st.info(labels["thanks"])
+                # Hide the completed form immediately so a second tap cannot resubmit it.
+                st.rerun()
 
 
 def dashboard_snapshot():
