@@ -18,20 +18,24 @@ def _lang():
 
 def _beta_banner_html(lang):
     if lang == "ar":
-        eyebrow = "FOUNDING BETA · EARLY ACCESS"
+        eyebrow = "النسخة التأسيسية · وصول مبكر"
         title = "أنت تختبر النسخة التأسيسية"
-        copy = "ساعدنا نبني معيارًا أقوى لطريقة اتخاذ القرار داخل معامل QC — النتيجة لا تقيس الحفظ، بل جودة القرار تحت الغموض."
+        copy = "ساعدنا في بناء معيار أقوى لاتخاذ القرار داخل معامل الرقابة الدوائية. هذا الاختبار لا يقيس الحفظ؛ بل يقيس جودة القرار تحت الغموض."
+        direction = "rtl"
+        align = "right"
     else:
         eyebrow = "FOUNDING BETA · EARLY ACCESS"
         title = "You are testing the founding release"
         copy = "Help shape a stronger benchmark for QC decision-making. This assessment measures judgment under ambiguity, not memorization."
+        direction = "ltr"
+        align = "left"
     return f"""
     <div style="margin:.35rem 0 1rem;padding:1rem 1.05rem;border-radius:18px;
                 background:linear-gradient(135deg,#fffaf0,#f7fbff);border:1px solid #dfc77c;
-                box-shadow:0 8px 22px rgba(15,23,42,.05);">
-      <div style="font-size:.72rem;font-weight:900;letter-spacing:.10em;color:#8a6d22;direction:ltr;text-align:left;">{eyebrow}</div>
-      <div style="font-size:1.05rem;font-weight:900;margin:.25rem 0;color:#111827;">{title}</div>
-      <div style="font-size:.88rem;line-height:1.7;color:#5f6b7a;">{copy}</div>
+                box-shadow:0 8px 22px rgba(15,23,42,.05);direction:{direction};text-align:{align};">
+      <div style="font-size:.72rem;font-weight:900;letter-spacing:.06em;color:#8a6d22;direction:{direction};text-align:{align};">{eyebrow}</div>
+      <div style="font-size:1.05rem;font-weight:900;margin:.35rem 0 .25rem;color:#111827;direction:{direction};text-align:{align};">{title}</div>
+      <div style="font-size:.88rem;line-height:1.8;color:#5f6b7a;direction:{direction};text-align:{align};unicode-bidi:plaintext;">{copy}</div>
     </div>
     """
 
