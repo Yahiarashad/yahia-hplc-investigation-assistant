@@ -247,3 +247,26 @@ except Exception as exc:
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
+
+# Append structured calibration control to the existing Lifecycle tab. This
+# avoids another top-level tab on mobile while keeping calibration in its proper
+# lifecycle context.
+try:
+    main_tabs = globals().get("tabs")
+    if isinstance(main_tabs, list) and len(main_tabs) >= 3 and globals().get("_auth_token"):
+        if _auth_token():
+            calibration_module = Path(__file__).resolve().parent / "instrument_calibration_control.py"
+            with main_tabs[2]:
+                st.divider()
+                exec(
+                    compile(calibration_module.read_text(encoding="utf-8"), str(calibration_module), "exec"),
+                    globals(),
+                    globals(),
+                )
+except Exception as exc:
+    try:
+        with main_tabs[2]:
+            st.error("Calibration Control Center could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
