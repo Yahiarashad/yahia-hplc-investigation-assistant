@@ -224,12 +224,20 @@ def _camera_text_input(label, *args, **kwargs):
 
 
 def _camera_selectbox(label, options, *args, **kwargs):
+    option_list = list(options)
     if _CAMERA_FORM_ACTIVE and str(label) == "Type":
+        # Keep Viscometer available in the Passport even though the legacy core
+        # list predates this instrument type.
+        if "Viscometer" not in option_list:
+            if "Other" in option_list:
+                option_list.insert(option_list.index("Other"), "Viscometer")
+            else:
+                option_list.append("Viscometer")
         prefill = st.session_state.get("ilm_camera_prefill") or {}
         suggested = prefill.get("instrument_type")
-        option_list = list(options)
         if suggested in option_list and "index" not in kwargs:
             kwargs["index"] = option_list.index(suggested)
+        return _real_selectbox(label, option_list, *args, **kwargs)
     return _real_selectbox(label, options, *args, **kwargs)
 
 
