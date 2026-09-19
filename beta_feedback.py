@@ -10,6 +10,15 @@ from urllib import request
 import streamlit as st
 
 DB_PATH = Path("/tmp/yahia_beta_feedback.db")
+ATTRIBUTION_KEYS = (
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+    "ref",
+)
+ATTRIBUTION_STATE_KEY = "_beta_first_touch_attribution"
 
 
 def _now_iso():
@@ -22,6 +31,51 @@ def _secret(name, default=None):
         return value if value not in (None, "") else default
     except Exception:
         return os.environ.get(name, default)
+
+
+def _query_param_value(name):
+    """Return one safe scalar query-param value without collecting unrelated URL data."""
+    try:
+        value = st.query_params.get(name)
+    except Exception:
+        return ""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    if value in (None, ""):
+        return ""
+    # UTM values are labels, not user content. Bound their size before storing.
+    return str(value).strip()[:160]
+
+
+def get_attribution():
+    """Capture first-touch campaign attribution once per Streamlit session.
+
+    Only explicit campaign parameters are stored. No HPLC case text, browser
+    fingerprint, IP address, or unrelated query parameters are collected.
+    """
+    existing = st.session_state.get(ATTRIBUTION_STATE_KEY)
+    if isinstance(existing, dict):
+        return dict(existing)
+
+    attribution = {}
+    for key in ATTRIBUTION_KEYS:
+        value = _query_param_value(key)
+        if value:
+            attribution[key] = value
+
+    if attribution:
+        attribution["attribution_model"] = "first_touch"
+
+    st.session_state[ATTRIBUTION_STATE_KEY] = dict(attribution)
+    return attribution
+
+
+def campaign_metadata(metadata=None):
+    """Merge first-touch attribution into event metadata without overwriting event fields."""
+    merged = dict(metadata or {})
+    for key, value in get_attribution().items():
+        merged.setdefault(key, value)
+    return merged
 
 
 def init_feedback_db():
@@ -120,7 +174,7 @@ def test_external_storage():
 
 def record_event(session_id, source, event, language="", metadata=None):
     init_feedback_db()
-    metadata = metadata or {}
+    metadata = campaign_metadata(metadata)
     created_at = _now_iso()
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
