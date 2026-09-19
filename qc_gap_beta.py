@@ -8,6 +8,10 @@ from qc_gap_runtime import run_assessment_page
 DISPLAY_VERSION = "v0.4 · Founding Beta Calibration"
 
 
+class _BetaCoreStop(Exception):
+    """Internal control-flow signal so the beta wrapper can continue after qc_gap_core calls st.stop()."""
+
+
 def _beta_id():
     raw = st.query_params.get("tester")
     if isinstance(raw, list):
@@ -102,6 +106,7 @@ def run_beta_assessment_page():
     base_code = st.code
     base_button = st.button
     base_page_link = st.page_link
+    base_stop = st.stop
 
     state = {"banner": False, "tester_card": False}
 
@@ -159,20 +164,30 @@ def run_beta_assessment_page():
             kwargs["label"] = "\u2066🧪 Have an HPLC problem? Open Yahia HPLC Investigation Assistant\u2069"
         return base_page_link(page, *args, **kwargs)
 
+    def beta_stop():
+        # qc_gap_core intentionally calls st.stop() after landing/result rendering.
+        # Raise a wrapper-local signal instead so the Founding Beta layer can still
+        # append completion analytics and the automatic feedback form.
+        raise _BetaCoreStop()
+
     st.markdown = beta_markdown
     st.code = beta_code
     st.button = beta_button
     st.page_link = beta_page_link
+    st.stop = beta_stop
     try:
-        run_assessment_page()
+        try:
+            run_assessment_page()
+        except _BetaCoreStop:
+            pass
     finally:
         st.markdown = base_markdown
         st.code = base_code
         st.button = base_button
         st.page_link = base_page_link
+        st.stop = base_stop
 
     # The completion state is the authoritative trigger for feedback.
-    # Do not depend on result-card HTML detection, which can change with UI wording/layout.
     assessment_done = bool(st.session_state.get("gap_done"))
 
     if assessment_done:
