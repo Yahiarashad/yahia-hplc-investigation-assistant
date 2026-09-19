@@ -1,0 +1,485 @@
+# v0.3 practical user guide + strict Excel bulk import
+# Executed inside the authenticated app context immediately before main navigation.
+
+from __future__ import annotations
+
+from io import BytesIO
+from datetime import date, datetime
+
+import pandas as pd
+import streamlit as st
+
+
+# Exact visible application labels -> Supabase instrument columns.
+# Excel import is intentionally strict: only headers matching these labels are read.
+V03_EXCEL_FIELD_MAP = {
+    # Instrument Passport
+    "Instrument ID": "instrument_code",
+    "Instrument name": "instrument_name",
+    "Type": "instrument_type",
+    "Manufacturer": "manufacturer",
+    "Model": "model",
+    "Serial number": "serial_number",
+    "Location": "location",
+    "Responsible team": "responsible_team",
+    "Operational status": "operational_status",
+    "Qualification due": "qualification_due",
+    "PM due": "pm_due",
+    "Calibration due": "calibration_due",
+    "Notes": "notes",
+    # Need / initiation
+    "Need / request title": "need_title",
+    "Need identified date": "need_identified_date",
+    "Department / laboratory section": "department",
+    "Requested by": "requested_by",
+    "Business / laboratory justification": "need_justification",
+    "Intended analytical use": "intended_use",
+    "Criticality": "criticality",
+    "Target implementation date": "target_implementation_date",
+    # Acquisition / qualification
+    "URS reference": "urs_reference",
+    "URS approval date": "urs_approval_date",
+    "Quotation reference": "quotation_reference",
+    "Quotation date": "quotation_date",
+    "PR number": "pr_number",
+    "PR approval date": "pr_approval_date",
+    "PO number": "po_number",
+    "PO approval / issue date": "po_approval_date",
+    "Expected receiving date": "expected_receiving_date",
+    "Actual receiving date": "receiving_date",
+    "Installation date": "installation_date",
+    "Installation report reference": "installation_reference",
+    "Site readiness confirmed": "site_readiness_confirmed",
+    "Utilities confirmed": "utilities_confirmed",
+    "IQ completion date": "iq_date",
+    "OQ completion date": "oq_date",
+    "PQ completion date": "pq_date",
+    "Release / issuance date": "issuance_date",
+    "First approved routine run": "first_run_date",
+}
+
+V03_EXCEL_DATE_FIELDS = {
+    "Qualification due", "PM due", "Calibration due", "Need identified date",
+    "Target implementation date", "URS approval date", "Quotation date",
+    "PR approval date", "PO approval / issue date", "Expected receiving date",
+    "Actual receiving date", "Installation date", "IQ completion date",
+    "OQ completion date", "PQ completion date", "Release / issuance date",
+    "First approved routine run",
+}
+
+V03_EXCEL_BOOL_FIELDS = {"Site readiness confirmed", "Utilities confirmed"}
+V03_EXCEL_REQUIRED = {"Instrument ID", "Instrument name"}
+
+
+def _excel_blank(value) -> bool:
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except Exception:
+        pass
+    return str(value).strip() == ""
+
+
+def _excel_date_to_iso(value):
+    if _excel_blank(value):
+        return None
+    try:
+        parsed = pd.to_datetime(value, errors="raise")
+        if hasattr(parsed, "date"):
+            return parsed.date().isoformat()
+    except Exception:
+        return None
+    return None
+
+
+def _excel_bool(value):
+    if _excel_blank(value):
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not pd.isna(value):
+        return bool(int(value))
+    text = str(value).strip().lower()
+    if text in {"true", "yes", "y", "1", "confirmed", "نعم", "مؤكد"}:
+        return True
+    if text in {"false", "no", "n", "0", "not confirmed", "لا", "غير مؤكد"}:
+        return False
+    return None
+
+
+def _excel_scalar(header, value):
+    if _excel_blank(value):
+        return None
+    if header in V03_EXCEL_DATE_FIELDS:
+        return _excel_date_to_iso(value)
+    if header in V03_EXCEL_BOOL_FIELDS:
+        return _excel_bool(value)
+    if header == "Instrument ID":
+        return str(value).strip().upper()
+    return str(value).strip()
+
+
+def _excel_template_bytes():
+    columns = list(V03_EXCEL_FIELD_MAP.keys())
+    sample = {c: "" for c in columns}
+    sample.update({
+        "Instrument ID": "HPLC-001",
+        "Instrument name": "Waters Alliance",
+        "Type": "HPLC",
+        "Manufacturer": "Waters",
+        "Model": "Alliance",
+        "Operational status": "Active",
+        "Need / request title": "New HPLC for routine QC testing",
+        "Need identified date": date.today().isoformat(),
+        "Business / laboratory justification": "Capacity / replacement / new analytical need",
+        "Intended analytical use": "Routine assay and related substances",
+        "Criticality": "High",
+        "Site readiness confirmed": "Yes",
+        "Utilities confirmed": "Yes",
+    })
+    instructions = pd.DataFrame([
+        ["Rule", "Only headers with exactly the same visible name used in the application are imported."],
+        ["Required", "Instrument ID and Instrument name are required for a new instrument."],
+        ["Dates", "Use real Excel dates or YYYY-MM-DD."],
+        ["Booleans", "Use Yes/No, True/False, 1/0 for Site readiness confirmed and Utilities confirmed."],
+        ["Unknown columns", "Ignored. They are shown to you before import and are never silently mapped."],
+        ["Blank cells", "Blank cells do not overwrite existing values when Update mode is used."],
+        ["Security", "Rows are written through the signed-in Supabase session and remain protected by Row Level Security."],
+        ["Scope", "Bulk import currently targets Instrument Passport + Need/Acquisition/Qualification fields. Maintenance, calibration event history, failures and investigations should be logged in their dedicated modules."],
+    ], columns=["Item", "Instruction"])
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        pd.DataFrame([sample], columns=columns).to_excel(writer, index=False, sheet_name="Instruments")
+        instructions.to_excel(writer, index=False, sheet_name="Instructions")
+    output.seek(0)
+    return output.getvalue()
+
+
+def _render_excel_import():
+    st.markdown("#### 📥 إدخال البيانات من Excel | Bulk import")
+    st.info(
+        "قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. "
+        "أي عمود آخر يتم تجاهله ولا يتم تخمين معناه."
+    )
+    st.download_button(
+        "⬇️ Download exact Excel template",
+        data=_excel_template_bytes(),
+        file_name="Yahia_QC_Instrument_Lifecycle_Import_Template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="v03_download_excel_template",
+    )
+    st.caption(
+        "أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. "
+        "الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة."
+    )
+
+    uploaded = st.file_uploader(
+        "Upload .xlsx file",
+        type=["xlsx"],
+        key="v03_excel_import_file",
+        help="The importer reads the Instruments sheet if present; otherwise it reads the first sheet.",
+    )
+    if not uploaded:
+        return
+
+    try:
+        xls = pd.ExcelFile(uploaded)
+        sheet = "Instruments" if "Instruments" in xls.sheet_names else xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=sheet, dtype=object)
+    except Exception as exc:
+        st.error("Could not read this Excel file. Use a standard .xlsx workbook and try again.")
+        st.caption(f"Diagnostic: {type(exc).__name__}")
+        return
+
+    # Trim only leading/trailing spaces in headers; otherwise matching remains exact.
+    df.columns = [str(c).strip() for c in df.columns]
+    recognized = [c for c in df.columns if c in V03_EXCEL_FIELD_MAP]
+    ignored = [c for c in df.columns if c not in V03_EXCEL_FIELD_MAP]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Rows", len(df))
+    c2.metric("Recognized columns", len(recognized))
+    c3.metric("Ignored columns", len(ignored))
+
+    if recognized:
+        st.success("Recognized → " + " · ".join(recognized))
+    else:
+        st.error("No recognized application column names were found.")
+        return
+    if ignored:
+        st.warning("Ignored → " + " · ".join(ignored))
+
+    missing_required_headers = [c for c in V03_EXCEL_REQUIRED if c not in recognized]
+    if missing_required_headers:
+        st.error("For creating new instruments, the file must contain: " + " + ".join(sorted(missing_required_headers)))
+
+    st.markdown("**Preview — only recognized columns are shown**")
+    st.dataframe(df[recognized].head(10), use_container_width=True, hide_index=True)
+
+    mode = st.radio(
+        "Import mode",
+        [
+            "Create new instruments only — skip existing Instrument ID",
+            "Update existing Instrument ID + create new instruments",
+        ],
+        index=0,
+        key="v03_excel_import_mode",
+    )
+    confirm = st.checkbox(
+        "I reviewed the recognized and ignored columns and want to import these rows.",
+        key="v03_excel_import_confirm",
+    )
+    if not st.button("Import recognized Excel data", use_container_width=True, disabled=not confirm, key="v03_excel_import_run"):
+        return
+
+    existing = {str(i.get("instrument_code") or "").strip().upper(): str(i.get("id")) for i in globals().get("instruments", [])}
+    seen_in_file = set()
+    created = updated = skipped = failed = 0
+    messages = []
+
+    for row_no, (_, row) in enumerate(df.iterrows(), start=2):
+        raw_code = row.get("Instrument ID") if "Instrument ID" in df.columns else None
+        code = _excel_scalar("Instrument ID", raw_code)
+        if not code:
+            skipped += 1
+            messages.append(f"Row {row_no}: skipped — Instrument ID is blank.")
+            continue
+        if code in seen_in_file:
+            skipped += 1
+            messages.append(f"Row {row_no}: skipped — duplicate Instrument ID {code} inside the same file.")
+            continue
+        seen_in_file.add(code)
+
+        payload = {}
+        invalid_dates = []
+        for header in recognized:
+            value = row.get(header)
+            if _excel_blank(value):
+                continue
+            clean = _excel_scalar(header, value)
+            if header in V03_EXCEL_DATE_FIELDS and clean is None:
+                invalid_dates.append(header)
+                continue
+            if header in V03_EXCEL_BOOL_FIELDS and clean is None:
+                continue
+            payload[V03_EXCEL_FIELD_MAP[header]] = clean
+
+        if invalid_dates:
+            skipped += 1
+            messages.append(f"Row {row_no} ({code}): skipped — invalid date in {', '.join(invalid_dates)}.")
+            continue
+
+        payload["instrument_code"] = code
+        existing_id = existing.get(code)
+        if existing_id:
+            if mode.startswith("Create new"):
+                skipped += 1
+                messages.append(f"Row {row_no} ({code}): skipped — already exists.")
+                continue
+            patch_payload = {k: v for k, v in payload.items() if k != "instrument_code"}
+            if not patch_payload:
+                skipped += 1
+                messages.append(f"Row {row_no} ({code}): skipped — no recognized nonblank data to update.")
+                continue
+            ok, _, _, err = _db_patch("instruments", existing_id, patch_payload)
+            if ok:
+                updated += 1
+            else:
+                failed += 1
+                messages.append(f"Row {row_no} ({code}): update failed — {err or 'database error'}.")
+            continue
+
+        name = payload.get("instrument_name")
+        if not name:
+            skipped += 1
+            messages.append(f"Row {row_no} ({code}): skipped — Instrument name is required for a new instrument.")
+            continue
+        ok, data, _, err = _db_insert("instruments", payload)
+        if ok:
+            created += 1
+            try:
+                new_id = str((data or [{}])[0].get("id") or "")
+                if new_id:
+                    existing[code] = new_id
+            except Exception:
+                pass
+        else:
+            failed += 1
+            messages.append(f"Row {row_no} ({code}): create failed — {err or 'database error'}.")
+
+    st.success(f"Excel import finished · Created {created} · Updated {updated} · Skipped {skipped} · Failed {failed}")
+    if messages:
+        with st.expander("Import details"):
+            for msg in messages[:100]:
+                st.write("• " + msg)
+    if created or updated:
+        st.caption("Refresh / rerun to reload the latest instrument dataset from Supabase.")
+        if st.button("Reload imported data", use_container_width=True, key="v03_excel_import_reload"):
+            st.rerun()
+
+
+def render_v03_user_guide():
+    st.markdown(
+        """
+<style>
+.v03-guide-banner{border:1px solid #d8e2ec;border-left:6px solid #d4af37;border-radius:18px;padding:.9rem 1rem;margin:.25rem 0 .75rem;background:linear-gradient(135deg,#ffffff,#f8fafc);box-shadow:0 5px 18px rgba(15,23,42,.045)}
+.v03-guide-banner b{color:#0f2742;font-size:1.02rem}.v03-guide-banner span{display:block;color:#64748b;font-size:.86rem;margin-top:.18rem}
+.v03-guide-rtl{direction:rtl;text-align:right;line-height:1.9}.v03-guide-rule{border-left:4px solid #d4af37;background:#fffaf0;border-radius:12px;padding:.7rem .8rem;margin:.5rem 0}.v03-guide-flow{font-weight:800;color:#0f2742;background:#f1f5f9;border-radius:12px;padding:.65rem .75rem;margin:.45rem 0}
+@media(max-width:700px){.v03-guide-banner{padding:.78rem .82rem}.v03-guide-banner span{font-size:.82rem}.v03-guide-rtl{line-height:1.75}}
+</style>
+<div class="v03-guide-banner"><b>📘 Start here | دليل الاستخدام العملي</b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("📘 افتح دليل الاستخدام التفصيلي قبل إدخال البيانات | Practical User Guide", expanded=True):
+        guide_tabs = st.tabs([
+            "🎯 ابدأ من هنا",
+            "↻ دورة الحياة",
+            "🧾 الاستخدام اليومي",
+            "📥 Excel Import",
+            "🔎 التحقيق",
+            "🔐 GMP & Privacy",
+        ])
+
+        with guide_tabs[0]:
+            st.markdown("### ما هو التطبيق؟")
+            st.markdown(
+                """
+<div class="v03-guide-rtl">
+هذا التطبيق هو <b>ذاكرة تشغيلية ودورة حياة للأجهزة داخل Pharmaceutical QC</b>. الفكرة ليست تخزين بيانات فقط، بل ربط هوية الجهاز بمراحل شرائه وتأهيله وتشغيله وصيانته ومعايرته وأعطاله وتحقيقاته حتى التكهين.
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+            st.markdown("**المكونات الرئيسية التي ستستخدمها:**")
+            st.markdown(
+                """
+- **Dashboard** — أين توجد المخاطر والمواعيد والـOOC والإشارات التي تحتاج قرارًا الآن.
+- **Lifecycle** — الرحلة الفعلية من Need وURS حتى First Run ثم Performance Review وRetirement.
+- **Passport** — الهوية الرقمية الثابتة للجهاز: ID، النوع، الشركة، الموديل، السيريال، المكان، المسؤول والحالة.
+- **Cal & PM** — Calibration / Qualification / PM / Maintenance / Components وتواريخ الاستحقاق.
+- **Events** — تسجيل العطل أو الحدث كما حدث فعلًا قبل كتابة أي تفسير.
+- **Investigation Intelligence** — ربط المشكلة بتاريخ الجهاز وفصل Observed / Inferred / Unknown وتحديد الخطوة التالية للحصول على دليل.
+- **Reports** — رؤية مجمعة للحالة الحالية والأولويات.
+- **Guide / About** — مرجع مختصر للمبادئ وحدود الاستخدام.
+"""
+            )
+            st.markdown("#### أفضل طريقة تبدأ بها")
+            st.markdown(
+                """
+<div class="v03-guide-flow">1) أنشئ Passport → 2) سجّل Need / URS → 3) أكمل Quotation / PR / PO / Receiving → 4) Installation / IQ / OQ / PQ → 5) Release → 6) First Run → 7) Routine Control → 8) Events / Investigation → 9) Performance Review → 10) Retirement</div>
+""",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                """
+**نصيحة عملية:** لا تحاول ملء كل شيء في جلسة واحدة إذا كانت البيانات غير متاحة. أدخل ما لديك كدليل فقط، واترك الناقص ظاهرًا. قيمة التطبيق تأتي من أن المعلومة المفقودة تظل **Missing Evidence** بدل أن تتحول إلى افتراض.
+"""
+            )
+
+        with guide_tabs[1]:
+            st.markdown("### دورة حياة الجهاز — ماذا أسجل ومتى؟")
+            st.markdown(
+                """
+1. **Need / Initiation** — لماذا نحتاج الجهاز؟ من طلبه؟ الاستخدام المقصود؟ درجة الـCriticality؟ ومتى نحتاجه جاهزًا؟
+2. **URS** — سجل رقم/مرجع الـURS وتاريخ اعتماده. لا تعتبر مرحلة التخطيط مكتملة لمجرد وجود جهاز مطلوب.
+3. **Quotation** — سجل العرض المختار أو المرجع الذي تم تقييمه وتاريخه.
+4. **PR** — رقم Purchase Requisition وتاريخ الاعتماد.
+5. **PO** — رقم Purchase Order وتاريخ الإصدار/الاعتماد.
+6. **Receiving** — Expected Receiving Date ثم Actual Receiving Date. التطبيق يستطيع إظهار التأخير عندما يمر الموعد المتوقع بدون تسجيل الاستلام.
+7. **Installation** — تاريخ التركيب، مرجع تقرير التركيب، Site Readiness وUtilities.
+8. **IQ → OQ → PQ** — سجل تاريخ اكتمال كل مرحلة حسب الدليل المتاح.
+9. **Release / Issuance** — متى تم تسليم/إصدار الجهاز للاستخدام المنضبط بعد التأهيل.
+10. **First approved routine run** — أول تشغيل روتيني معتمد، وليس مجرد Test أو Trial غير رسمي.
+11. **Routine Operation** — حافظ على Calibration / PM / Qualification / Components محدثة أثناء عمر الجهاز.
+12. **Performance Review** — راجع الأداء التاريخي، الأعطال، تكرار المشكلات، الالتزام بالمواعيد والحاجة إلى Upgrade/Replacement.
+13. **Retirement / Decommission** — سبب التكهن، الاعتماد، تاريخ الإيقاف، Archive/Backup، تعطيل الوصول، التخلص/النقل، والجهاز البديل إن وجد.
+"""
+            )
+            st.warning("لا تستخدم وجود تاريخ في مرحلة متأخرة كدليل تلقائي على اكتمال المراحل السابقة. كل Milestone يجب أن يستند إلى Evidence مسجل.")
+
+        with guide_tabs[2]:
+            st.markdown("### كيف تستخدمه في الشغل اليومي؟")
+            st.markdown(
+                """
+**بداية اليوم / بداية الشيفت**
+- افتح **Dashboard** أولًا.
+- راجع Calibration overdue، PM overdue، Qualification due، Open OOC، Open Events وPriority Attention Queue.
+- لا تبدأ بالبحث داخل كل جهاز؛ دع الـDashboard يحدد أين تحتاج أن تنظر أولًا.
+
+**عند عمل Calibration أو PM**
+- سجل الحدث في نفس يوم تنفيذه أو بمجرد اعتماد السجل.
+- احتفظ بمرجع Certificate / Protocol / Work Order / Service report.
+- أدخل Next Due المعتمد؛ لا تستخدم موعدًا تقديريًا إذا لم يكن معتمدًا.
+
+**عند تغيير جزء**
+- سجل Component name، Part number / Serial إن وجد، Installed date وReplacement/Review due.
+- الهدف أن تعرف لاحقًا: هل المشكلة تكررت قبل أم بعد تغيير الجزء؟
+
+**عند حدوث عطل**
+- اذهب إلى **Events** وسجل ما حدث فعليًا: التاريخ، النوع، الشدة، الـSubsystem، الحالة، والـObserved facts.
+- لا تكتب "Pump failure" كحقيقة إذا الذي تعرفه فقط هو "Pressure fluctuation".
+
+**عند إغلاق المشكلة**
+- اربط Investigation reference / evidence والنتيجة النهائية.
+- حافظ على الفرق بين Confirmed Root Cause وProbable وNot Yet Identified.
+"""
+            )
+            st.markdown("<div class='v03-guide-rule'><b>أفضل استفادة:</b> استخدم التطبيق باستمرار كـ instrument memory، وليس فقط عندما تظهر مشكلة. جودة التحقيق غدًا تعتمد على جودة التاريخ الذي تسجله اليوم.</div>", unsafe_allow_html=True)
+
+        with guide_tabs[3]:
+            _render_excel_import()
+            st.markdown("#### أسماء الأعمدة التي يتعرف عليها التطبيق")
+            field_table = pd.DataFrame({
+                "Excel header — must match": list(V03_EXCEL_FIELD_MAP.keys()),
+                "Section": [
+                    "Passport" if i < 13 else "Need / Initiation" if i < 21 else "Acquisition / Qualification"
+                    for i in range(len(V03_EXCEL_FIELD_MAP))
+                ],
+            })
+            st.dataframe(field_table, use_container_width=True, hide_index=True)
+            st.caption(
+                "أي عمود باسم مختلف — حتى لو كان معناه قريبًا — لا يتم ربطه تلقائيًا. "
+                "مثال: 'PO No.' لا يساوي 'PO number'. استخدم القالب لتجنب أخطاء التسمية."
+            )
+
+        with guide_tabs[4]:
+            st.markdown("### Investigation Intelligence — كيف تستخدمه صح؟")
+            st.markdown(
+                """
+ابدأ دائمًا بالترتيب التالي:
+
+1. **Expected** — ما الذي كان يجب أن يحدث؟ Acceptance criteria / normal behavior.
+2. **Actual / Observed** — ماذا حدث فعلًا؟ أرقام، Chromatogram behavior، pressure، response، error message، إلخ.
+3. **Changed** — ما الذي تغير مؤخرًا؟ Column / mobile phase / analyst / maintenance / part / lot / method / environment.
+4. **Unchanged** — ما الذي ظل ثابتًا ويساعدك على استبعاد فرضيات؟
+5. **Objective Evidence** — Logs، chromatograms، calibration history، maintenance records، component dates، sequence information.
+
+التطبيق بعدها يربط الحالة بتاريخ الجهاز ويقترح **Next Evidence Action**. الهدف ليس أن يعطيك Root Cause سريع، بل أن يقلل مساحة التخمين.
+"""
+            )
+            st.markdown("<div class='v03-guide-rule'><b>قاعدة التحقيق:</b> Repeated pattern strengthens a hypothesis. It does not independently prove root cause.</div>", unsafe_allow_html=True)
+            st.markdown(
+                """
+**لا تفعل:** تغيّر 3 متغيرات مرة واحدة، تكرر الحقن حتى Pass، أو تسجل unofficial injections كطريقة لحل المشكلة.  
+**افعل:** حافظ على الدليل، Localize، اختبر متغيرًا discriminating واحدًا، ثم Confirm قبل القرار.
+"""
+            )
+
+        with guide_tabs[5]:
+            st.markdown("### GMP / Data Integrity / Privacy")
+            st.markdown(
+                """
+- كل حساب يرى بياناته فقط؛ **Supabase Row Level Security** هو طبقة العزل الأساسية.
+- Excel import يكتب البيانات من خلال جلسة المستخدم الحالية، لذلك تظل الصفوف خاضعة لنفس RLS.
+- التطبيق **Decision-Support Software** وليس حاليًا نظام GxP validated system of record.
+- احتفظ بالسجلات الرسمية المعتمدة — SOP forms، certificates، deviations، CAPA، approvals، raw data — داخل الأنظمة الرسمية المعتمدة بالشركة.
+- Health Score أو Lifecycle signal لا يساوي تلقائيًا قرار Release / Reject / Fitness for use.
+- التطبيق لا يجب أن يملأ Evidence غير موجود ولا يحوّل inference إلى fact.
+"""
+            )
+            st.markdown("<div class='v03-guide-rule'><b>DON'T GUESS. FOLLOW THE EVIDENCE.</b><br>لو لم يوجد دليل، سجّل أن المعلومة Unknown بدل أن تستنتجها.</div>", unsafe_allow_html=True)
