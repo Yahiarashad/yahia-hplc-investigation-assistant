@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 560" role="img" aria-label="QC laboratory instruments background">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#06101d"/><stop offset=".55" stop-color="#0b1d33"/><stop offset="1" stop-color="#102b45"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#eef7ff" stop-opacity=".30"/><stop offset="1" stop-color="#6bb6d9" stop-opacity=".08"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="1600" height="560" fill="url(#bg)"/>
+  <circle cx="1230" cy="130" r="260" fill="#2a88b8" opacity=".09"/><circle cx="310" cy="500" r="320" fill="#d6b85f" opacity=".055"/>
+  <g fill="none" stroke="#9fd3eb" stroke-width="5" opacity=".42" stroke-linecap="round" stroke-linejoin="round">
+    <!-- HPLC -->
+    <g transform="translate(70 82)"><rect x="0" y="65" width="175" height="255" rx="14" fill="url(#glass)"/><rect x="22" y="88" width="131" height="54" rx="7"/><rect x="22" y="155" width="131" height="54" rx="7"/><rect x="22" y="222" width="131" height="70" rx="7"/><path d="M45 65V20h30v45M105 65V12h30v53"/><circle cx="48" cy="115" r="9"/><circle cx="48" cy="182" r="9"/></g>
+    <!-- LCMS -->
+    <g transform="translate(315 105)"><rect x="0" y="115" width="180" height="200" rx="16" fill="url(#glass)"/><rect x="25" y="140" width="130" height="60" rx="8"/><path d="M40 115V45h86v70M126 62h48v122h-48"/><circle cx="68" cy="169" r="12"/><path d="M30 260h120M165 206v90"/></g>
+    <!-- GC -->
+    <g transform="translate(565 88)"><rect x="0" y="70" width="190" height="245" rx="14" fill="url(#glass)"/><rect x="25" y="96" width="140" height="120" rx="9"/><path d="M47 125h96M47 150h96M47 175h96"/><rect x="25" y="235" width="95" height="48" rx="7"/><path d="M145 70V22M160 70V12"/></g>
+    <!-- pH meter -->
+    <g transform="translate(835 78)"><rect x="20" y="115" width="130" height="115" rx="22" fill="url(#glass)"/><rect x="45" y="140" width="80" height="45" rx="7"/><path d="M172 50v220M172 70h45v180M217 250v40"/><circle cx="85" cy="205" r="10"/></g>
+    <!-- balance -->
+    <g transform="translate(1090 90)"><rect x="0" y="205" width="205" height="100" rx="15" fill="url(#glass)"/><path d="M38 205V78h130v127M68 78V35h70v43"/><ellipse cx="103" cy="207" rx="65" ry="15"/><rect x="55" y="242" width="95" height="34" rx="6"/></g>
+    <!-- viscometer -->
+    <g transform="translate(1370 70)"><path d="M75 20v300M35 320h105M55 320v35M120 320v35"/><rect x="38" y="55" width="75" height="95" rx="14" fill="url(#glass)"/><rect x="54" y="76" width="43" height="26" rx="4"/><path d="M75 150v90M55 242h40M60 242v45h30v-45"/></g>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="2" fill="#d6b85f" opacity=".62">
+    <text x="102" y="448">HPLC</text><text x="347" y="448">LC-MS/MS</text><text x="625" y="448">GC</text><text x="875" y="448">pH</text><text x="1118" y="448">BALANCE</text><text x="1370" y="448">VISCOMETER</text>
+  </g>
+  <path d="M0 4h1600M0 556h1600" stroke="#d6b85f" stroke-width="4" opacity=".45"/>
+</svg>
