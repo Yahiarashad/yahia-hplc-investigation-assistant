@@ -12,7 +12,7 @@ from evidence_engine import format_evidence_context, retrieve_evidence
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
-APP_VERSION = "v0.7"
+APP_VERSION = "v0.8"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
 st.set_page_config(
@@ -291,6 +291,64 @@ st.markdown(
         letter-spacing: 0;
         text-transform: none;
       }
+      .start-card {
+        margin: 1rem 0 .85rem;
+        padding: 1.05rem 1.1rem;
+        border-radius: 18px;
+        border: 1px solid #d8e2ee;
+        background: linear-gradient(145deg,#f8fbff,#ffffff);
+        box-shadow: 0 8px 24px rgba(15,23,42,.05);
+      }
+      .start-card-ar {
+        direction: rtl;
+        text-align: right;
+        unicode-bidi: plaintext;
+      }
+      .start-kicker {
+        color: #9a7a26;
+        font-size: .76rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        margin-bottom: .2rem;
+      }
+      .start-title {
+        color: #111827;
+        font-size: 1.18rem;
+        font-weight: 900;
+        line-height: 1.45;
+        margin-bottom: .35rem;
+      }
+      .start-copy {
+        color: #556274;
+        font-size: .91rem;
+        line-height: 1.75;
+      }
+      .start-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0,1fr));
+        gap: .55rem;
+        margin-top: .85rem;
+      }
+      .start-item {
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        padding: .72rem .78rem;
+        color: #4b5563;
+        font-size: .79rem;
+        line-height: 1.55;
+      }
+      .start-item strong {
+        display: block;
+        color: #172033;
+        margin-bottom: .22rem;
+        font-size: .82rem;
+      }
+      .guide-note {
+        color: #6b7280;
+        font-size: .82rem;
+        line-height: 1.6;
+      }
       .sidebar-note-ar {
         direction: rtl;
         unicode-bidi: plaintext;
@@ -323,6 +381,8 @@ st.markdown(
         .hero-tagline { font-size: .80rem; letter-spacing: .035em; }
         .hero-description { font-size: .84rem; line-height: 1.7; }
         .hero-byline { font-size: .74rem; }
+        .start-grid { grid-template-columns: 1fr; }
+        .start-title { font-size: 1.06rem; }
       }
     </style>
     """,
@@ -351,6 +411,7 @@ if is_ar:
             unicode-bidi: plaintext;
           }
           [data-testid="stSidebar"] { direction: rtl; text-align: right; }
+          [data-testid="stExpander"] { direction: rtl; text-align: right; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -366,7 +427,7 @@ TEXT = {
         "example_label": "Example case",
         "example": "Pressure was normally 180 bar. Today it was 310 bar after about 25 injections. Same method, column, flow, and mobile phase.",
         "guidance": "The assistant separates facts from assumptions, identifies the critical missing evidence, and selects the next test that best separates the hypotheses.",
-        "input": "Describe the HPLC observation, or answer the last diagnostic question...",
+        "input": "Describe the problem in detail: expected behavior, what actually happened, what changed or stayed the same, and any available evidence or results...",
         "spinner": "Following the evidence...",
         "no_text": "No text response was returned. Please try again.",
         "api_missing": "The app is not connected to the OpenAI API yet. Add OPENAI_API_KEY in Streamlit Secrets, then reboot the app.",
@@ -374,6 +435,7 @@ TEXT = {
         "autosave": "Auto-save is on. Refreshing this page will restore this investigation.",
         "case": "Case",
         "evidence_on": "Verified Evidence Engine: ON",
+        "guide": "📘 How to use Yahia HPLC Investigation Assistant",
     },
     "ar": {
         "setup": "إعداد التحقيق",
@@ -384,7 +446,7 @@ TEXT = {
         "example_label": "مثال",
         "example": "كان ضغط النظام المعتاد 180 bar. اليوم وصل إلى 310 bar بعد نحو 25 حقنة. طريقة التحليل والعمود ومعدل التدفق والطور المتحرك كما هي.",
         "guidance": "يفصل المساعد بين الحقائق والافتراضات، ويحدد أهم معلومة ناقصة، ثم يختار الاختبار التالي الذي يفرّق فعليًا بين الاحتمالات.",
-        "input": "اكتب ملاحظتك أو أجب عن آخر سؤال تشخيصي...",
+        "input": "اكتب المشكلة بالتفصيل: ما المتوقع، ماذا حدث فعليًا، ما الذي تغيّر أو ظل ثابتًا، وأي نتائج أو أدلة متاحة...",
         "spinner": "نتتبع الأدلة...",
         "no_text": "لم يتم إرجاع رد نصي. حاول مرة أخرى.",
         "api_missing": "التطبيق غير متصل بواجهة OpenAI API حتى الآن. أضف المفتاح داخل Streamlit Secrets ثم أعد تشغيل التطبيق.",
@@ -392,6 +454,7 @@ TEXT = {
         "autosave": "الحفظ التلقائي مفعّل. تحديث الصفحة سيعيد هذا التحقيق.",
         "case": "رقم التحقيق",
         "evidence_on": "محرك الأدلة الموثقة: مفعّل",
+        "guide": "📘 دليل استخدام مساعد يحيى للتحقيق في HPLC",
     },
 }
 T = TEXT[effective_language]
@@ -449,6 +512,85 @@ st.selectbox(
 selected_language_code = LANG_OPTIONS[st.session_state.ui_language_label]
 if st.query_params.get("lang") != selected_language_code:
     st.query_params["lang"] = selected_language_code
+
+if is_ar:
+    st.markdown(
+        """
+        <div class="start-card start-card-ar">
+          <div class="start-kicker">ابدأ من هنا</div>
+          <div class="start-title">اكتب مشكلة HPLC كما حدثت بالتفصيل — واترك التشخيص للمحقق.</div>
+          <div class="start-copy">لا تحتاج إلى معرفة السبب قبل أن تبدأ. اكتب الوقائع المتاحة فقط، وكلما كانت الأرقام والسياق أوضح كانت الخطوة التالية أقوى.</div>
+          <div class="start-grid">
+            <div class="start-item"><strong>1 · ما المتوقع؟</strong>اذكر القيم أو الأداء المعتاد مثل RT، Resolution، Pressure أو SST.</div>
+            <div class="start-item"><strong>2 · ماذا حدث فعليًا؟</strong>اكتب الملاحظة الحالية والأرقام وشكل القمة أو أي اختلاف واضح.</div>
+            <div class="start-item"><strong>3 · ما السياق المتاح؟</strong>اذكر ما تغيّر أو ظل ثابتًا، وأي اختبار تم بالفعل والنتيجة التي أعطاها.</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        """
+        <div class="start-card">
+          <div class="start-kicker">START HERE</div>
+          <div class="start-title">Describe the HPLC problem exactly as it happened — let the investigation determine the cause.</div>
+          <div class="start-copy">You do not need a diagnosis before you start. Report the available facts; specific numbers and context make the next diagnostic step stronger.</div>
+          <div class="start-grid">
+            <div class="start-item"><strong>1 · Expected</strong>State the normal or specified behavior: RT, resolution, pressure, SST, or other relevant values.</div>
+            <div class="start-item"><strong>2 · Observed</strong>Describe what actually happened, including numbers, peak behavior, or any visible change.</div>
+            <div class="start-item"><strong>3 · Context</strong>State what changed or stayed the same and any test already performed with its result.</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with st.expander(T["guide"], expanded=False):
+    if is_ar:
+        st.markdown(
+            """
+### أفضل طريقة لاستخدام مساعد يحيى
+
+1. **ابدأ بالملاحظة وليس بالسبب الذي تتوقعه.** بدلًا من «العمود تالف»، اكتب ماذا تغيّر فعلًا.
+2. **استخدم أرقامًا كلما أمكن.** مثل زمن الاحتجاز، الضغط، الفصل، شكل القمة، نتائج SST أو مساحات القمم.
+3. **اذكر آخر حالة ناجحة إن كانت معروفة.** وما الذي تغيّر منذ ذلك الوقت: جهاز، عمود، طور متحرك، تحضير، محلل، Sequence أو إعدادات.
+4. **اذكر أي اختبار قمت به بالفعل ونتيجته.** لا تكتفِ بقول «جرّبت كل شيء»؛ النتيجة نفسها دليل.
+5. **أجب عن أسئلة المساعد خطوة بخطوة.** لا تغيّر عدة متغيرات معًا إلا إذا كان الإجراء المعتمد يتطلب ذلك.
+6. **احتفظ بالبيانات الأصلية.** أي تحقيق رسمي يجب أن يلتزم بـ SOP وQA ومتطلبات GMP المعتمدة.
+
+**مثال لبداية قوية:**  
+المتوقع: RT نحو 6 دقائق وResolution لا يقل عن 4.  
+الحاصل: RT نحو 3 دقائق وResolution نحو 2 والقمة مشوهة.  
+الثابت: نفس الطريقة والعمود ومعدل التدفق.  
+ما تم فحصه: تم تحضير طورين متحركين مستقلين وظهرت نفس النتيجة.
+
+<div class="guide-note">ليس مطلوبًا أن تكون كل المعلومات متاحة من البداية. اكتب ما تعرفه فقط، والمساعد سيحدد أهم معلومة ناقصة قبل الانتقال للحل.</div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+### Best way to use the assistant
+
+1. **Start with the observation, not your suspected cause.** Instead of “the column is bad,” state what actually changed.
+2. **Use numbers whenever possible.** Include retention time, pressure, resolution, peak shape, SST results, or peak areas.
+3. **State the last-known-good condition when available.** Note anything that changed since then: instrument, column, mobile phase, preparation, analyst, sequence, or settings.
+4. **Report any test already performed and its result.** The result itself is evidence.
+5. **Answer the assistant one step at a time.** Avoid changing several variables together unless the approved procedure requires it.
+6. **Preserve original data.** Formal investigations must follow approved SOPs, QA requirements, and GMP expectations.
+
+**Example of a strong first message:**  
+Expected: RT about 6 min and resolution at least 4.  
+Observed: RT about 3 min, resolution about 2, and the main peak is distorted.  
+Unchanged: same method, column, and flow rate.  
+Already checked: two independently prepared mobile phases produced the same result.
+
+<div class="guide-note">You do not need to know everything before starting. Report what you know; the assistant will identify the highest-value missing evidence before moving toward a solution.</div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 AREA_EN = {
     "Auto-detect": "Auto-detect",
@@ -520,26 +662,14 @@ if not st.session_state.messages:
     if is_ar:
         st.markdown(
             f"""
-            <div dir="rtl" style="text-align:right; unicode-bidi:plaintext;">
-              <h3>{T['start']}</h3>
-              <strong>{T['example_label']}</strong>
-              <blockquote>{T['example']}</blockquote>
-              <p>{T['guidance']}</p>
+            <div dir="rtl" style="text-align:right; unicode-bidi:plaintext; margin-top:.35rem;">
+              <p><strong>{T['start']}</strong> {T['guidance']}</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
     else:
-        st.markdown(
-            f"""
-### {T['start']}
-
-**{T['example_label']}**  
-> {T['example']}
-
-{T['guidance']}
-            """
-        )
+        st.markdown(f"**{T['start']}** {T['guidance']}")
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
