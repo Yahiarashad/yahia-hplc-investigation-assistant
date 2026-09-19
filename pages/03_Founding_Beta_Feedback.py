@@ -1,4 +1,5 @@
 from pathlib import Path
+import importlib
 import re
 import secrets
 import sys
@@ -9,7 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from beta_feedback import record_event, render_feedback_form
+import beta_feedback as _beta_feedback
+_beta_feedback = importlib.reload(_beta_feedback)
+record_event = _beta_feedback.record_event
+render_feedback_form = _beta_feedback.render_feedback_form
 
 st.set_page_config(page_title="Founding Beta Feedback", page_icon="💬", layout="centered")
 
