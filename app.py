@@ -1,6 +1,5 @@
 # Persistent-auth wrapper for Yahia QC Instrument Lifecycle.
-# Keeps the Supabase refresh token in an encrypted browser cookie so a normal
-# page refresh or Streamlit worker reboot does not force the user to sign in again.
+# v0.3 shell: persistent Supabase auth + interactive lifecycle navigation.
 
 from __future__ import annotations
 
@@ -161,8 +160,7 @@ if not st.session_state.get("_ilm_auth"):
             pass
 
 
-# The core app calls st.rerun after login and logout. Persist/remove the cookie
-# immediately before that rerun so the browser and server session stay aligned.
+# Persist/remove the auth cookie immediately before Streamlit reruns.
 _real_rerun = st.rerun
 
 
@@ -173,8 +171,8 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
-# Insert a dedicated acquisition tab directly after Instrument Passport while
-# preserving the six tab indexes expected by the core application.
+# Re-map the original six core tabs into the v0.3 lifecycle-first navigation.
+# The two extra returned containers are populated after the core file executes.
 _real_tabs = st.tabs
 _MAIN_TABS = [
     "Command Center",
@@ -186,34 +184,40 @@ _MAIN_TABS = [
 ]
 
 
-def _tabs_with_acquisition(labels, *args, **kwargs):
+def _tabs_v03(labels, *args, **kwargs):
     items = list(labels)
     if items == _MAIN_TABS:
         display_items = [
-            items[0],
-            items[1],
-            "URS · PR · PO",
-            items[2],
-            items[3],
-            items[4],
-            items[5],
+            "Dashboard",
+            "Lifecycle",
+            "Instrument Passport",
+            "Calibration & PM",
+            "Events",
+            "Investigation Intelligence",
+            "Reports",
+            "Guide / About",
         ]
         rendered = _real_tabs(display_items, *args, **kwargs)
-        # Return the six core tabs in their original logical order, then expose
-        # the custom acquisition tab as item 7 for the wrapper below.
+        # Core content mapping:
+        # Command Center -> Reports
+        # Passport -> Instrument Passport
+        # old Lifecycle -> Calibration & PM
+        # Events / Investigation / Guide keep their role.
+        # Index 6 and 7 are custom v0.3 Dashboard and Lifecycle containers.
         return [
-            rendered[0],  # Command Center
-            rendered[1],  # Instrument Passport
-            rendered[3],  # Lifecycle
-            rendered[4],  # Events
-            rendered[5],  # Investigation Intelligence
-            rendered[6],  # Guide
-            rendered[2],  # URS · PR · PO
+            rendered[6],
+            rendered[2],
+            rendered[3],
+            rendered[4],
+            rendered[5],
+            rendered[7],
+            rendered[0],
+            rendered[1],
         ]
     return _real_tabs(items, *args, **kwargs)
 
 
-st.tabs = _tabs_with_acquisition
+st.tabs = _tabs_v03
 
 # The core file configures the page too; this wrapper already did it.
 _real_set_page_config = st.set_page_config
@@ -227,42 +231,73 @@ finally:
     st.tabs = _real_tabs
     _write_auth_cookie()
 
-# The core main tab list is stored in `tabs`. The custom acquisition tab is the
-# seventh logical item returned by the wrapper, but visually appears third.
+# Apply the requested instrument imagery to hero areas without placing strong
+# images behind forms/tables. The SVG is decorative and receives a navy overlay.
 try:
-    main_tabs = globals().get("tabs")
-    if isinstance(main_tabs, list) and len(main_tabs) >= 7 and globals().get("_auth_token"):
-        if _auth_token():
-            journey_module = Path(__file__).resolve().parent / "instrument_acquisition_journey.py"
-            with main_tabs[-1]:
-                exec(
-                    compile(journey_module.read_text(encoding="utf-8"), str(journey_module), "exec"),
-                    globals(),
-                    globals(),
-                )
+    hero_asset = Path(__file__).resolve().parent / "assets" / "instrument_lifecycle_hero.svg"
+    hero_b64 = base64.b64encode(hero_asset.read_bytes()).decode("ascii") if hero_asset.exists() else ""
+    if hero_b64:
+        st.markdown(
+            f"""
+<style>
+.hero, .v03-dashboard-hero {{
+  background-image:
+    linear-gradient(90deg, rgba(4,12,25,.96) 0%, rgba(6,20,38,.88) 44%, rgba(8,28,49,.78) 100%),
+    url("data:image/svg+xml;base64,{hero_b64}") !important;
+  background-size: cover !important;
+  background-position: center !important;
+}}
+.hero {{ min-height: 220px; display:flex; flex-direction:column; justify-content:center; }}
+@media(max-width:700px) {{
+  .hero {{ min-height: 205px; background-position: 58% center !important; }}
+  div[data-baseweb="tab-list"] {{ gap:.05rem !important; }}
+  button[data-baseweb="tab"] {{ padding-left:.72rem !important; padding-right:.72rem !important; font-size:.92rem !important; }}
+}}
+</style>
+""",
+            unsafe_allow_html=True,
+        )
+except Exception:
+    pass
+
+main_tabs = globals().get("tabs")
+
+# Populate the new Dashboard.
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 8 and globals().get("_auth_token") and _auth_token():
+        dashboard_module = Path(__file__).resolve().parent / "instrument_v03_dashboard.py"
+        with main_tabs[6]:
+            exec(compile(dashboard_module.read_text(encoding="utf-8"), str(dashboard_module), "exec"), globals(), globals())
 except Exception as exc:
     try:
-        with main_tabs[-1]:
-            st.error("URS · PR · PO journey could not load.")
+        with main_tabs[6]:
+            st.error("v0.3 Dashboard could not load.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
 
-# Append structured calibration control to the existing Lifecycle tab. This
-# avoids another top-level tab on mobile while keeping calibration in its proper
-# lifecycle context.
+# Populate the new full lifecycle navigator. This replaces the isolated
+# URS/PR/PO tab and gives one journey from Need through Retirement.
 try:
-    main_tabs = globals().get("tabs")
-    if isinstance(main_tabs, list) and len(main_tabs) >= 3 and globals().get("_auth_token"):
-        if _auth_token():
-            calibration_module = Path(__file__).resolve().parent / "instrument_calibration_control.py"
-            with main_tabs[2]:
-                st.divider()
-                exec(
-                    compile(calibration_module.read_text(encoding="utf-8"), str(calibration_module), "exec"),
-                    globals(),
-                    globals(),
-                )
+    if isinstance(main_tabs, list) and len(main_tabs) >= 8 and globals().get("_auth_token") and _auth_token():
+        lifecycle_module = Path(__file__).resolve().parent / "instrument_v03_lifecycle.py"
+        with main_tabs[7]:
+            exec(compile(lifecycle_module.read_text(encoding="utf-8"), str(lifecycle_module), "exec"), globals(), globals())
+except Exception as exc:
+    try:
+        with main_tabs[7]:
+            st.error("Full Lifecycle module could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+# Keep the detailed calibration module inside the dedicated Calibration & PM tab.
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 3 and globals().get("_auth_token") and _auth_token():
+        calibration_module = Path(__file__).resolve().parent / "instrument_calibration_control.py"
+        with main_tabs[2]:
+            st.divider()
+            exec(compile(calibration_module.read_text(encoding="utf-8"), str(calibration_module), "exec"), globals(), globals())
 except Exception as exc:
     try:
         with main_tabs[2]:
