@@ -1,7 +1,7 @@
 # Standalone Streamlit entrypoint for the Instrument Lifecycle application.
 # This branch is intentionally isolated from the main HPLC / Decision Gap app.
-# v0.1.3 keeps DataFrame schemas intact even when durable storage is empty and
-# surfaces safe sync diagnostics without exposing secrets.
+# v0.1.4 keeps DataFrame schemas intact, adds durable Google Sheets storage,
+# and executes the UI source on every Streamlit rerun to avoid import caching.
 
 from __future__ import annotations
 
@@ -245,8 +245,19 @@ def _persistent_rerun(*args, **kwargs):
 
 st.rerun = _persistent_rerun
 
+# Execute the UI source on every Streamlit script run. A normal Python import is
+# cached in sys.modules and would make the UI disappear on subsequent reruns.
+_ui_source = Path(__file__).resolve().parent / "instrument_lifecycle_app.py"
 try:
-    from instrument_lifecycle_app import *  # noqa: F401,F403
+    exec(
+        compile(
+            _ui_source.read_text(encoding="utf-8"),
+            str(_ui_source),
+            "exec",
+        ),
+        globals(),
+        globals(),
+    )
 finally:
     _save_state()
 
