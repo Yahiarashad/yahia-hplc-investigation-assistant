@@ -12,7 +12,7 @@ from evidence_engine import format_evidence_context, retrieve_evidence
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
-APP_VERSION = "v0.8"
+APP_VERSION = "v0.9"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
 st.set_page_config(
@@ -291,8 +291,40 @@ st.markdown(
         letter-spacing: 0;
         text-transform: none;
       }
+      .welcome-card {
+        margin: 1rem 0 .7rem;
+        padding: 1.05rem 1.1rem;
+        border-radius: 18px;
+        border: 1px solid rgba(202,167,80,.58);
+        background: linear-gradient(145deg,#fffaf0,#ffffff);
+        box-shadow: 0 8px 24px rgba(15,23,42,.05);
+      }
+      .welcome-card-ar {
+        direction: rtl;
+        text-align: right;
+        unicode-bidi: plaintext;
+      }
+      .welcome-kicker {
+        color: #9a7a26;
+        font-size: .76rem;
+        font-weight: 900;
+        letter-spacing: .05em;
+        margin-bottom: .22rem;
+      }
+      .welcome-title {
+        color: #111827;
+        font-size: 1.24rem;
+        font-weight: 900;
+        line-height: 1.5;
+        margin-bottom: .35rem;
+      }
+      .welcome-copy {
+        color: #556274;
+        font-size: .91rem;
+        line-height: 1.75;
+      }
       .start-card {
-        margin: 1rem 0 .85rem;
+        margin: .85rem 0;
         padding: 1.05rem 1.1rem;
         border-radius: 18px;
         border: 1px solid #d8e2ee;
@@ -381,6 +413,7 @@ st.markdown(
         .hero-tagline { font-size: .80rem; letter-spacing: .035em; }
         .hero-description { font-size: .84rem; line-height: 1.7; }
         .hero-byline { font-size: .74rem; }
+        .welcome-title { font-size: 1.10rem; }
         .start-grid { grid-template-columns: 1fr; }
         .start-title { font-size: 1.06rem; }
       }
@@ -512,6 +545,29 @@ st.selectbox(
 selected_language_code = LANG_OPTIONS[st.session_state.ui_language_label]
 if st.query_params.get("lang") != selected_language_code:
     st.query_params["lang"] = selected_language_code
+
+if is_ar:
+    st.markdown(
+        """
+        <div class="welcome-card welcome-card-ar">
+          <div class="welcome-kicker">أهلاً وسهلاً بك 👋</div>
+          <div class="welcome-title">لا تقلق… مشكلتك هنحلها مع بعض خطوة بخطوة.</div>
+          <div class="welcome-copy">اكتب اللي حصل بالتفصيل، ومساعد يحيى هيتتبع الأدلة معاك لحد ما نوصل لأقوى قرار ممكن — من غير تخمين.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown(
+        """
+        <div class="welcome-card">
+          <div class="welcome-kicker">WELCOME 👋</div>
+          <div class="welcome-title">Don't worry — we'll work through your problem together, step by step.</div>
+          <div class="welcome-copy">Describe exactly what happened. Yahia's assistant will follow the evidence with you and guide the investigation toward the strongest defensible next decision — without guessing.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 if is_ar:
     st.markdown(
