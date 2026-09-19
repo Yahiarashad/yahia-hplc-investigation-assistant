@@ -15,14 +15,6 @@ except Exception:
     OpenAI = None
 
 
-_CAMERA_FIELDS = {
-    "manufacturer": "Manufacturer",
-    "model": "Model",
-    "serial_number": "Serial number",
-    "instrument_name": "Instrument name *",
-    "instrument_code": "Instrument ID *",
-}
-
 _CAMERA_TYPE_OPTIONS = [
     "HPLC", "UHPLC", "GC", "LC-MS", "LC-MS/MS", "UV-Vis", "Dissolution",
     "Balance", "pH Meter", "Viscometer", "Other",
@@ -96,7 +88,10 @@ Return JSON only.
         if not isinstance(data, dict):
             return None, "The label reader did not return structured data."
         cleaned = {}
-        for key in ("manufacturer", "model", "serial_number", "instrument_name", "instrument_type", "instrument_code", "confidence_note"):
+        for key in (
+            "manufacturer", "model", "serial_number", "instrument_name",
+            "instrument_type", "instrument_code", "confidence_note",
+        ):
             value = data.get(key)
             cleaned[key] = str(value).strip() if value not in (None, "", "null") else None
         if cleaned.get("instrument_type") not in _CAMERA_TYPE_OPTIONS:
@@ -105,6 +100,26 @@ Return JSON only.
     except Exception as exc:
         code = getattr(exc, "code", None) or exc.__class__.__name__
         return None, f"Label extraction could not complete ({code})."
+
+
+# IMPORTANT: Streamlit reruns the script without recreating the imported `st`
+# module. The previous implementation captured an already-patched st.form on the
+# next rerun, causing the camera wrapper to wrap itself again. That rendered the
+# same radio/camera widgets twice and raised StreamlitDuplicateElementKey.
+# Store the native Streamlit callables once on the module itself, then always
+# wrap those originals. This makes the patch idempotent across refresh/reboot.
+if not hasattr(st, "_ilm_native_form"):
+    st._ilm_native_form = st.form
+if not hasattr(st, "_ilm_native_text_input"):
+    st._ilm_native_text_input = st.text_input
+if not hasattr(st, "_ilm_native_selectbox"):
+    st._ilm_native_selectbox = st.selectbox
+
+_real_form = st._ilm_native_form
+_real_text_input = st._ilm_native_text_input
+_real_selectbox = st._ilm_native_selectbox
+_CAMERA_FORM_ACTIVE = False
+_CAMERA_SCANNER_RENDERED = False
 
 
 def _render_camera_scanner():
@@ -173,14 +188,6 @@ def _render_camera_scanner():
             st.rerun()
 
 
-# Monkeypatch only the existing Add Instrument form. This keeps the core app
-# stable while placing the scanner exactly inside the Add new instrument expander.
-_real_form = st.form
-_real_text_input = st.text_input
-_real_selectbox = st.selectbox
-_CAMERA_FORM_ACTIVE = False
-
-
 class _CameraFormProxy:
     def __init__(self, inner):
         self.inner = inner
@@ -199,8 +206,13 @@ class _CameraFormProxy:
 
 
 def _camera_form(form_key, *args, **kwargs):
+    global _CAMERA_SCANNER_RENDERED
     if str(form_key) == "add_instrument":
-        _render_camera_scanner()
+        # One scanner per script run. If the core ever references the Add form
+        # more than once, do not duplicate keyed camera widgets.
+        if not _CAMERA_SCANNER_RENDERED:
+            _render_camera_scanner()
+            _CAMERA_SCANNER_RENDERED = True
         return _CameraFormProxy(_real_form(form_key, *args, **kwargs))
     return _real_form(form_key, *args, **kwargs)
 
@@ -208,7 +220,6 @@ def _camera_form(form_key, *args, **kwargs):
 def _camera_text_input(label, *args, **kwargs):
     if _CAMERA_FORM_ACTIVE:
         prefill = st.session_state.get("ilm_camera_prefill") or {}
-        label_text = str(label)
         lookup = {
             "Manufacturer": "manufacturer",
             "Model": "model",
@@ -216,7 +227,7 @@ def _camera_text_input(label, *args, **kwargs):
             "Instrument name *": "instrument_name",
             "Instrument ID *": "instrument_code",
         }
-        field = lookup.get(label_text)
+        field = lookup.get(str(label))
         suggested = prefill.get(field) if field else None
         if suggested and "value" not in kwargs:
             kwargs["value"] = str(suggested)
@@ -226,8 +237,6 @@ def _camera_text_input(label, *args, **kwargs):
 def _camera_selectbox(label, options, *args, **kwargs):
     option_list = list(options)
     if _CAMERA_FORM_ACTIVE and str(label) == "Type":
-        # Keep Viscometer available in the Passport even though the legacy core
-        # list predates this instrument type.
         if "Viscometer" not in option_list:
             if "Other" in option_list:
                 option_list.insert(option_list.index("Other"), "Viscometer")
@@ -241,13 +250,15 @@ def _camera_selectbox(label, options, *args, **kwargs):
     return _real_selectbox(label, options, *args, **kwargs)
 
 
+# Re-assign on every script run, but always delegate to the saved native methods.
 st.form = _camera_form
 st.text_input = _camera_text_input
 st.selectbox = _camera_selectbox
 
 
-# Extend the practical top-of-page guide with the product-value explanation.
-# Excel remains a useful input bridge; the app adds lifecycle/decision intelligence.
+# Extend the practical guide with the Excel-vs-app value proposition and a
+# dedicated founding-user feedback step. The base guide itself is defined in
+# instrument_v03_user_guide.py immediately before this module is executed.
 _existing_user_guide = globals().get("render_v03_user_guide")
 if callable(_existing_user_guide):
     def render_v03_user_guide():
@@ -257,34 +268,30 @@ if callable(_existing_user_guide):
                 """
 ### Excel يحفظ البيانات. التطبيق يحوّل تاريخ الجهاز إلى قرار.
 
-لو عندك Excel Tracker جيد، **لا تبدأ من الصفر ولا تتخلص منه**. استخدمه كمدخل للتطبيق، ثم دع التطبيق يضيف الطبقة التي يصعب على ملف Excel وحده تقديمها باستمرار.
+لو عندك Excel Tracker جيد، **لا تبدأ من الصفر ولا تتخلص منه**. استخدمه كمدخل للتطبيق، ثم دع التطبيق يضيف طبقة المتابعة والقرار.
 
-**ما الذي يضيفه التطبيق فوق الـExcel؟**
+- **Next Action وليس مجرد Row** — Current Stage، Missing Evidence، Next Controlled Milestone وما يحتاج متابعة الآن.
+- **Lifecycle واحدة مترابطة** — Need → URS → Quotation → PR → PO → Receiving → Installation → IQ/OQ/PQ → Release → First Run → Routine Control → Performance Review → Retirement.
+- **Priority Attention Queue** — يجمع Calibration/PM overdue، OOC، Open Events، Receiving delays والمراحل الناقصة حسب الأولوية.
+- **Instrument Memory** — الصيانة والمعايرة والمكونات والأعطال والتحقيقات مرتبطة بنفس الجهاز وتاريخه.
+- **Investigation Intelligence** — يفصل Observed / Inferred / Unknown ويقترح Next Evidence Action بدل trial-and-error.
+- **Camera-assisted entry** — يقلل أخطاء نقل Manufacturer / Model / S/N مع مراجعة المستخدم قبل الحفظ.
+- **Multi-user isolation** — كل حساب يرى بياناته فقط عبر Supabase Row Level Security.
 
-- **Next Action وليس مجرد Row** — بدل أن ترى تاريخ PO أو Calibration فقط، التطبيق يوضح Current Stage، Missing Evidence، Next Controlled Milestone وما الذي يحتاج متابعة الآن.
-- **Lifecycle واحدة مترابطة** — Need → URS → Quotation → PR → PO → Receiving → Installation → IQ/OQ/PQ → Release → First Run → Routine Control → Performance Review → Retirement؛ بدل توزيع القصة على Sheets وملفات منفصلة.
-- **Priority Attention Queue** — يجمع Calibration/PM overdue، OOC، Open Events، Receiving delays والمراحل الناقصة ويضعها حسب الأولوية.
-- **Instrument Memory** — Calibration، PM، Components، Failures وInvestigations ترتبط بنفس الجهاز وبنفس التاريخ، فتستفيد منها عند ظهور المشكلة التالية.
-- **Investigation Intelligence** — يربط المشكلة الحالية بتاريخ الجهاز ويفصل Observed / Inferred / Unknown، ويقترح Next Evidence Action بدل trial-and-error.
-- **Lifecycle Readiness + Operational Status + Health** — ثلاث إشارات مختلفة بدل Green/Red cell واحدة قد تكون مضللة.
-- **Camera-assisted entry** — تصوير Nameplate يساعد في إدخال Manufacturer / Model / S/N وتقليل أخطاء النقل اليدوي، مع مراجعة المستخدم قبل الحفظ.
-- **Multi-user data isolation** — كل حساب يرى صفوفه فقط عبر Supabase Row Level Security، بدل تداول نسخ متعددة من نفس الـTracker.
-- **Performance Review** — التاريخ المتراكم يساعدك على رؤية تكرار الأعطال، الالتزام بالمواعيد والحاجة إلى monitoring أو upgrade أو replacement أو retirement.
-- **Evidence-first workflow** — المعلومة المفقودة تظل Missing / Unknown؛ التطبيق لا يفترض اكتمال milestone ولا يحول pattern إلى Root Cause.
-
-#### هل التطبيق بديل للـExcel؟
-
-ليس الهدف أن تحارب Excel. أفضل Workflow هو:
-
+#### أفضل Workflow
 **Existing Excel Tracker → Import → Lifecycle Intelligence → Priorities / Decisions → Investigation Memory / Reports**
 
-يمكنك رفع ملف Excel الموجود لديك. التطبيق يتعرف **فقط على الأعمدة التي تحمل نفس اسم الحقل المستخدم داخل التطبيق**. أي اسم مختلف لا يتم تخمينه أو ربطه تلقائيًا. الأفضل تنزيل Template التطبيق أولًا أو توحيد أسماء أعمدة الـTracker الحالي معه.
+يمكن رفع Excel، لكن التطبيق يتعرف **فقط على الأعمدة التي تحمل نفس اسم الحقل داخل التطبيق**. أي اسم مختلف لا يتم تخمينه أو ربطه تلقائيًا. الأفضل تنزيل Template التطبيق أو توحيد أسماء الأعمدة معه.
 
 > **Excel tracks instruments. Yahia QC Instrument Lifecycle helps you decide what needs attention next — and why.**
-
-> **الإكسل يحفظ بيانات الجهاز. التطبيق يحول تاريخ الجهاز إلى قرار.**
 """
             )
             st.info(
-                "لأعلى استفادة: لا تستخدم التطبيق فقط وقت المشكلة. حافظ على Passport وLifecycle وCalibration/PM وComponents وEvents محدثة؛ كلما كان التاريخ أفضل، أصبحت الأولويات والتحقيقات المستقبلية أكثر فائدة."
+                "لأعلى استفادة: لا تستخدم التطبيق فقط وقت المشكلة. حافظ على Passport وLifecycle وCalibration/PM وComponents وEvents محدثة؛ جودة القرار تعتمد على جودة التاريخ المسجل."
             )
+
+        try:
+            from instrument_feedback import render_instrument_feedback
+            render_instrument_feedback(compact=True)
+        except Exception as exc:
+            st.caption(f"Feedback module is temporarily unavailable ({type(exc).__name__}).")
