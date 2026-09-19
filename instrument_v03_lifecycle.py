@@ -1,7 +1,8 @@
-# v0.3 Full Instrument Lifecycle Workflow
+# v0.3 Sprint 3 Full Instrument Lifecycle Workflow
 # Executed inside the authenticated Yahia QC Instrument Lifecycle app context.
 
 from datetime import date
+from html import escape
 
 V03_INSTRUMENT_SELECT = (
     "id,instrument_code,instrument_name,instrument_type,manufacturer,model,serial_number,location,"
@@ -47,8 +48,10 @@ def _v03_stage_model(inst, review_rows, retirement):
     iq_done = bool(inst.get("iq_date"))
     oq_done = bool(inst.get("oq_date"))
     pq_done = bool(inst.get("pq_date"))
-    release_done = bool(inst.get("issuance_date"))
-    first_run_done = bool(inst.get("first_run_date"))
+    # Qualification gates: a recorded later date never silently proves a missing
+    # prerequisite. This keeps readiness evidence-driven.
+    release_done = bool(inst.get("issuance_date") and pq_done)
+    first_run_done = bool(inst.get("first_run_date") and release_done)
     retired = bool(retirement and retirement.get("decommission_date")) or str(inst.get("operational_status") or "") == "Retired"
 
     controlled = [
@@ -80,10 +83,27 @@ def _v03_stage_model(inst, review_rows, retirement):
         current_phase = "Routine Operation"
         next_action = "Keep calibration, PM, requalification, components, events and periodic review current."
 
+    target_date = _v03_date(inst.get("target_implementation_date"))
+    expected_receipt = _v03_date(inst.get("expected_receiving_date"))
+    delayed_stage = None
+    if not retired and first_pending:
+        if first_pending[0] == "Receiving" and expected_receipt and expected_receipt < date.today():
+            delayed_stage = "Receiving"
+        elif target_date and target_date < date.today() and not first_run_done:
+            delayed_stage = first_pending[0]
+
     ongoing_evidence = bool(inst_maintenance or inst_lifecycle or inst_events)
     stages = []
     for label, done, action in controlled:
-        stages.append({"label": label, "status": "Complete" if done else ("Current" if first_pending and label == first_pending[0] else "Pending"), "action": action})
+        if done:
+            status = "Complete"
+        elif delayed_stage == label:
+            status = "Delayed"
+        elif first_pending and label == first_pending[0]:
+            status = "Ready / Current"
+        else:
+            status = "Future"
+        stages.append({"label": label, "status": status, "action": action})
     stages.extend([
         {"label": "Routine Operation", "status": "Complete" if retired else ("Ongoing" if first_run_done else "Future"), "action": "Maintain controlled operational status and current ownership."},
         {"label": "Calibration / PM / Requalification", "status": "Ongoing" if first_run_done else "Future", "action": "Keep due dates and records current throughout routine use."},
@@ -91,7 +111,7 @@ def _v03_stage_model(inst, review_rows, retirement):
         {"label": "Performance Review", "status": "Complete" if latest_review else ("Due when scheduled" if first_run_done else "Future"), "action": "Periodically evaluate reliability, compliance and replacement signals."},
         {"label": "Retirement / Decommission", "status": "Complete" if retired else "Future", "action": "Close the lifecycle with approved decommissioning and data archival."},
     ])
-    return stages, completion, current_phase, next_action, ongoing_evidence
+    return stages, completion, current_phase, next_action, ongoing_evidence, first_run_done
 
 
 def _v03_chronology_signals(inst):
@@ -126,10 +146,24 @@ def _v03_chronology_signals(inst):
     if expected and actual and actual > expected:
         signals.append(f"Actual receiving was {(actual-expected).days} day(s) later than expected.")
     if inst.get("first_run_date") and not inst.get("pq_date"):
-        signals.append("First Run is recorded while PQ evidence is missing. Review lifecycle integrity.")
+        signals.append("First Run is recorded while PQ evidence is missing. It is NOT counted as lifecycle-ready.")
     if inst.get("issuance_date") and not inst.get("pq_date"):
-        signals.append("Release / Issuance is recorded while PQ evidence is missing.")
+        signals.append("Release / Issuance is recorded while PQ evidence is missing. It is NOT counted as a completed release gate.")
+    if inst.get("first_run_date") and not inst.get("issuance_date"):
+        signals.append("First Run is recorded while Release / Issuance evidence is missing.")
     return signals
+
+
+def _v03_phase_name(current):
+    if current in {"Need", "URS"}:
+        return "PLAN"
+    if current in {"Quotation", "PR", "PO", "Receiving"}:
+        return "ACQUIRE"
+    if current in {"Installation", "IQ", "OQ", "PQ", "Release / Issuance", "First Run"}:
+        return "QUALIFY"
+    if current == "Routine Operation":
+        return "OPERATE"
+    return "REVIEW & CLOSE"
 
 
 st.markdown(
@@ -138,11 +172,13 @@ st.markdown(
 .v03-loop {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin:.6rem 0 1rem;}
 .v03-loop-card {border:1px solid #dbe3ec;border-radius:15px;padding:.75rem .7rem;background:linear-gradient(180deg,#ffffff,#f8fafc);min-height:92px;box-shadow:0 5px 16px rgba(15,23,42,.05);}
 .v03-loop-card b {display:block;color:#0b2743;margin-bottom:.2rem}.v03-loop-card span{font-size:.82rem;color:#64748b;}
+.v03-lifecycle-console{border:1px solid #17384d;border-radius:20px;padding:.9rem 1rem;background:linear-gradient(145deg,#061421,#0a2132);color:#d9e7ef;margin:.55rem 0 .9rem;box-shadow:0 10px 25px rgba(2,12,27,.12)}.v03-console-head{display:flex;justify-content:space-between;gap:.6rem;align-items:center}.v03-console-head b{color:#fff;font-size:1.02rem}.v03-console-badge{border:1px solid #29c8df;border-radius:999px;padding:.22rem .55rem;color:#77e3f0;font-size:.7rem;font-weight:850}.v03-console-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;margin-top:.7rem}.v03-console-item{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.52rem;background:rgba(255,255,255,.025)}.v03-console-item span{display:block;color:#7794a6;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase}.v03-console-item b{display:block;color:#fff;font-size:.86rem;margin-top:.12rem}.v03-next-action{border-radius:14px;margin-top:.65rem;padding:.7rem .8rem;background:linear-gradient(105deg,#0f93b8,#7062e7);color:white;font-weight:820}.v03-next-action small{display:block;font-weight:600;opacity:.88;margin-top:.15rem}
 .v03-step {display:flex;gap:.75rem;align-items:flex-start;border-left:2px solid #dbe3ec;padding:0 0 .82rem 1rem;margin-left:.55rem;position:relative;}
 .v03-step:before {content:"";position:absolute;left:-7px;top:3px;width:12px;height:12px;border-radius:50%;background:#94a3b8;border:2px solid white;box-shadow:0 0 0 1px #cbd5e1;}
-.v03-step.complete:before{background:#17a673}.v03-step.current:before{background:#d6a92f;box-shadow:0 0 0 4px rgba(214,169,47,.13)}.v03-step.attention:before{background:#dc3545}.v03-step.ongoing:before{background:#2274a5}.v03-step.future:before{background:#cbd5e1}
-.v03-step-title{font-weight:800;color:#1f2937}.v03-step-status{font-size:.77rem;font-weight:700;padding:.12rem .45rem;border-radius:999px;background:#f1f5f9;color:#475569;margin-left:.35rem}.v03-step-action{font-size:.86rem;color:#64748b;margin-top:.15rem}
-@media(max-width:700px){.v03-loop{grid-template-columns:1fr 1fr}.v03-loop-card:last-child{grid-column:1/-1}.v03-step{margin-left:.35rem}.v03-step-action{font-size:.82rem}}
+.v03-step.complete:before{background:#17a673}.v03-step.current:before{background:#d6a92f;box-shadow:0 0 0 4px rgba(214,169,47,.13)}.v03-step.delayed:before,.v03-step.attention:before{background:#dc3545}.v03-step.ongoing:before{background:#2274a5}.v03-step.future:before{background:#cbd5e1}
+.v03-step-title{font-weight:800;color:#1f2937}.v03-step-status{font-size:.77rem;font-weight:700;padding:.12rem .45rem;border-radius:999px;background:#f1f5f9;color:#475569;margin-left:.35rem}.v03-step.delayed .v03-step-status{background:#fff0f0;color:#b42318}.v03-step.current .v03-step-status{background:#fff8df;color:#8a6814}.v03-step.complete .v03-step-status{background:#eafaf3;color:#177b58}.v03-step-action{font-size:.86rem;color:#64748b;margin-top:.15rem}
+.v03-form-flow{font-size:.8rem;color:#64748b;border:1px dashed #cbd5e1;border-radius:12px;padding:.55rem .65rem;margin:.35rem 0 .75rem;background:#fafcff}.v03-rule-pill{display:inline-block;border-radius:999px;padding:.28rem .5rem;margin:.12rem .18rem .12rem 0;font-size:.7rem;font-weight:800;background:#eef8fb;color:#17647d;border:1px solid #bfe4ee}
+@media(max-width:700px){.v03-loop{grid-template-columns:1fr 1fr}.v03-loop-card:last-child{grid-column:1/-1}.v03-step{margin-left:.35rem}.v03-step-action{font-size:.82rem}.v03-console-grid{grid-template-columns:1fr 1fr}.v03-lifecycle-console{padding:.78rem}.v03-console-head{align-items:flex-start}}
 </style>
 """,
     unsafe_allow_html=True,
@@ -180,22 +216,31 @@ else:
     inst = options[selected_label]
     iid = str(inst.get("id"))
     retirement = retirement_by_instrument.get(iid)
-    stages, completion, current_phase, next_action, _ = _v03_stage_model(inst, review_rows, retirement)
-
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Controlled milestones", f"{completion}%")
-    c2.metric("Current lifecycle phase", current_phase)
+    stages, completion, current_phase, next_action, _, first_run_ready = _v03_stage_model(inst, review_rows, retirement)
+    phase_name = _v03_phase_name(current_phase)
     open_inst_events = [e for e in events if str(e.get("instrument_id")) == iid and str(e.get("event_status")) != "Closed"]
-    c3.metric("Open events", len(open_inst_events))
+    operational = _v03_text(inst.get("operational_status")) or "Not set"
+    inst_components = [r for r in components if str(r.get("instrument_id")) == iid]
+    if first_run_ready and current_phase != "Retired / Decommissioned":
+        h_score, h_reasons = health_score_v2(inst, events, inst_components)
+        health_display = f"{h_score}/100 · {health_state(h_score)}"
+    elif current_phase == "Retired / Decommissioned":
+        health_display = "Lifecycle closed"
+    else:
+        health_display = "Not commissioned"
+
+    st.markdown(
+        f'<div class="v03-lifecycle-console"><div class="v03-console-head"><b>{escape(_v03_text(inst.get("instrument_code")) or "Instrument")} · {escape(_v03_text(inst.get("instrument_name")) or "Unnamed")}</b><span class="v03-console-badge">{escape(phase_name)}</span></div><div class="v03-console-grid"><div class="v03-console-item"><span>Lifecycle readiness</span><b>{completion}%</b></div><div class="v03-console-item"><span>Controlled stage</span><b>{escape(current_phase)}</b></div><div class="v03-console-item"><span>Operational status</span><b>{escape(operational)}</b></div><div class="v03-console-item"><span>Operational health</span><b>{escape(health_display)}</b></div></div><div class="v03-next-action">NEXT CONTROLLED STEP → {escape(current_phase.upper())}<small>{escape(next_action)}</small></div></div>',
+        unsafe_allow_html=True,
+    )
     st.progress(completion/100.0)
-    st.markdown(f'<div class="cta"><b>Next evidence-based action → {current_phase}</b><br>{next_action}</div>', unsafe_allow_html=True)
 
     st.subheader("Lifecycle navigator")
     for stage in stages:
         status = stage["status"]
-        css = "complete" if status == "Complete" else "current" if status == "Current" else "attention" if status == "Attention" else "ongoing" if status in {"Ongoing","Monitoring"} else "future"
+        css = "complete" if status == "Complete" else "current" if status == "Ready / Current" else "delayed" if status == "Delayed" else "attention" if status == "Attention" else "ongoing" if status in {"Ongoing","Monitoring"} else "future"
         st.markdown(
-            f'<div class="v03-step {css}"><div><span class="v03-step-title">{stage["label"]}</span><span class="v03-step-status">{status}</span><div class="v03-step-action">{stage["action"]}</div></div></div>',
+            f'<div class="v03-step {css}"><div><span class="v03-step-title">{escape(stage["label"])}</span><span class="v03-step-status">{escape(status)}</span><div class="v03-step-action">{escape(stage["action"])}</div></div></div>',
             unsafe_allow_html=True,
         )
 
@@ -211,6 +256,7 @@ else:
 
     with st.expander("1 · Need / Initiation", expanded=expand_need):
         st.caption("Record why the instrument is needed before procurement becomes the story.")
+        st.markdown('<div class="v03-form-flow"><span class="v03-rule-pill">WHY</span><span class="v03-rule-pill">WHO</span><span class="v03-rule-pill">INTENDED USE</span><span class="v03-rule-pill">CRITICALITY</span> Enter only what is supported. Missing information can stay missing.</div>', unsafe_allow_html=True)
         with st.form(f"v03_need_{iid}"):
             c1,c2 = st.columns(2)
             need_title = c1.text_input("Need / request title", value=_v03_text(inst.get("need_title")))
@@ -220,11 +266,10 @@ else:
             requested_by = c2.text_input("Requested by", value=_v03_text(inst.get("requested_by")))
             need_justification = st.text_area("Business / laboratory justification", value=_v03_text(inst.get("need_justification")), height=100)
             intended_use = st.text_area("Intended analytical use", value=_v03_text(inst.get("intended_use")), height=90)
-            c1,c2 = st.columns(2)
             criticality_options = ["Low","Medium","High","Critical"]
             current_crit = _v03_text(inst.get("criticality")) or "Medium"
-            criticality = c1.selectbox("Criticality", criticality_options, index=criticality_options.index(current_crit) if current_crit in criticality_options else 1)
-            target_date = c2.date_input("Target implementation date", value=_v03_date(inst.get("target_implementation_date")))
+            criticality = st.radio("Criticality", criticality_options, index=criticality_options.index(current_crit) if current_crit in criticality_options else 1, horizontal=True)
+            target_date = st.date_input("Target implementation date", value=_v03_date(inst.get("target_implementation_date")))
             save_need = st.form_submit_button("Save Need / Initiation", use_container_width=True)
         if save_need:
             payload = {"need_title":need_title.strip() or None,"need_identified_date":_v03_iso(need_date),"department":department.strip() or None,"requested_by":requested_by.strip() or None,"need_justification":need_justification.strip() or None,"intended_use":intended_use.strip() or None,"criticality":criticality,"target_implementation_date":_v03_iso(target_date)}
@@ -235,38 +280,45 @@ else:
     with st.expander("2 · Acquisition & Qualification | URS → First Run", expanded=expand_acq):
         st.caption("Controlled order: URS → Quotation → PR → PO → Receiving → Installation → IQ → OQ → PQ → Release → First Run")
         with st.form(f"v03_acq_{iid}"):
-            st.markdown("#### URS")
-            c1,c2 = st.columns(2)
-            urs_reference = c1.text_input("URS reference", value=_v03_text(inst.get("urs_reference")))
-            urs_date = c2.date_input("URS approval date", value=_v03_date(inst.get("urs_approval_date")))
-            st.markdown("#### Quotation → PR → PO")
-            c1,c2 = st.columns(2)
-            quotation_reference = c1.text_input("Quotation reference", value=_v03_text(inst.get("quotation_reference")))
-            quotation_date = c2.date_input("Quotation date", value=_v03_date(inst.get("quotation_date")))
-            c1,c2 = st.columns(2)
-            pr_number = c1.text_input("PR number", value=_v03_text(inst.get("pr_number")))
-            pr_date = c2.date_input("PR approval date", value=_v03_date(inst.get("pr_approval_date")))
-            c1,c2 = st.columns(2)
-            po_number = c1.text_input("PO number", value=_v03_text(inst.get("po_number")))
-            po_date = c2.date_input("PO approval / issue date", value=_v03_date(inst.get("po_approval_date")))
-            st.markdown("#### Receiving & Installation")
-            c1,c2 = st.columns(2)
-            expected_receiving = c1.date_input("Expected receiving date", value=_v03_date(inst.get("expected_receiving_date")))
-            receiving_date = c2.date_input("Actual receiving date", value=_v03_date(inst.get("receiving_date")))
-            c1,c2 = st.columns(2)
-            installation_date = c1.date_input("Installation date", value=_v03_date(inst.get("installation_date")))
-            installation_reference = c2.text_input("Installation report reference", value=_v03_text(inst.get("installation_reference")))
-            c1,c2 = st.columns(2)
-            site_ready = c1.checkbox("Site readiness confirmed", value=_v03_bool(inst.get("site_readiness_confirmed")))
-            utilities_ready = c2.checkbox("Utilities confirmed", value=_v03_bool(inst.get("utilities_confirmed")))
-            st.markdown("#### Qualification → Release → First Run")
-            c1,c2,c3 = st.columns(3)
-            iq_date = c1.date_input("IQ completion date", value=_v03_date(inst.get("iq_date")))
-            oq_date = c2.date_input("OQ completion date", value=_v03_date(inst.get("oq_date")))
-            pq_date = c3.date_input("PQ completion date", value=_v03_date(inst.get("pq_date")))
-            c1,c2 = st.columns(2)
-            issuance_date = c1.date_input("Release / issuance date", value=_v03_date(inst.get("issuance_date")))
-            first_run_date = c2.date_input("First approved routine run", value=_v03_date(inst.get("first_run_date")))
+            t_urs, t_buy, t_receive, t_qualify = st.tabs(["URS", "Procurement", "Receiving", "Qualification"])
+            with t_urs:
+                st.markdown("#### URS")
+                c1,c2 = st.columns(2)
+                urs_reference = c1.text_input("URS reference", value=_v03_text(inst.get("urs_reference")))
+                urs_date = c2.date_input("URS approval date", value=_v03_date(inst.get("urs_approval_date")))
+                st.caption("The URS is the controlled statement of what the laboratory needs before the purchasing trail becomes the focus.")
+            with t_buy:
+                st.markdown("#### Quotation → PR → PO")
+                c1,c2 = st.columns(2)
+                quotation_reference = c1.text_input("Quotation reference", value=_v03_text(inst.get("quotation_reference")))
+                quotation_date = c2.date_input("Quotation date", value=_v03_date(inst.get("quotation_date")))
+                c1,c2 = st.columns(2)
+                pr_number = c1.text_input("PR number", value=_v03_text(inst.get("pr_number")))
+                pr_date = c2.date_input("PR approval date", value=_v03_date(inst.get("pr_approval_date")))
+                c1,c2 = st.columns(2)
+                po_number = c1.text_input("PO number", value=_v03_text(inst.get("po_number")))
+                po_date = c2.date_input("PO approval / issue date", value=_v03_date(inst.get("po_approval_date")))
+            with t_receive:
+                st.markdown("#### Receiving & Installation")
+                c1,c2 = st.columns(2)
+                expected_receiving = c1.date_input("Expected receiving date", value=_v03_date(inst.get("expected_receiving_date")))
+                receiving_date = c2.date_input("Actual receiving date", value=_v03_date(inst.get("receiving_date")))
+                c1,c2 = st.columns(2)
+                installation_date = c1.date_input("Installation date", value=_v03_date(inst.get("installation_date")))
+                installation_reference = c2.text_input("Installation report reference", value=_v03_text(inst.get("installation_reference")))
+                c1,c2 = st.columns(2)
+                site_ready = c1.checkbox("Site readiness confirmed", value=_v03_bool(inst.get("site_readiness_confirmed")))
+                utilities_ready = c2.checkbox("Utilities confirmed", value=_v03_bool(inst.get("utilities_confirmed")))
+            with t_qualify:
+                st.markdown("#### Qualification → Release → First Run")
+                c1,c2,c3 = st.columns(3)
+                iq_date = c1.date_input("IQ completion date", value=_v03_date(inst.get("iq_date")))
+                oq_date = c2.date_input("OQ completion date", value=_v03_date(inst.get("oq_date")))
+                pq_date = c3.date_input("PQ completion date", value=_v03_date(inst.get("pq_date")))
+                c1,c2 = st.columns(2)
+                issuance_date = c1.date_input("Release / issuance date", value=_v03_date(inst.get("issuance_date")))
+                first_run_date = c2.date_input("First approved routine run", value=_v03_date(inst.get("first_run_date")))
+                st.info("Gate rule: PQ must be evidenced before Release is counted complete; Release must be evidenced before First Run is counted lifecycle-ready.")
             save_acq = st.form_submit_button("Save Acquisition & Qualification Journey", use_container_width=True)
         if save_acq:
             payload={"urs_reference":urs_reference.strip() or None,"urs_approval_date":_v03_iso(urs_date),"quotation_reference":quotation_reference.strip() or None,"quotation_date":_v03_iso(quotation_date),"pr_number":pr_number.strip() or None,"pr_approval_date":_v03_iso(pr_date),"po_number":po_number.strip() or None,"po_approval_date":_v03_iso(po_date),"expected_receiving_date":_v03_iso(expected_receiving),"receiving_date":_v03_iso(receiving_date),"installation_date":_v03_iso(installation_date),"installation_reference":installation_reference.strip() or None,"site_readiness_confirmed":bool(site_ready),"utilities_confirmed":bool(utilities_ready),"iq_date":_v03_iso(iq_date),"oq_date":_v03_iso(oq_date),"pq_date":_v03_iso(pq_date),"issuance_date":_v03_iso(issuance_date),"first_run_date":_v03_iso(first_run_date)}
@@ -292,7 +344,7 @@ else:
             c1,c2 = st.columns(2)
             review_date = c1.date_input("Review date", value=date.today())
             review_period = c2.number_input("Review period (months)", min_value=1, max_value=60, value=12)
-            decision = st.selectbox("Lifecycle decision", ["Continue as-is","Increase monitoring","Major maintenance / upgrade","Replacement planning","Retirement recommended"])
+            decision = st.radio("Lifecycle decision", ["Continue as-is","Increase monitoring","Major maintenance / upgrade","Replacement planning","Retirement recommended"], horizontal=True)
             health_summary = st.text_area("Evidence summary / health review", height=110)
             action_plan = st.text_area("Action plan", height=90)
             reviewed_by = st.text_input("Reviewed by")
