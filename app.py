@@ -26,6 +26,44 @@ RemoveEmptyElementContainer()
 controller = CookieController(key="ilm_auth_cookie_controller")
 COOKIE_NAME = "yahia_qc_ilm_refresh_v1"
 
+# Mobile RTL polish for Arabic guidance blocks.
+# The Arabic quick guide is the final list in its Markdown container, so this
+# keeps English content LTR while moving Arabic bullets and alignment to the right.
+st.markdown(
+    """
+<style>
+div[data-testid="stMarkdownContainer"] > h3:has(+ ul:last-child) {
+    direction: rtl !important;
+    text-align: right !important;
+}
+div[data-testid="stMarkdownContainer"] > ul:last-child {
+    direction: rtl !important;
+    text-align: right !important;
+    padding-right: 1.45rem !important;
+    padding-left: 0 !important;
+    margin-right: 0 !important;
+}
+div[data-testid="stMarkdownContainer"] > ul:last-child > li {
+    direction: rtl !important;
+    text-align: right !important;
+    unicode-bidi: plaintext;
+    padding-right: .15rem;
+    margin: .38rem 0;
+}
+div[data-testid="stMarkdownContainer"] > ul:last-child strong {
+    unicode-bidi: isolate;
+}
+@media (max-width: 700px) {
+    div[data-testid="stMarkdownContainer"] > ul:last-child {
+        padding-right: 1.25rem !important;
+        line-height: 1.9;
+    }
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 
 def _secret(name: str) -> str:
     try:
