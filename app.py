@@ -504,13 +504,12 @@ def _save_supabase_state() -> bool:
 st.markdown(
     """
     <style>
-      .block-container { max-width: 1180px; padding-top: 5.6rem !important; padding-bottom: 4rem; }
-      .auth-card { max-width: 620px; margin: 0 auto; padding: 1.25rem 1.35rem; border: 1px solid #e2e8f0; border-radius: 20px; }
+      .block-container { max-width: 1180px; padding-top: 3.2rem !important; padding-bottom: 4rem; }
       div[data-baseweb="tab-list"] { overflow-x:auto !important; flex-wrap:nowrap !important; scrollbar-width:none; }
       div[data-baseweb="tab-list"]::-webkit-scrollbar { display:none; }
       button[data-baseweb="tab"] { white-space:nowrap !important; flex:0 0 auto !important; }
       @media (max-width:700px) {
-        .block-container { padding-top: 6.8rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
+        .block-container { padding-top: 3.8rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
       }
     </style>
     """,
@@ -529,7 +528,6 @@ if not _supabase_configured():
     st.stop()
 
 if not _auth_token():
-    st.markdown("<div class='auth-card'>", unsafe_allow_html=True)
     st.title("🧪 Yahia QC Instrument Lifecycle")
     st.caption("Secure instrument lifecycle & investigation intelligence · Each account sees only its own data.")
     login_tab, signup_tab = st.tabs(["Sign in", "Create account"])
@@ -571,7 +569,6 @@ if not _auth_token():
                     st.success(message)
                 else:
                     st.error(message)
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 user = _auth_user()
