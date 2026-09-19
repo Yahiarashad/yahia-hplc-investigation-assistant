@@ -1,9 +1,9 @@
 /*
 Yahia HPLC Investigation Assistant — Founding Beta Google Sheets webhook
 
-Setup:
-1) Create a Google Sheet.
-2) Extensions -> Apps Script.
+Mobile-friendly setup (no Extensions menu required):
+1) Open https://script.google.com in Chrome.
+2) Create a New project.
 3) Paste this file into Code.gs.
 4) In Apps Script Project Settings -> Script properties, add:
    BETA_FEEDBACK_WEBHOOK_TOKEN = the same long secret used in Streamlit Secrets.
@@ -12,9 +12,11 @@ Setup:
    Who has access: Anyone
 6) Copy the /exec URL into Streamlit Secrets as BETA_FEEDBACK_WEBHOOK.
 
-The script creates two tabs automatically: Events and Feedback.
+This script writes directly to the dedicated Founding Beta spreadsheet below.
 It does not receive HPLC case text from the app.
 */
+
+const SPREADSHEET_ID = '1HgmAMUl0ZveRdn1LN2gsxuJWyzDpfWHVCQFR4tWDzcg';
 
 const EVENT_HEADERS = [
   'created_at', 'session_id', 'source', 'event', 'language', 'metadata_json'
@@ -53,7 +55,7 @@ function doPost(e) {
       return _jsonResponse({ok: false, error: 'unauthorized'});
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     if (!ss) return _jsonResponse({ok: false, error: 'spreadsheet_not_found'});
 
     if (payload.type === 'event') {
