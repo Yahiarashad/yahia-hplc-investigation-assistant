@@ -13,7 +13,24 @@ from beta_feedback import record_event, render_feedback_form
 
 st.set_page_config(page_title="Founding Beta Feedback", page_icon="💬", layout="centered")
 
-lang_label = st.radio("Language / اللغة", ["العربية", "English"], horizontal=True)
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 4.8rem !important;
+        padding-bottom: 4rem !important;
+    }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 5.3rem !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+lang_label = st.radio("اختر اللغة / Choose language", ["العربية", "English"], horizontal=True)
 lang = "ar" if lang_label == "العربية" else "en"
 
 raw = st.query_params.get("feedback")
@@ -28,16 +45,55 @@ if not st.session_state.get("_generic_feedback_view_logged"):
     st.session_state["_generic_feedback_view_logged"] = True
 
 if lang == "ar":
-    st.markdown("# 💬 ملاحظتك تبني النسخة القادمة")
-    st.write("لو جرّبت اختبار **QC Analyst Decision Gap** أو **مساعد يحيى للتحقيق في HPLC**، قل لنا ما الذي نجح وما الذي يحتاج تطويرًا.")
+    st.markdown(
+        """
+        <div dir="rtl" style="text-align:right; margin-top:.4rem; margin-bottom:1rem;">
+          <div style="font-size:2.5rem;font-weight:900;line-height:1.2;color:#2f3140;">
+            💬 ملاحظتك تبني النسخة القادمة
+          </div>
+          <div style="font-size:1.05rem;line-height:1.9;margin-top:1rem;color:#374151;">
+            لو جرّبت اختبار <b>فجوة القرار لمحلل الجودة</b> أو
+            <b>مساعد يحيى للتحقيق في <span dir="ltr" style="unicode-bidi:isolate;">HPLC</span></b>،
+            شاركني ما الذي نجح فعلًا وما الذي يحتاج تطويرًا.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSelectbox"] label,
+        div[data-testid="stSelectbox"] p {
+            direction: rtl !important;
+            text-align: right !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    source_options = {
+        "مساعد يحيى للتحقيق في \u2066HPLC\u2069": "hplc_assistant",
+        "اختبار فجوة القرار لمحلل الجودة": "decision_gap",
+    }
+    source_label = st.selectbox("الأداة", list(source_options.keys()), index=None, placeholder="اختر الأداة")
 else:
     st.markdown("# 💬 Your feedback shapes the next release")
-    st.write("If you tried the **QC Analyst Decision Gap** or **Yahia HPLC Investigation Assistant**, tell us what worked and what should improve.")
+    st.write(
+        "If you tried the **QC Analyst Decision Gap** or **Yahia HPLC Investigation Assistant**, "
+        "tell us what worked and what should improve."
+    )
+    source_options = {
+        "Yahia HPLC Investigation Assistant": "hplc_assistant",
+        "QC Analyst Decision Gap": "decision_gap",
+    }
+    source_label = st.selectbox("Tool", list(source_options.keys()), index=None, placeholder="Choose a tool")
 
-source_label = st.selectbox(
-    "الأداة / Tool" if lang == "ar" else "Tool",
-    ["Yahia HPLC Investigation Assistant", "QC Analyst Decision Gap"],
-)
-source = "hplc_assistant" if source_label.startswith("Yahia") else "decision_gap"
-
-render_feedback_form(source=source, session_id=raw, language=lang, compact=False)
+if source_label is None:
+    if lang == "ar":
+        st.info("اختر الأداة أولًا، ثم سيظهر نموذج الملاحظات.")
+    else:
+        st.info("Choose a tool first, then the feedback form will appear.")
+else:
+    source = source_options[source_label]
+    render_feedback_form(source=source, session_id=raw, language=lang, compact=False)
