@@ -172,6 +172,15 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
+# Load the detailed top-of-page practical user guide. It is rendered later,
+# immediately before the main navigation, after the core database helpers exist.
+try:
+    _guide_module = Path(__file__).resolve().parent / "instrument_v03_user_guide.py"
+    if _guide_module.exists():
+        exec(compile(_guide_module.read_text(encoding="utf-8"), str(_guide_module), "exec"), globals(), globals())
+except Exception:
+    pass
+
 # Re-map the original six core tabs into compact lifecycle-first navigation.
 _real_tabs = st.tabs
 _MAIN_TABS = [
@@ -190,6 +199,14 @@ def _tabs_v03(labels, *args, **kwargs):
     items = list(labels)
     if items == _MAIN_TABS:
         _core_main_tabs_seen = True
+        # The detailed guide deliberately sits above the primary navigation so a
+        # new user can understand the product and import data before opening tabs.
+        try:
+            if callable(globals().get("render_v03_user_guide")):
+                render_v03_user_guide()
+        except Exception as exc:
+            st.warning("The practical user guide could not load completely.")
+            st.caption(f"Guide diagnostic: {type(exc).__name__}")
         display_items = [
             "🏠 Dashboard",
             "↻ Lifecycle",
