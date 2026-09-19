@@ -1,5 +1,5 @@
 # Persistent-auth wrapper for Yahia QC Instrument Lifecycle.
-# v0.3 shell: persistent Supabase auth + interactive lifecycle navigation.
+# v0.3 Sprint 2 shell: persistent Supabase auth + compact mobile navigation.
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from urllib import request as urlrequest
 import streamlit as st
 from cryptography.fernet import Fernet, InvalidToken
 from streamlit_cookies_controller import CookieController, RemoveEmptyElementContainer
+from streamlit.delta_generator import DeltaGenerator
 
 st.set_page_config(
     page_title="Yahia QC Instrument Lifecycle & Investigation Intelligence",
@@ -171,8 +172,7 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
-# Re-map the original six core tabs into the v0.3 lifecycle-first navigation.
-# The two extra returned containers are populated after the core file executes.
+# Re-map the original six core tabs into compact lifecycle-first navigation.
 _real_tabs = st.tabs
 _MAIN_TABS = [
     "Command Center",
@@ -182,28 +182,31 @@ _MAIN_TABS = [
     "Investigation Intelligence",
     "Guide",
 ]
+_core_main_tabs_seen = False
 
 
 def _tabs_v03(labels, *args, **kwargs):
+    global _core_main_tabs_seen
     items = list(labels)
     if items == _MAIN_TABS:
+        _core_main_tabs_seen = True
         display_items = [
-            "Dashboard",
-            "Lifecycle",
-            "Instrument Passport",
-            "Calibration & PM",
-            "Events",
-            "Investigation Intelligence",
-            "Reports",
-            "Guide / About",
+            "🏠 Dashboard",
+            "↻ Lifecycle",
+            "🪪 Passport",
+            "◎ Cal & PM",
+            "⚠ Events",
+            "🔎 Investigate",
+            "▦ Reports",
+            "ⓘ Guide",
         ]
         rendered = _real_tabs(display_items, *args, **kwargs)
         # Core content mapping:
         # Command Center -> Reports
-        # Passport -> Instrument Passport
-        # old Lifecycle -> Calibration & PM
+        # Passport -> Passport
+        # old Lifecycle -> Cal & PM
         # Events / Investigation / Guide keep their role.
-        # Index 6 and 7 are custom v0.3 Dashboard and Lifecycle containers.
+        # Index 6 and 7 are custom Dashboard and Lifecycle containers.
         return [
             rendered[6],
             rendered[2],
@@ -219,6 +222,32 @@ def _tabs_v03(labels, *args, **kwargs):
 
 st.tabs = _tabs_v03
 
+# Hide the old pre-tab summary metrics / duplicate CTA from the v0.2 core while
+# keeping the rest of the core forms untouched. The new Dashboard owns summary UI.
+_real_dg_metric = DeltaGenerator.metric
+_real_markdown = st.markdown
+
+
+def _metric_until_main_tabs(self, *args, **kwargs):
+    if not _core_main_tabs_seen:
+        return None
+    return _real_dg_metric(self, *args, **kwargs)
+
+
+def _markdown_until_main_tabs(body, *args, **kwargs):
+    if (
+        not _core_main_tabs_seen
+        and isinstance(body, str)
+        and '<div class="cta">' in body
+        and "Recommended next action" in body
+    ):
+        return None
+    return _real_markdown(body, *args, **kwargs)
+
+
+DeltaGenerator.metric = _metric_until_main_tabs
+st.markdown = _markdown_until_main_tabs
+
 # The core file configures the page too; this wrapper already did it.
 _real_set_page_config = st.set_page_config
 st.set_page_config = lambda *args, **kwargs: None
@@ -229,6 +258,8 @@ try:
 finally:
     st.set_page_config = _real_set_page_config
     st.tabs = _real_tabs
+    st.markdown = _real_markdown
+    DeltaGenerator.metric = _real_dg_metric
     _write_auth_cookie()
 
 # Apply the requested instrument imagery to hero areas without placing strong
@@ -242,7 +273,7 @@ try:
 <style>
 .hero, .v03-dashboard-hero {{
   background-image:
-    linear-gradient(90deg, rgba(4,12,25,.96) 0%, rgba(6,20,38,.88) 44%, rgba(8,28,49,.78) 100%),
+    linear-gradient(90deg, rgba(4,12,25,.97) 0%, rgba(6,20,38,.90) 44%, rgba(8,28,49,.76) 100%),
     url("data:image/svg+xml;base64,{hero_b64}") !important;
   background-size: cover !important;
   background-position: center !important;
@@ -250,8 +281,6 @@ try:
 .hero {{ min-height: 220px; display:flex; flex-direction:column; justify-content:center; }}
 @media(max-width:700px) {{
   .hero {{ min-height: 205px; background-position: 58% center !important; }}
-  div[data-baseweb="tab-list"] {{ gap:.05rem !important; }}
-  button[data-baseweb="tab"] {{ padding-left:.72rem !important; padding-right:.72rem !important; font-size:.92rem !important; }}
 }}
 </style>
 """,
@@ -276,8 +305,7 @@ except Exception as exc:
     except Exception:
         pass
 
-# Populate the new full lifecycle navigator. This replaces the isolated
-# URS/PR/PO tab and gives one journey from Need through Retirement.
+# Populate the new full lifecycle navigator.
 try:
     if isinstance(main_tabs, list) and len(main_tabs) >= 8 and globals().get("_auth_token") and _auth_token():
         lifecycle_module = Path(__file__).resolve().parent / "instrument_v03_lifecycle.py"
@@ -291,7 +319,7 @@ except Exception as exc:
     except Exception:
         pass
 
-# Keep the detailed calibration module inside the dedicated Calibration & PM tab.
+# Keep detailed calibration control inside Cal & PM.
 try:
     if isinstance(main_tabs, list) and len(main_tabs) >= 3 and globals().get("_auth_token") and _auth_token():
         calibration_module = Path(__file__).resolve().parent / "instrument_calibration_control.py"
@@ -305,3 +333,80 @@ except Exception as exc:
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
+
+# Sprint 2 interaction polish. Added last so it overrides module-local styles.
+st.markdown(
+    """
+<style>
+/* Compact horizontal navigation */
+div[data-baseweb="tab-list"]{
+  overflow-x:auto!important;
+  flex-wrap:nowrap!important;
+  scrollbar-width:none!important;
+  gap:.12rem!important;
+  scroll-snap-type:x proximity;
+  padding-bottom:.15rem;
+}
+div[data-baseweb="tab-list"]::-webkit-scrollbar{display:none!important;}
+button[data-baseweb="tab"]{
+  white-space:nowrap!important;
+  flex:0 0 auto!important;
+  scroll-snap-align:start;
+  border-radius:10px 10px 0 0!important;
+}
+
+/* More tactile controls */
+.stButton > button,
+.stFormSubmitButton > button{
+  border-radius:13px!important;
+  min-height:44px!important;
+  font-weight:700!important;
+  border:1px solid #dbe3ec!important;
+  box-shadow:0 3px 10px rgba(15,23,42,.04)!important;
+  transition:transform .12s ease, box-shadow .12s ease!important;
+}
+.stButton > button:hover,
+.stFormSubmitButton > button:hover{
+  transform:translateY(-1px)!important;
+  box-shadow:0 7px 16px rgba(15,23,42,.08)!important;
+}
+
+/* Lifecycle cards feel like a journey instead of a document */
+.v03-loop-card{
+  transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease!important;
+}
+.v03-loop-card:hover{
+  transform:translateY(-2px)!important;
+  box-shadow:0 9px 22px rgba(15,23,42,.08)!important;
+  border-color:#d6b85f!important;
+}
+.v03-step{
+  border:1px solid #e7edf3!important;
+  border-left:4px solid #dbe3ec!important;
+  border-radius:14px!important;
+  padding:.75rem .8rem .75rem 1rem!important;
+  margin:.45rem 0!important;
+  background:#fff!important;
+  box-shadow:0 3px 10px rgba(15,23,42,.035)!important;
+}
+.v03-step:before{left:-9px!important;top:14px!important;}
+.v03-step.complete{border-left-color:#17a673!important;background:#fbfffd!important;}
+.v03-step.current{border-left-color:#d6a92f!important;background:#fffdf5!important;box-shadow:0 7px 20px rgba(214,169,47,.10)!important;}
+.v03-step.attention{border-left-color:#dc3545!important;background:#fffafa!important;}
+.v03-step.ongoing{border-left-color:#2274a5!important;background:#f8fcff!important;}
+.v03-step.future{opacity:.82;}
+
+/* Mobile density */
+@media(max-width:700px){
+  .block-container{padding-left:.8rem!important;padding-right:.8rem!important;}
+  button[data-baseweb="tab"]{padding-left:.58rem!important;padding-right:.58rem!important;font-size:.84rem!important;}
+  .v03-loop{grid-template-columns:1fr 1fr!important;gap:.45rem!important;}
+  .v03-loop-card{min-height:78px!important;padding:.62rem!important;}
+  .v03-step{padding:.7rem .7rem .7rem .9rem!important;}
+  .v03-step-title{font-size:.95rem!important;}
+  .v03-step-action{font-size:.79rem!important;}
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
