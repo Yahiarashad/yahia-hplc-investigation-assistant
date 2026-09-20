@@ -190,6 +190,15 @@ try:
 except Exception as exc:
     st.session_state._ilm_camera_module_error = type(exc).__name__
 
+# Load monthly performance definitions before the guide/navigation are rendered.
+# The module also appends the calculation method to the practical guide.
+try:
+    _performance_module = Path(__file__).resolve().parent / "instrument_monthly_performance.py"
+    if _performance_module.exists():
+        exec(compile(_performance_module.read_text(encoding="utf-8"), str(_performance_module), "exec"), globals(), globals())
+except Exception as exc:
+    st.session_state._ilm_performance_module_error = type(exc).__name__
+
 # Re-map the original six core tabs into compact lifecycle-first navigation.
 _real_tabs = st.tabs
 _MAIN_TABS = [
@@ -221,6 +230,7 @@ def _tabs_v03(labels, *args, **kwargs):
             "↻ Lifecycle",
             "🪪 Passport",
             "◎ Cal & PM",
+            "📈 Performance",
             "⚠ Events",
             "🔎 Investigate",
             "▦ Reports",
@@ -232,16 +242,17 @@ def _tabs_v03(labels, *args, **kwargs):
         # Passport -> Passport
         # old Lifecycle -> Cal & PM
         # Events / Investigation / Guide keep their role.
-        # Index 6 and 7 are custom Dashboard and Lifecycle containers.
+        # Index 6, 7 and 8 are custom Dashboard, Lifecycle and Performance containers.
         return [
-            rendered[6],
+            rendered[7],
             rendered[2],
             rendered[3],
-            rendered[4],
             rendered[5],
-            rendered[7],
+            rendered[6],
+            rendered[8],
             rendered[0],
             rendered[1],
+            rendered[4],
         ]
     return _real_tabs(items, *args, **kwargs)
 
@@ -319,7 +330,7 @@ main_tabs = globals().get("tabs")
 
 # Populate the new Dashboard.
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 8 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
         dashboard_module = Path(__file__).resolve().parent / "instrument_v03_dashboard.py"
         with main_tabs[6]:
             exec(compile(dashboard_module.read_text(encoding="utf-8"), str(dashboard_module), "exec"), globals(), globals())
@@ -333,7 +344,7 @@ except Exception as exc:
 
 # Populate the new full lifecycle navigator.
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 8 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
         lifecycle_module = Path(__file__).resolve().parent / "instrument_v03_lifecycle.py"
         with main_tabs[7]:
             exec(compile(lifecycle_module.read_text(encoding="utf-8"), str(lifecycle_module), "exec"), globals(), globals())
@@ -341,6 +352,22 @@ except Exception as exc:
     try:
         with main_tabs[7]:
             st.error("Full Lifecycle module could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+# Populate monthly Utilization & Availability.
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
+        with main_tabs[8]:
+            if callable(globals().get("render_instrument_performance")):
+                render_instrument_performance()
+            else:
+                st.error("Monthly Performance module could not load.")
+except Exception as exc:
+    try:
+        with main_tabs[8]:
+            st.error("Monthly Performance module could not load.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
