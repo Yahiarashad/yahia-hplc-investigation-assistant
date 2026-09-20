@@ -1,5 +1,5 @@
-# Persistent-auth wrapper for Yahia QC Instrument Lifecycle.
-# v0.3 Sprint 2 shell: persistent Supabase auth + compact mobile navigation.
+# Yahia QC Instrument Lifecycle — persistent-auth application shell
+# v0.4: lifecycle-first navigation + performance intelligence + executive PDF reporting.
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from streamlit_cookies_controller import CookieController, RemoveEmptyElementContainer
 from streamlit.delta_generator import DeltaGenerator
 
+
 st.set_page_config(
     page_title="Yahia QC Instrument Lifecycle & Investigation Intelligence",
     page_icon="🧪",
@@ -26,36 +27,33 @@ RemoveEmptyElementContainer()
 controller = CookieController(key="ilm_auth_cookie_controller")
 COOKIE_NAME = "yahia_qc_ilm_refresh_v1"
 
-# Mobile RTL polish for Arabic guidance blocks.
+
+# -----------------------------------------------------------------------------
+# Mobile / Arabic reading polish. Technical IDs, tables and form values remain
+# LTR unless their own component explicitly requests RTL.
+# -----------------------------------------------------------------------------
 st.markdown(
     """
 <style>
-div[data-testid="stMarkdownContainer"] > h3:has(+ ul:last-child) {
-    direction: rtl !important;
-    text-align: right !important;
+.v03-guide-rtl, .ilm-rtl {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext;
 }
-div[data-testid="stMarkdownContainer"] > ul:last-child {
-    direction: rtl !important;
-    text-align: right !important;
-    padding-right: 1.45rem !important;
-    padding-left: 0 !important;
-    margin-right: 0 !important;
+.v03-guide-rtl ul, .ilm-rtl ul {
+  direction: rtl !important;
+  text-align: right !important;
+  padding-right: 1.4rem !important;
+  padding-left: 0 !important;
 }
-div[data-testid="stMarkdownContainer"] > ul:last-child > li {
-    direction: rtl !important;
-    text-align: right !important;
-    unicode-bidi: plaintext;
-    padding-right: .15rem;
-    margin: .38rem 0;
+.v03-guide-rtl li, .ilm-rtl li {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext;
+  margin:.35rem 0;
 }
-div[data-testid="stMarkdownContainer"] > ul:last-child strong {
-    unicode-bidi: isolate;
-}
-@media (max-width: 700px) {
-    div[data-testid="stMarkdownContainer"] > ul:last-child {
-        padding-right: 1.25rem !important;
-        line-height: 1.9;
-    }
+@media(max-width:700px){
+  .v03-guide-rtl, .ilm-rtl { line-height:1.85; }
 }
 </style>
 """,
@@ -140,8 +138,7 @@ def _write_auth_cookie() -> None:
             pass
 
 
-# Restore a Supabase session from the encrypted browser cookie before the main
-# application reaches its authentication gate.
+# Restore the signed-in session before the core app reaches its auth gate.
 if not st.session_state.get("_ilm_auth"):
     try:
         cookie_value = controller.get(COOKIE_NAME)
@@ -161,7 +158,6 @@ if not st.session_state.get("_ilm_auth"):
             pass
 
 
-# Persist/remove the auth cookie immediately before Streamlit reruns.
 _real_rerun = st.rerun
 
 
@@ -172,34 +168,30 @@ def _cookie_aware_rerun(*args, **kwargs):
 
 st.rerun = _cookie_aware_rerun
 
-# Load the detailed top-of-page practical user guide. It is rendered later,
-# immediately before the main navigation, after the core database helpers exist.
-try:
-    _guide_module = Path(__file__).resolve().parent / "instrument_v03_user_guide.py"
-    if _guide_module.exists():
-        exec(compile(_guide_module.read_text(encoding="utf-8"), str(_guide_module), "exec"), globals(), globals())
-except Exception:
-    pass
 
-# Load camera-assisted nameplate capture before the core Passport is rendered.
-# It patches only the existing add_instrument form and leaves all other forms unchanged.
-try:
-    _camera_module = Path(__file__).resolve().parent / "instrument_camera_capture.py"
-    if _camera_module.exists():
-        exec(compile(_camera_module.read_text(encoding="utf-8"), str(_camera_module), "exec"), globals(), globals())
-except Exception as exc:
-    st.session_state._ilm_camera_module_error = type(exc).__name__
+# -----------------------------------------------------------------------------
+# Load extension definitions before the core is executed.
+# -----------------------------------------------------------------------------
+def _exec_extension(filename: str, error_key: str | None = None):
+    try:
+        module_path = Path(__file__).resolve().parent / filename
+        if module_path.exists():
+            exec(compile(module_path.read_text(encoding="utf-8"), str(module_path), "exec"), globals(), globals())
+    except Exception as exc:
+        if error_key:
+            st.session_state[error_key] = type(exc).__name__
 
-# Load monthly performance definitions before the guide/navigation are rendered.
-# The module also appends the calculation method to the practical guide.
-try:
-    _performance_module = Path(__file__).resolve().parent / "instrument_monthly_performance.py"
-    if _performance_module.exists():
-        exec(compile(_performance_module.read_text(encoding="utf-8"), str(_performance_module), "exec"), globals(), globals())
-except Exception as exc:
-    st.session_state._ilm_performance_module_error = type(exc).__name__
 
-# Re-map the original six core tabs into compact lifecycle-first navigation.
+_exec_extension("instrument_v03_user_guide.py", "_ilm_guide_module_error")
+_exec_extension("instrument_camera_capture.py", "_ilm_camera_module_error")
+_exec_extension("instrument_monthly_performance.py", "_ilm_performance_module_error")
+_exec_extension("instrument_pdf_reports.py", "_ilm_pdf_module_error")
+_exec_extension("instrument_executive_performance_report.py", "_ilm_exec_report_module_error")
+
+
+# -----------------------------------------------------------------------------
+# Convert the original six core tabs into the lifecycle-first navigation.
+# -----------------------------------------------------------------------------
 _real_tabs = st.tabs
 _MAIN_TABS = [
     "Command Center",
@@ -212,19 +204,18 @@ _MAIN_TABS = [
 _core_main_tabs_seen = False
 
 
-def _tabs_v03(labels, *args, **kwargs):
+def _tabs_v04(labels, *args, **kwargs):
     global _core_main_tabs_seen
     items = list(labels)
     if items == _MAIN_TABS:
         _core_main_tabs_seen = True
-        # The detailed guide deliberately sits above the primary navigation so a
-        # new user can understand the product and import data before opening tabs.
         try:
             if callable(globals().get("render_v03_user_guide")):
                 render_v03_user_guide()
         except Exception as exc:
             st.warning("The practical user guide could not load completely.")
             st.caption(f"Guide diagnostic: {type(exc).__name__}")
+
         display_items = [
             "🏠 Dashboard",
             "↻ Lifecycle",
@@ -237,12 +228,9 @@ def _tabs_v03(labels, *args, **kwargs):
             "ⓘ Guide",
         ]
         rendered = _real_tabs(display_items, *args, **kwargs)
-        # Core content mapping:
-        # Command Center -> Reports
-        # Passport -> Passport
-        # old Lifecycle -> Cal & PM
-        # Events / Investigation / Guide keep their role.
-        # Index 6, 7 and 8 are custom Dashboard, Lifecycle and Performance containers.
+        # Return containers in the order expected by the v0.2 core.
+        # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
+        # Dashboard/Lifecycle/Performance remain custom containers at 6/7/8.
         return [
             rendered[7],
             rendered[2],
@@ -257,10 +245,10 @@ def _tabs_v03(labels, *args, **kwargs):
     return _real_tabs(items, *args, **kwargs)
 
 
-st.tabs = _tabs_v03
+st.tabs = _tabs_v04
 
-# Hide the old pre-tab summary metrics / duplicate CTA from the v0.2 core while
-# keeping the rest of the core forms untouched. The new Dashboard owns summary UI.
+
+# Hide the old duplicate pre-navigation metrics/CTA. The new Dashboard owns them.
 _real_dg_metric = DeltaGenerator.metric
 _real_markdown = st.markdown
 
@@ -285,7 +273,8 @@ def _markdown_until_main_tabs(body, *args, **kwargs):
 DeltaGenerator.metric = _metric_until_main_tabs
 st.markdown = _markdown_until_main_tabs
 
-# The core file configures the page too; this wrapper already did it.
+
+# The core configures the page too; this shell already did it.
 _real_set_page_config = st.set_page_config
 st.set_page_config = lambda *args, **kwargs: None
 
@@ -299,8 +288,10 @@ finally:
     DeltaGenerator.metric = _real_dg_metric
     _write_auth_cookie()
 
-# Apply the requested instrument imagery to hero areas without placing strong
-# images behind forms/tables. The SVG is decorative and receives a navy overlay.
+
+# -----------------------------------------------------------------------------
+# Decorative instrument imagery — strong in hero areas, never behind data entry.
+# -----------------------------------------------------------------------------
 try:
     hero_asset = Path(__file__).resolve().parent / "assets" / "instrument_lifecycle_hero.svg"
     hero_b64 = base64.b64encode(hero_asset.read_bytes()).decode("ascii") if hero_asset.exists() else ""
@@ -315,9 +306,9 @@ try:
   background-size: cover !important;
   background-position: center !important;
 }}
-.hero {{ min-height: 220px; display:flex; flex-direction:column; justify-content:center; }}
-@media(max-width:700px) {{
-  .hero {{ min-height: 205px; background-position: 58% center !important; }}
+.hero {{ min-height:220px;display:flex;flex-direction:column;justify-content:center; }}
+@media(max-width:700px){{
+  .hero {{ min-height:205px;background-position:58% center!important; }}
 }}
 </style>
 """,
@@ -326,25 +317,29 @@ try:
 except Exception:
     pass
 
-main_tabs = globals().get("tabs")
 
-# Populate the new Dashboard.
+main_tabs = globals().get("tabs")
+_is_signed_in = bool(globals().get("_auth_token") and _auth_token())
+
+
+# Dashboard -------------------------------------------------------------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
         dashboard_module = Path(__file__).resolve().parent / "instrument_v03_dashboard.py"
         with main_tabs[6]:
             exec(compile(dashboard_module.read_text(encoding="utf-8"), str(dashboard_module), "exec"), globals(), globals())
 except Exception as exc:
     try:
         with main_tabs[6]:
-            st.error("v0.3 Dashboard could not load.")
+            st.error("Dashboard could not load.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
 
-# Populate the new full lifecycle navigator.
+
+# Full Lifecycle Navigator -----------------------------------------------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
         lifecycle_module = Path(__file__).resolve().parent / "instrument_v03_lifecycle.py"
         with main_tabs[7]:
             exec(compile(lifecycle_module.read_text(encoding="utf-8"), str(lifecycle_module), "exec"), globals(), globals())
@@ -356,9 +351,10 @@ except Exception as exc:
     except Exception:
         pass
 
-# Populate monthly Utilization & Availability.
+
+# Performance: Availability + Utilization + target intelligence ----------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
         with main_tabs[8]:
             if callable(globals().get("render_instrument_performance")):
                 render_instrument_performance()
@@ -372,9 +368,28 @@ except Exception as exc:
     except Exception:
         pass
 
-# Keep detailed calibration control inside Cal & PM.
+
+# Reports: lifecycle evidence PDF + executive monthly performance intelligence --
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 3 and globals().get("_auth_token") and _auth_token():
+    if isinstance(main_tabs, list) and len(main_tabs) >= 1 and _is_signed_in:
+        with main_tabs[0]:
+            st.divider()
+            if callable(globals().get("render_pdf_report_center")):
+                render_pdf_report_center(globals(), ui_lang="ar")
+            if callable(globals().get("render_executive_performance_report")):
+                render_executive_performance_report()
+except Exception as exc:
+    try:
+        with main_tabs[0]:
+            st.error("Advanced Report Center could not load completely.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+
+# Detailed Calibration Control stays inside Cal & PM ---------------------------
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 3 and _is_signed_in:
         calibration_module = Path(__file__).resolve().parent / "instrument_calibration_control.py"
         with main_tabs[2]:
             st.divider()
@@ -387,11 +402,14 @@ except Exception as exc:
     except Exception:
         pass
 
-# Sprint 2 interaction polish. Added last so it overrides module-local styles.
+
+# -----------------------------------------------------------------------------
+# Final interaction polish — loaded last so it overrides module-local defaults.
+# -----------------------------------------------------------------------------
 st.markdown(
     """
 <style>
-/* Compact horizontal navigation */
+/* Compact horizontal mobile navigation */
 div[data-baseweb="tab-list"]{
   overflow-x:auto!important;
   flex-wrap:nowrap!important;
@@ -408,9 +426,10 @@ button[data-baseweb="tab"]{
   border-radius:10px 10px 0 0!important;
 }
 
-/* More tactile controls */
+/* Tactile controls */
 .stButton > button,
-.stFormSubmitButton > button{
+.stFormSubmitButton > button,
+.stDownloadButton > button{
   border-radius:13px!important;
   min-height:44px!important;
   font-weight:700!important;
@@ -419,12 +438,13 @@ button[data-baseweb="tab"]{
   transition:transform .12s ease, box-shadow .12s ease!important;
 }
 .stButton > button:hover,
-.stFormSubmitButton > button:hover{
+.stFormSubmitButton > button:hover,
+.stDownloadButton > button:hover{
   transform:translateY(-1px)!important;
   box-shadow:0 7px 16px rgba(15,23,42,.08)!important;
 }
 
-/* Lifecycle cards feel like a journey instead of a document */
+/* Lifecycle journey cards */
 .v03-loop-card{
   transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease!important;
 }
@@ -442,14 +462,12 @@ button[data-baseweb="tab"]{
   background:#fff!important;
   box-shadow:0 3px 10px rgba(15,23,42,.035)!important;
 }
-.v03-step:before{left:-9px!important;top:14px!important;}
 .v03-step.complete{border-left-color:#17a673!important;background:#fbfffd!important;}
 .v03-step.current{border-left-color:#d6a92f!important;background:#fffdf5!important;box-shadow:0 7px 20px rgba(214,169,47,.10)!important;}
 .v03-step.attention{border-left-color:#dc3545!important;background:#fffafa!important;}
 .v03-step.ongoing{border-left-color:#2274a5!important;background:#f8fcff!important;}
 .v03-step.future{opacity:.82;}
 
-/* Mobile density */
 @media(max-width:700px){
   .block-container{padding-left:.8rem!important;padding-right:.8rem!important;}
   button[data-baseweb="tab"]{padding-left:.58rem!important;padding-right:.58rem!important;font-size:.84rem!important;}
