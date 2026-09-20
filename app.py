@@ -1,5 +1,5 @@
 # Yahia QC Instrument Lifecycle — persistent-auth application shell
-# v0.4: lifecycle-first navigation + performance intelligence + executive PDF reporting.
+# v0.5: lifecycle-first navigation + performance intelligence + executive PDF + management cockpit.
 
 from __future__ import annotations
 
@@ -263,11 +263,12 @@ def _tabs_v04(labels, *args, **kwargs):
             "🔎 Investigate",
             "▦ Reports",
             "ⓘ Guide",
+            "🎛 Cockpit",
         ]
         rendered = _real_tabs(display_items, *args, **kwargs)
         # Return containers in the order expected by the v0.2 core.
         # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
-        # Dashboard/Lifecycle/Performance remain custom containers at 6/7/8.
+        # Dashboard/Lifecycle/Performance/Cockpit remain custom containers at 6/7/8/9.
         return [
             rendered[7],
             rendered[2],
@@ -278,6 +279,7 @@ def _tabs_v04(labels, *args, **kwargs):
             rendered[0],
             rendered[1],
             rendered[4],
+            rendered[9],
         ]
     return _real_tabs(items, *args, **kwargs)
 
@@ -361,7 +363,7 @@ _is_signed_in = bool(globals().get("_auth_token") and _auth_token())
 
 # Dashboard -------------------------------------------------------------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 10 and _is_signed_in:
         dashboard_module = Path(__file__).resolve().parent / "instrument_v03_dashboard.py"
         with main_tabs[6]:
             exec(compile(dashboard_module.read_text(encoding="utf-8"), str(dashboard_module), "exec"), globals(), globals())
@@ -376,7 +378,7 @@ except Exception as exc:
 
 # Full Lifecycle Navigator -----------------------------------------------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 10 and _is_signed_in:
         lifecycle_module = Path(__file__).resolve().parent / "instrument_v03_lifecycle.py"
         with main_tabs[7]:
             exec(compile(lifecycle_module.read_text(encoding="utf-8"), str(lifecycle_module), "exec"), globals(), globals())
@@ -391,7 +393,7 @@ except Exception as exc:
 
 # Performance: Availability + Utilization + target intelligence ----------------
 try:
-    if isinstance(main_tabs, list) and len(main_tabs) >= 9 and _is_signed_in:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 10 and _is_signed_in:
         with main_tabs[8]:
             if callable(globals().get("render_instrument_performance")):
                 render_instrument_performance()
@@ -401,6 +403,25 @@ except Exception as exc:
     try:
         with main_tabs[8]:
             st.error("Monthly Performance module could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+
+# Instrument Management Cockpit ------------------------------------------------
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 10 and _is_signed_in:
+        cockpit_module = Path(__file__).resolve().parent / "instrument_management_cockpit.py"
+        with main_tabs[9]:
+            exec(compile(cockpit_module.read_text(encoding="utf-8"), str(cockpit_module), "exec"), globals(), globals())
+            if callable(globals().get("render_instrument_management_cockpit")):
+                render_instrument_management_cockpit()
+            else:
+                st.error("Instrument Management Cockpit could not load.")
+except Exception as exc:
+    try:
+        with main_tabs[9]:
+            st.error("Instrument Management Cockpit could not load.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
