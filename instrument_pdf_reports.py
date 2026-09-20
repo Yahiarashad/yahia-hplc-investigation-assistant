@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from io import BytesIO
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
@@ -11,11 +11,11 @@ try:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 except Exception:
     colors = None
 
@@ -163,11 +163,14 @@ AR_VALUES = {
 
 
 def _contains_arabic(text: str) -> bool:
-    return any("\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" or "\u08a0" <= ch <= "\u08ff" for ch in str(text or ""))
+    return any(
+        "\u0600" <= ch <= "\u06ff" or "\u0750" <= ch <= "\u077f" or "\u08a0" <= ch <= "\u08ff"
+        for ch in str(text or "")
+    )
 
 
-def _ar_text(value: str) -> str:
-    """Shape Arabic for ReportLab while leaving pure technical ASCII untouched."""
+def _shape_arabic_for_pdf(value) -> str:
+    """ReportLab needs shaping/BiDi. Browsers do NOT; never use this for Streamlit UI."""
     text = str(value or "")
     if not text or not _contains_arabic(text):
         return text
@@ -222,6 +225,10 @@ def _v(value):
     return str(value)
 
 
+def _label(label, lang):
+    return AR_LABELS.get(label, label) if lang == "ar" else label
+
+
 def _stage_summary(inst: dict):
     completed, missing = [], []
     for label, field in _STAGE_FIELDS:
@@ -246,32 +253,25 @@ def _stage_summary(inst: dict):
     return completion, current, missing, next_action
 
 
-def _display_value(value, lang="en"):
-    text = _v(value)
-    if lang != "ar":
-        return text
-    text = AR_VALUES.get(text, text)
-    return _ar_text(text)
+def _raw_stage(value, lang="en"):
+    return AR_STAGE.get(str(value), str(value)) if lang == "ar" else str(value)
 
 
-def _stage_value(value, lang="en"):
-    if lang == "ar":
-        return _ar_text(AR_STAGE.get(str(value), str(value)))
-    return str(value)
+def _raw_next_action(current, next_action, lang="en"):
+    return AR_NEXT_ACTION.get(current, next_action) if lang == "ar" else next_action
 
 
-def _next_action_value(current, next_action, lang="en"):
-    if lang == "ar":
-        return _ar_text(AR_NEXT_ACTION.get(current, next_action))
-    return next_action
-
-
-def _missing_value(missing, lang="en"):
+def _raw_missing(missing, lang="en"):
     if not missing:
-        return _ar_text("لا يوجد") if lang == "ar" else "None"
+        return "لا يوجد" if lang == "ar" else "None"
     if lang == "ar":
-        return _ar_text("، ".join(AR_STAGE.get(x, x) for x in missing))
+        return "، ".join(AR_STAGE.get(x, x) for x in missing)
     return ", ".join(missing)
+
+
+def _raw_display_value(value, lang="en"):
+    text = _v(value)
+    return AR_VALUES.get(text, text) if lang == "ar" else text
 
 
 def _build_styles(lang="en"):
@@ -292,15 +292,15 @@ def _build_styles(lang="en"):
             spaceBefore=8, spaceAfter=6,
         ),
         "body": ParagraphStyle(
-            "ILMBody", parent=base["BodyText"], fontName=font, fontSize=8.8, leading=13,
+            "ILMBody", parent=base["BodyText"], fontName=font, fontSize=8.8, leading=12,
             textColor=colors.HexColor("#263445"), alignment=TA_RIGHT if right else TA_LEFT,
         ),
         "body_bold": ParagraphStyle(
-            "ILMBodyBold", parent=base["BodyText"], fontName=bold, fontSize=8.8, leading=13,
+            "ILMBodyBold", parent=base["BodyText"], fontName=bold, fontSize=8.8, leading=12,
             textColor=colors.HexColor("#08233f"), alignment=TA_RIGHT if right else TA_LEFT,
         ),
         "small": ParagraphStyle(
-            "ILMSmall", parent=base["BodyText"], fontName=font, fontSize=7.5, leading=10.5,
+            "ILMSmall", parent=base["BodyText"], fontName=font, fontSize=7.4, leading=10,
             textColor=colors.HexColor("#65758b"), alignment=TA_RIGHT if right else TA_LEFT,
         ),
         "metric": ParagraphStyle(
@@ -310,13 +310,9 @@ def _build_styles(lang="en"):
     }
 
 
-def _label(label, lang):
-    return AR_LABELS.get(label, label) if lang == "ar" else label
-
-
-def _paragraph(text, style, lang="en"):
-    value = _ar_text(text) if lang == "ar" else str(text or "")
-    return Paragraph(xml_escape(value).replace("\n", "<br/>"), style)
+def _pdf_para(text, style, lang="en"):
+    value = _shape_arabic_for_pdf(text) if lang == "ar" else str(text or "")
+    return Paragraph(xml_escape(str(value)).replace("\n", "<br/>"), style)
 
 
 def _page_header(canvas, doc, styles):
@@ -333,22 +329,15 @@ def _page_header(canvas, doc, styles):
     canvas.restoreState()
 
 
-def _kv_table(rows, styles, lang="en", widths=None):
+def _kv_table(rows, styles, lang="en"):
     data = []
     for key, value in rows:
-        label_text = _ar_text(_label(key, lang)) if lang == "ar" else _label(key, lang)
-        value_text = _display_value(value, lang)
-        label_p = Paragraph(xml_escape(str(label_text)), styles["body_bold"])
-        value_p = Paragraph(xml_escape(str(value_text)), styles["body"])
-        if lang == "ar":
-            data.append([value_p, label_p])
-        else:
-            data.append([label_p, value_p])
-
-    if widths is None:
-        widths = [118 * mm, 47 * mm] if lang == "ar" else [47 * mm, 118 * mm]
+        label_p = _pdf_para(_label(key, lang), styles["body_bold"], lang)
+        value_p = _pdf_para(_raw_display_value(value, lang), styles["body"], lang)
+        data.append([value_p, label_p] if lang == "ar" else [label_p, value_p])
+    widths = [118 * mm, 47 * mm] if lang == "ar" else [47 * mm, 118 * mm]
     label_col = 1 if lang == "ar" else 0
-    table = Table(data, colWidths=list(widths), hAlign="RIGHT" if lang == "ar" else "LEFT")
+    table = Table(data, colWidths=widths, hAlign="RIGHT" if lang == "ar" else "LEFT")
     table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("BACKGROUND", (label_col, 0), (label_col, -1), colors.HexColor("#f4f7fa")),
@@ -363,7 +352,7 @@ def _kv_table(rows, styles, lang="en", widths=None):
 
 
 def _section(story, title, rows, styles, lang="en"):
-    story.append(_paragraph(_label(title, lang), styles["h1"], lang))
+    story.append(_pdf_para(_label(title, lang), styles["h1"], lang))
     story.append(_kv_table(rows, styles, lang))
     story.append(Spacer(1, 4 * mm))
 
@@ -372,21 +361,20 @@ def _summary_cards(completion, current, score, open_events, styles, lang="en"):
     labels = ["Completion", "Current stage", "Health score", "Open events"]
     values = [
         f"{completion}%",
-        _stage_value(current, lang),
-        _display_value(f"{score}/100" if score is not None else "Not available", lang),
+        _raw_stage(current, lang),
+        f"{score}/100" if score is not None else _raw_display_value("Not available", lang),
         str(open_events),
     ]
     cells = []
     for label, value in zip(labels, values):
-        label_text = _ar_text(_label(label, lang)) if lang == "ar" else _label(label, lang)
         cells.append([
-            Paragraph(xml_escape(str(value)), styles["metric"]),
-            Paragraph(xml_escape(str(label_text)), styles["small"]),
+            _pdf_para(value, styles["metric"], lang),
+            _pdf_para(_label(label, lang), styles["small"], lang),
         ])
     if lang == "ar":
-        cells = list(reversed(cells))
-    t = Table([cells], colWidths=[41.25 * mm] * 4)
-    t.setStyle(TableStyle([
+        cells.reverse()
+    table = Table([cells], colWidths=[41.25 * mm] * 4)
+    table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#dce4ec")),
         ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce4ec")),
@@ -397,7 +385,7 @@ def _summary_cards(completion, current, score, open_events, styles, lang="en"):
         ("TOPPADDING", (0, 0), (-1, -1), 7),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
     ]))
-    return t
+    return table
 
 
 def _instrument_pdf(inst, context, report_lang="en"):
@@ -424,30 +412,25 @@ def _instrument_pdf(inst, context, report_lang="en"):
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf,
-        pagesize=A4,
-        rightMargin=14 * mm,
-        leftMargin=14 * mm,
-        topMargin=23 * mm,
-        bottomMargin=15 * mm,
-        title="Instrument Lifecycle Evidence Report",
-        author="Yahia QC Instrument Lifecycle",
+        buf, pagesize=A4, rightMargin=14 * mm, leftMargin=14 * mm,
+        topMargin=23 * mm, bottomMargin=15 * mm,
+        title="Instrument Lifecycle Evidence Report", author="Yahia QC Instrument Lifecycle",
     )
     story = []
-    story.append(_paragraph(_label("Instrument Lifecycle Evidence Report", lang), styles["title"], lang))
-    story.append(_paragraph(f"{_v(inst.get('instrument_code'))} · {_v(inst.get('instrument_name'))}", styles["h1"], lang))
+    story.append(_pdf_para(_label("Instrument Lifecycle Evidence Report", lang), styles["title"], lang))
+    # Keep IDs/names as a technical LTR line even in Arabic reports.
+    story.append(_pdf_para(f"{_v(inst.get('instrument_code'))} · {_v(inst.get('instrument_name'))}", styles["h1"], "en"))
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    generated_line = f"{_label('Generated', lang)}: {generated}"
-    story.append(_paragraph(generated_line, styles["small"], lang))
-    story.append(_paragraph(_label("Decision-support copy", lang), styles["small"], lang))
+    story.append(_pdf_para(f"{_label('Generated', lang)}: {generated}", styles["small"], lang))
+    story.append(_pdf_para(_label("Decision-support copy", lang), styles["small"], lang))
     story.append(Spacer(1, 4 * mm))
 
-    story.append(_paragraph(_label("Management summary", lang), styles["h1"], lang))
+    story.append(_pdf_para(_label("Management summary", lang), styles["h1"], lang))
     story.append(_summary_cards(completion, current, score, len(open_events), styles, lang))
     story.append(Spacer(1, 3 * mm))
 
-    next_display = _next_action_value(current, next_action, lang)
-    missing_display = _missing_value(missing, lang)
+    next_display = _raw_next_action(current, next_action, lang)
+    missing_display = _raw_missing(missing, lang)
     story.append(_kv_table([
         ("Next controlled action", next_display),
         ("Missing evidence", missing_display),
@@ -468,7 +451,7 @@ def _instrument_pdf(inst, context, report_lang="en"):
 
     _section(story, "Lifecycle readiness", [
         ("Completion", f"{completion}%"),
-        ("Current stage", _stage_value(current, lang)),
+        ("Current stage", _raw_stage(current, lang)),
         ("Next controlled action", next_display),
         ("Missing evidence", missing_display),
         ("Health score", f"{score}/100" if score is not None else "Not available"),
@@ -504,44 +487,34 @@ def _instrument_pdf(inst, context, report_lang="en"):
     ], styles, lang)
 
     if inst_events:
-        story.append(_paragraph(_label("Events & investigation", lang), styles["h1"], lang))
+        story.append(_pdf_para(_label("Events & investigation", lang), styles["h1"], lang))
         headers = ["Date", "Event", "Severity", "Status", "Observed facts"]
-        if lang == "ar":
-            headers = list(reversed(headers))
-        event_data = [[
-            Paragraph(xml_escape(_ar_text(_label(x, lang)) if lang == "ar" else _label(x, lang)), styles["small"])
-            for x in headers
-        ]]
+        values_rows = []
         for e in inst_events[:15]:
-            values = [e.get("event_date"), e.get("event_type"), e.get("severity"), e.get("event_status"), e.get("observed_facts")]
-            if lang == "ar":
-                values = list(reversed(values))
-            event_data.append([
-                Paragraph(xml_escape(_display_value(v, lang)), styles["small"])
-                for v in values
+            values_rows.append([
+                e.get("event_date"), e.get("event_type"), e.get("severity"), e.get("event_status"), e.get("observed_facts")
             ])
+        if lang == "ar":
+            headers.reverse()
+            values_rows = [list(reversed(r)) for r in values_rows]
+        event_data = [[_pdf_para(_label(h, lang), styles["small"], lang) for h in headers]]
+        for row in values_rows:
+            event_data.append([_pdf_para(_raw_display_value(v, lang), styles["small"], lang) for v in row])
         widths = [67 * mm, 24 * mm, 22 * mm, 30 * mm, 22 * mm] if lang == "ar" else [22 * mm, 30 * mm, 22 * mm, 24 * mm, 67 * mm]
-        t = Table(event_data, colWidths=widths, repeatRows=1)
-        t.setStyle(TableStyle([
+        table = Table(event_data, colWidths=widths, repeatRows=1)
+        table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#08233f")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#dce4ec")),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("ALIGN", (0, 0), (-1, -1), "RIGHT" if lang == "ar" else "LEFT"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
-        story.append(t)
+        story.append(table)
         story.append(Spacer(1, 4 * mm))
 
     if inst_components:
         component_note = "; ".join(f"{_v(c.get('component_name'))}: {_v(c.get('status'))}" for c in inst_components[:10])
-        _section(story, "Components", [
-            ("Recorded", len(inst_components)),
-            ("Evidence note", component_note),
-        ], styles, lang)
+        _section(story, "Components", [("Recorded", len(inst_components)), ("Evidence note", component_note)], styles, lang)
 
     boundary_en = (
         "This PDF is generated from the current application dataset as decision-support evidence. "
@@ -553,8 +526,8 @@ def _instrument_pdf(inst, context, report_lang="en"):
         "ولا يستبدل الشهادات أو بروتوكولات التأهيل أو الانحرافات أو CAPA أو البيانات الخام "
         "أو السجلات الخاضعة لإجراءات العمل المعتمدة."
     )
-    story.append(_paragraph(_label("Evidence boundary", lang), styles["h1"], lang))
-    story.append(_paragraph(boundary_ar if lang == "ar" else boundary_en, styles["body"], lang))
+    story.append(_pdf_para(_label("Evidence boundary", lang), styles["h1"], lang))
+    story.append(_pdf_para(boundary_ar if lang == "ar" else boundary_en, styles["body"], lang))
 
     doc.build(
         story,
@@ -571,27 +544,19 @@ def _portfolio_pdf(instruments, context, report_lang="en"):
     components = context.get("components") or []
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf,
-        pagesize=landscape(A4),
-        rightMargin=12 * mm,
-        leftMargin=12 * mm,
-        topMargin=23 * mm,
-        bottomMargin=14 * mm,
-        title="Portfolio Management Snapshot",
-        author="Yahia QC Instrument Lifecycle",
+        buf, pagesize=landscape(A4), rightMargin=12 * mm, leftMargin=12 * mm,
+        topMargin=23 * mm, bottomMargin=14 * mm,
+        title="Portfolio Management Snapshot", author="Yahia QC Instrument Lifecycle",
     )
-    story = [_paragraph(_label("Portfolio Management Snapshot", lang), styles["title"], lang)]
+    story = [_pdf_para(_label("Portfolio Management Snapshot", lang), styles["title"], lang)]
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    story.append(_paragraph(f"{_label('Generated', lang)}: {generated}", styles["small"], lang))
+    story.append(_pdf_para(f"{_label('Generated', lang)}: {generated}", styles["small"], lang))
     story.append(Spacer(1, 4 * mm))
 
     headers = ["Instrument ID", "Instrument name", "Operational status", "Current stage", "Completion", "Health score", "Open events", "Calibration due", "PM due"]
     if lang == "ar":
-        headers = list(reversed(headers))
-    data = [[
-        Paragraph(xml_escape(_ar_text(_label(h, lang)) if lang == "ar" else _label(h, lang)), styles["small"])
-        for h in headers
-    ]]
+        headers.reverse()
+    data = [[_pdf_para(_label(h, lang), styles["small"], lang) for h in headers]]
 
     for inst in instruments:
         completion, current, _, _ = _stage_summary(inst)
@@ -606,15 +571,12 @@ def _portfolio_pdf(instruments, context, report_lang="en"):
             score = "—"
         values = [
             inst.get("instrument_code"), inst.get("instrument_name"), inst.get("operational_status"),
-            _stage_value(current, lang), f"{completion}%", score, open_events,
+            _raw_stage(current, lang), f"{completion}%", score, open_events,
             inst.get("calibration_due"), inst.get("pm_due"),
         ]
         if lang == "ar":
-            values = list(reversed(values))
-        data.append([
-            Paragraph(xml_escape(_display_value(v, lang)), styles["small"])
-            for v in values
-        ])
+            values.reverse()
+        data.append([_pdf_para(_raw_display_value(v, lang), styles["small"], lang) for v in values])
 
     widths = [27 * mm, 27 * mm, 20 * mm, 21 * mm, 21 * mm, 30 * mm, 30 * mm, 42 * mm, 24 * mm] if lang == "ar" else [24 * mm, 42 * mm, 30 * mm, 30 * mm, 21 * mm, 21 * mm, 20 * mm, 27 * mm, 27 * mm]
     table = Table(data, colWidths=widths, repeatRows=1)
@@ -623,22 +585,17 @@ def _portfolio_pdf(instruments, context, report_lang="en"):
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#dce4ec")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (0, 0), (-1, -1), "RIGHT" if lang == "ar" else "LEFT"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f9fb")]),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT" if lang == "ar" else "LEFT"),
     ]))
     story.append(table)
     story.append(Spacer(1, 4 * mm))
-
     boundary = (
         "Decision-support portfolio snapshot. Official GMP records remain in approved company systems."
         if lang == "en"
         else "ملخص لدعم القرار فقط. تظل السجلات الرسمية الخاصة بـ GMP داخل الأنظمة المعتمدة بالشركة."
     )
-    story.append(_paragraph(boundary, styles["small"], lang))
+    story.append(_pdf_para(boundary, styles["small"], lang))
     doc.build(
         story,
         onFirstPage=lambda c, d: _page_header(c, d, styles),
@@ -671,12 +628,12 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
         st.caption("Generated on demand · No PDF is stored automatically · Decision-support / uncontrolled copy")
         instruments, err, ok = _load_full_instruments(context)
         if not ok:
-            st.error("Could not load the full lifecycle dataset for reporting.")
+            st.error("تعذر تحميل بيانات دورة الحياة الكاملة للتقرير." if ui_lang == "ar" else "Could not load the full lifecycle dataset for reporting.")
             if err:
                 st.caption(f"Diagnostic: {err}")
             return
         if not instruments:
-            st.info("Create an Instrument Passport first, then return here to generate reports.")
+            st.info("أنشئ Passport لجهاز أولًا ثم ارجع إلى مركز التقارير." if ui_lang == "ar" else "Create an Instrument Passport first, then return here to generate reports.")
             return
 
         c1, c2 = st.columns(2)
@@ -706,18 +663,29 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
             )
             selected = options[label]
             completion, current, missing, next_action = _stage_summary(selected)
-            a, b, c, d = st.columns(4)
-            a.metric("Lifecycle", f"{completion}%")
-            b.metric("Current stage", _stage_value(current, ui_lang))
-            c.metric("Missing evidence", len(missing))
             iid = str(selected.get("id") or "")
             open_evt = sum(
                 1 for e in (context.get("events") or [])
                 if str(e.get("instrument_id")) == iid and str(e.get("event_status") or "").strip().lower() != "closed"
             )
-            d.metric("Open events", open_evt)
-            next_ui = AR_NEXT_ACTION.get(current, next_action) if ui_lang == "ar" else next_action
-            st.info(("الخطوة التالية: " if ui_lang == "ar" else "Next controlled action: ") + next_ui)
+
+            # Browser Arabic must stay logical Unicode. Do NOT use ReportLab shaping here.
+            a, b, c = st.columns(3)
+            a.metric("اكتمال دورة الحياة" if ui_lang == "ar" else "Lifecycle", f"{completion}%")
+            b.metric("الأدلة الناقصة" if ui_lang == "ar" else "Missing evidence", len(missing))
+            c.metric("الأحداث المفتوحة" if ui_lang == "ar" else "Open events", open_evt)
+            stage_ui = _raw_stage(current, ui_lang)
+            next_ui = _raw_next_action(current, next_action, ui_lang)
+            if ui_lang == "ar":
+                st.markdown(
+                    f"<div dir='rtl' style='text-align:right;padding:.75rem 1rem;border:1px solid rgba(128,128,128,.25);border-radius:12px;margin:.25rem 0 .65rem;'>"
+                    f"<strong>المرحلة الحالية:</strong> {stage_ui}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.info("الخطوة التالية المنضبطة: " + next_ui)
+            else:
+                st.markdown(f"**Current stage:** {stage_ui}")
+                st.info("Next controlled action: " + next_ui)
         else:
             st.info(
                 f"سيتم إنشاء ملخص إداري لـ {len(instruments)} جهاز/أجهزة."
@@ -742,7 +710,7 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
                 st.session_state["ilm_last_pdf_name"] = filename
                 st.session_state["ilm_last_pdf_ar_font"] = ar_font
 
-            if report_lang == "ar" and not st.session_state.get("ilm_last_pdf_ar_font"):
+            if report_lang == "ar" and not ar_font:
                 st.warning("لم يتم العثور على خط عربي مضمّن على الخادم. لا تستخدم التقرير العربي قبل مراجعة شكل الحروف.")
             elif report_lang == "ar" and (arabic_reshaper is None or bidi_get_display is None):
                 st.warning("Arabic shaping dependency is missing. Rebuild the app before using Arabic PDF output.")
