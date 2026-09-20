@@ -31,6 +31,9 @@ def _apply_guide_rtl_css():
         r"""
 <style>
 /* The guide banner is immediately followed by its Streamlit expander. */
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] div[data-testid="stMarkdownContainer"],
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] div[data-testid="stAlertContainer"],
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] label,
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] div[data-testid="stMarkdownContainer"],
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] div[data-testid="stAlertContainer"],
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] label {
@@ -38,6 +41,8 @@ div.element-container:has(.v03-guide-banner) + div.element-container div[data-te
   text-align: right !important;
   unicode-bidi: plaintext;
 }
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] ul,
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] ol,
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] ul,
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] ol {
   direction: rtl !important;
@@ -45,12 +50,14 @@ div.element-container:has(.v03-guide-banner) + div.element-container div[data-te
   padding-right: 1.45rem !important;
   padding-left: 0 !important;
 }
+div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] li,
 div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] li {
   direction: rtl !important;
   text-align: right !important;
   unicode-bidi: plaintext;
 }
 @media(max-width:700px){
+ div[data-testid="stElementContainer"]:has(.v03-guide-banner) + div[data-testid="stElementContainer"] div[data-testid="stExpander"] div[data-testid="stMarkdownContainer"],
  div.element-container:has(.v03-guide-banner) + div.element-container div[data-testid="stExpander"] div[data-testid="stMarkdownContainer"]{line-height:1.85;}
 }
 </style>
