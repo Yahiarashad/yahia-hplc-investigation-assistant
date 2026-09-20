@@ -6,6 +6,7 @@ from beta_feedback import record_event, render_feedback_form
 from qc_gap_runtime import run_assessment_page
 
 DISPLAY_VERSION = "v0.4 · Founding Beta Calibration"
+PROGRESS_DIMENSIONS = ["science", "investigation", "evidence", "gmp", "instrument", "decision"]
 
 
 class _BetaCoreStop(Exception):
@@ -29,6 +30,31 @@ def _beta_id():
 
 def _lang():
     return "ar" if st.session_state.get("gap_lang", "العربية") == "العربية" else "en"
+
+
+def _log_progress_once(tester_id, stage_completed):
+    """Log 5-question checkpoints only; no answers or question content are stored."""
+    stage_completed = max(1, min(int(stage_completed), 6))
+    logged = list(st.session_state.get("_beta_progress_logged", []))
+    if stage_completed in logged:
+        return
+
+    answers = st.session_state.get("gap_answers", {})
+    answered_count = len(answers) if isinstance(answers, dict) else stage_completed * 5
+    record_event(
+        tester_id,
+        "decision_gap",
+        "assessment_progress",
+        _lang(),
+        {
+            "stage_completed": stage_completed,
+            "questions_checkpoint": stage_completed * 5,
+            "answered_count": min(answered_count, 30),
+            "dimension": PROGRESS_DIMENSIONS[stage_completed - 1],
+        },
+    )
+    logged.append(stage_completed)
+    st.session_state["_beta_progress_logged"] = logged
 
 
 def _beta_banner_html(lang):
@@ -151,9 +177,18 @@ def run_beta_assessment_page():
         clicked = base_button(display_label, *args, **kwargs)
         if clicked:
             if label in ("ابدأ Expert Calibration ←", "Start Expert Calibration →"):
+                st.session_state["_beta_progress_logged"] = []
+                st.session_state.pop("_beta_assessment_complete_logged", None)
                 record_event(tester_id, "decision_gap", "assessment_started", _lang())
+            elif label in ("التالي ←", "Next →"):
+                stage = int(st.session_state.get("gap_step", 0)) + 1
+                _log_progress_once(tester_id, stage)
+            elif label in ("اعرض النتيجة", "Show result"):
+                _log_progress_once(tester_id, 6)
             elif label in ("إعادة الاختبار", "Retake assessment"):
                 record_event(tester_id, "decision_gap", "assessment_retake", _lang())
+                st.session_state["_beta_progress_logged"] = []
+                st.session_state.pop("_beta_assessment_complete_logged", None)
         return clicked
 
     def beta_page_link(page, *args, **kwargs):
