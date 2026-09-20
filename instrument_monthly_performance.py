@@ -1,4 +1,4 @@
-# Monthly Instrument Performance — Utilization & Availability
+# Monthly Instrument Performance — Utilization, Availability & Target Intelligence
 # Executed inside the authenticated Streamlit app context.
 
 from __future__ import annotations
@@ -37,7 +37,17 @@ def _perf_calc(scheduled, planned, unplanned, productive):
 
 
 def _perf_pct(value):
-    return "—" if value is None else f"{value:.1f}%"
+    return "—" if value is None else f"{float(value):.1f}%"
+
+
+def _perf_target_value(value):
+    try:
+        if value is None or str(value).strip() == "":
+            return None
+        v = float(value)
+        return v if 0 <= v <= 100 else None
+    except Exception:
+        return None
 
 
 def _perf_row_metrics(row):
@@ -49,22 +59,75 @@ def _perf_row_metrics(row):
     )
 
 
+def _perf_signal(availability, utilization, target_availability, target_utilization):
+    ta = _perf_target_value(target_availability)
+    tu = _perf_target_value(target_utilization)
+    if ta is None and tu is None:
+        return "No target", "Set instrument targets to unlock target-gap intelligence.", "neutral"
+
+    a_ok = None if ta is None or availability is None else availability >= ta
+    u_ok = None if tu is None or utilization is None else utilization >= tu
+
+    if a_ok is False and u_ok is True:
+        return "Capacity risk", "High demand is meeting reduced availability. Review reliability, downtime and capacity pressure.", "critical"
+    if a_ok is False and u_ok is False:
+        return "Reliability + demand review", "Availability is below target and productive use is also below target. Review downtime, scheduling and demand before deciding why.", "review"
+    if a_ok is True and u_ok is False:
+        return "Capacity available", "Availability is on target but utilization is below target. There may be usable capacity or a scheduling / demand mismatch.", "watch"
+    if a_ok is True and u_ok is True:
+        return "On target", "Availability and utilization are both meeting the user-defined targets.", "good"
+    if a_ok is False:
+        return "Availability below target", "Reliability / downtime needs review against the configured availability target.", "review"
+    if u_ok is False:
+        return "Utilization below target", "Available capacity is being used below the configured utilization target.", "watch"
+    if a_ok is True or u_ok is True:
+        return "Target met", "The configured performance target is currently being met.", "good"
+    return "Insufficient data", "A target exists, but the monthly hours are not sufficient to calculate the metric yet.", "neutral"
+
+
+def _perf_gap(actual, target):
+    target = _perf_target_value(target)
+    if actual is None or target is None:
+        return "—"
+    gap = float(actual) - target
+    return f"{gap:+.1f} pp"
+
+
+def _render_signal_card(label, message, tone):
+    border = {"critical": "#d64545", "review": "#d7a52c", "watch": "#2876a7", "good": "#16a36f"}.get(tone, "#94a3b8")
+    st.markdown(
+        f"""<div style="border:1px solid #dbe3ec;border-left:6px solid {border};border-radius:16px;padding:.85rem 1rem;background:#fff;margin:.55rem 0 1rem">
+        <b style="color:#0f2742">{label}</b><div style="color:#64748b;font-size:.88rem;margin-top:.18rem">{message}</div></div>""",
+        unsafe_allow_html=True,
+    )
+
+
 def render_instrument_performance():
-    st.markdown("## 📈 Instrument Performance")
-    st.caption("Monthly Availability + Utilization — two different questions, one clearer capacity picture.")
+    st.markdown("## 📈 Instrument Performance Intelligence")
+    st.caption("Monthly Availability + Utilization + user-defined targets + capacity / reliability signals.")
 
     st.markdown(
         """
 <div style="border:1px solid #193b50;border-radius:18px;padding:1rem 1.05rem;background:linear-gradient(145deg,#071422,#0d2234);color:#e6f1f7;margin:.4rem 0 1rem">
 <b style="color:#fff">Availability asks:</b> Was the instrument ready for use when it was planned to be available?<br>
-<b style="color:#fff">Utilization asks:</b> When the instrument was available, how much of that time was actually used productively?
+<b style="color:#fff">Utilization asks:</b> When it was available, how much of that time was actually used productively?<br>
+<b style="color:#fff">Target Intelligence asks:</b> Is the gap caused by reliability pressure, spare capacity, or both?
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    instruments_local = list(globals().get("instruments", []) or [])
-    if not instruments_local:
+    perf_instruments, inst_err, inst_ok = _db_list(
+        "instruments",
+        "id,instrument_code,instrument_name,instrument_type,target_availability_pct,target_utilization_pct,performance_target_note,created_at",
+        "created_at.asc",
+    )
+    if not inst_ok:
+        st.error("Could not load instrument performance targets.")
+        if inst_err:
+            st.caption(f"Diagnostic: {inst_err}")
+        return
+    if not perf_instruments:
         st.info("Create an Instrument Passport first, then record monthly performance.")
         return
 
@@ -79,35 +142,110 @@ def render_instrument_performance():
             st.caption(f"Diagnostic: {err}")
         return
 
-    id_map = {str(i.get("id")): i for i in instruments_local}
-    label_map = {
-        f"{i.get('instrument_code')} · {i.get('instrument_name') or 'Unnamed'}": i
-        for i in instruments_local
-    }
+    inst_by_id = {str(i.get("id")): i for i in perf_instruments}
+    label_map = {f"{i.get('instrument_code')} · {i.get('instrument_name') or 'Unnamed'}": i for i in perf_instruments}
 
     current_month = date.today().replace(day=1)
     current_rows = [r for r in rows if _perf_month_start(r.get("month_start")) == current_month]
     planned_total = available_total = productive_total = 0.0
     covered = set()
+    below_availability_target = 0
+    capacity_risk = 0
+    target_covered = 0
+    portfolio_monitor = []
+
     for r in current_rows:
+        iid = str(r.get("instrument_id"))
+        inst = inst_by_id.get(iid, {})
         m = _perf_row_metrics(r)
         planned_total += m["planned_operating_hours"]
         available_total += m["available_hours"]
         productive_total += float(r.get("productive_run_hours") or 0)
-        covered.add(str(r.get("instrument_id")))
+        covered.add(iid)
+        ta = _perf_target_value(inst.get("target_availability_pct"))
+        tu = _perf_target_value(inst.get("target_utilization_pct"))
+        if ta is not None or tu is not None:
+            target_covered += 1
+        if ta is not None and m["availability_pct"] is not None and m["availability_pct"] < ta:
+            below_availability_target += 1
+        label, message, tone = _perf_signal(m["availability_pct"], m["utilization_pct"], ta, tu)
+        if label == "Capacity risk":
+            capacity_risk += 1
+        portfolio_monitor.append({
+            "Instrument": inst.get("instrument_code") or iid,
+            "Availability %": round(m["availability_pct"], 1) if m["availability_pct"] is not None else None,
+            "Availability target %": ta,
+            "Availability gap pp": round(m["availability_pct"] - ta, 1) if m["availability_pct"] is not None and ta is not None else None,
+            "Utilization %": round(m["utilization_pct"], 1) if m["utilization_pct"] is not None else None,
+            "Utilization target %": tu,
+            "Utilization gap pp": round(m["utilization_pct"] - tu, 1) if m["utilization_pct"] is not None and tu is not None else None,
+            "Management signal": label,
+        })
+
     portfolio_availability = (available_total / planned_total * 100.0) if planned_total > 0 else None
     portfolio_utilization = (productive_total / available_total * 100.0) if available_total > 0 else None
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Monthly Availability", _perf_pct(portfolio_availability), help="Weighted portfolio availability for the current month.")
     c2.metric("Monthly Utilization", _perf_pct(portfolio_utilization), help="Weighted portfolio utilization for the current month.")
-    c3.metric("Data coverage", f"{len(covered)}/{len(instruments_local)}", help="Instruments with a monthly performance record for the current month.")
+    c3.metric("Data coverage", f"{len(covered)}/{len(perf_instruments)}", help="Instruments with a current-month performance record.")
+    c4.metric("Capacity risk", capacity_risk, help="Current-month instruments below Availability target while meeting / exceeding Utilization target.")
     st.caption("Portfolio percentages are weighted by hours; the app does not average instrument percentages equally.")
+
+    if portfolio_monitor:
+        with st.expander("Portfolio target monitor | مراقبة الأداء مقابل الهدف", expanded=(capacity_risk > 0 or below_availability_target > 0)):
+            a, b, c = st.columns(3)
+            a.metric("Targets configured", f"{target_covered}/{len(current_rows)}")
+            b.metric("Below Availability target", below_availability_target)
+            c.metric("Capacity risk signals", capacity_risk)
+            st.dataframe(pd.DataFrame(portfolio_monitor), use_container_width=True, hide_index=True)
 
     selected_label = st.selectbox("Instrument", list(label_map.keys()), key="perf_instrument_select")
     inst = label_map[selected_label]
     inst_id = str(inst.get("id"))
     inst_rows = [r for r in rows if str(r.get("instrument_id")) == inst_id]
+
+    st.markdown("### 🎯 Performance targets")
+    st.caption("Targets are laboratory / management decisions. The app does not invent a universal target and does not treat them as GMP release criteria.")
+    with st.form("performance_target_form"):
+        t1, t2 = st.columns(2)
+        target_availability_text = t1.text_input(
+            "Availability target %",
+            value="" if inst.get("target_availability_pct") is None else str(inst.get("target_availability_pct")),
+            placeholder="Enter your approved / management target",
+        )
+        target_utilization_text = t2.text_input(
+            "Utilization target %",
+            value="" if inst.get("target_utilization_pct") is None else str(inst.get("target_utilization_pct")),
+            placeholder="Enter your approved / management target",
+        )
+        target_note = st.text_input(
+            "Target basis / note",
+            value=str(inst.get("performance_target_note") or ""),
+            placeholder="e.g. annual capacity plan, laboratory KPI, instrument-specific target",
+        )
+        save_targets = st.form_submit_button("Save performance targets", use_container_width=True)
+
+    if save_targets:
+        raw_a = target_availability_text.strip()
+        raw_u = target_utilization_text.strip()
+        ta = _perf_target_value(raw_a)
+        tu = _perf_target_value(raw_u)
+        if raw_a and ta is None:
+            st.error("Availability target must be a number between 0 and 100, or left blank.")
+        elif raw_u and tu is None:
+            st.error("Utilization target must be a number between 0 and 100, or left blank.")
+        else:
+            ok_t, _, _, err_t = _db_patch("instruments", inst_id, {
+                "target_availability_pct": ta,
+                "target_utilization_pct": tu,
+                "performance_target_note": target_note.strip() or None,
+            })
+            if ok_t:
+                st.success("Performance targets saved.")
+                st.rerun()
+            else:
+                st.error(f"Could not save targets: {err_t or 'database error'}")
 
     month_choice = st.date_input("Month", value=current_month, key="perf_month_choice")
     month_start = _perf_month_start(month_choice)
@@ -131,11 +269,16 @@ def render_instrument_performance():
         save = st.form_submit_button("Save monthly performance", use_container_width=True)
 
     calc = _perf_calc(scheduled, planned, unplanned, productive)
+    ta = _perf_target_value(inst.get("target_availability_pct"))
+    tu = _perf_target_value(inst.get("target_utilization_pct"))
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Planned operating time", f"{calc['planned_operating_hours']:.1f} h")
     k2.metric("Available time", f"{calc['available_hours']:.1f} h")
-    k3.metric("Availability", _perf_pct(calc["availability_pct"]))
-    k4.metric("Utilization", _perf_pct(calc["utilization_pct"]))
+    k3.metric("Availability", _perf_pct(calc["availability_pct"]), delta=_perf_gap(calc["availability_pct"], ta), help="Delta is actual minus target in percentage points when a target is configured.")
+    k4.metric("Utilization", _perf_pct(calc["utilization_pct"]), delta=_perf_gap(calc["utilization_pct"], tu), help="Delta is actual minus target in percentage points when a target is configured.")
+
+    signal_label, signal_message, signal_tone = _perf_signal(calc["availability_pct"], calc["utilization_pct"], ta, tu)
+    _render_signal_card(signal_label, signal_message, signal_tone)
 
     if scheduled > 0:
         st.caption(
@@ -174,43 +317,51 @@ def render_instrument_performance():
         else:
             st.error(f"Could not save monthly performance: {save_err or 'database error'}")
 
-    st.markdown("### Monthly trend")
+    st.markdown("### Monthly trend vs target")
     if not inst_rows:
         st.info("No monthly performance records yet for this instrument.")
     else:
         trend_rows = []
         for r in sorted(inst_rows, key=lambda x: str(x.get("month_start") or "")):
             m = _perf_row_metrics(r)
+            row_signal, _, _ = _perf_signal(m["availability_pct"], m["utilization_pct"], ta, tu)
             trend_rows.append({
                 "Month": pd.to_datetime(r.get("month_start")).strftime("%Y-%m"),
                 "Availability %": round(m["availability_pct"], 1) if m["availability_pct"] is not None else None,
+                "Availability target %": ta,
                 "Utilization %": round(m["utilization_pct"], 1) if m["utilization_pct"] is not None else None,
+                "Utilization target %": tu,
                 "Scheduled h": float(r.get("scheduled_hours") or 0),
                 "Planned downtime h": float(r.get("planned_downtime_hours") or 0),
                 "Unplanned downtime h": float(r.get("unplanned_downtime_hours") or 0),
                 "Productive run h": float(r.get("productive_run_hours") or 0),
+                "Signal": row_signal,
             })
         trend_df = pd.DataFrame(trend_rows)
-        chart_df = trend_df.set_index("Month")[["Availability %", "Utilization %"]]
-        st.line_chart(chart_df, use_container_width=True)
+        chart_cols = ["Availability %", "Utilization %"]
+        if ta is not None:
+            chart_cols.append("Availability target %")
+        if tu is not None:
+            chart_cols.append("Utilization target %")
+        st.line_chart(trend_df.set_index("Month")[chart_cols], use_container_width=True)
         st.dataframe(trend_df.sort_values("Month", ascending=False), use_container_width=True, hide_index=True)
 
-    with st.expander("How to read the two metrics | كيف تقرأ النسبتين؟", expanded=False):
+    with st.expander("How to read the management signal | كيف تقرأ الإشارة؟", expanded=False):
         st.markdown(
             """
 <div style="direction:rtl;text-align:right;line-height:1.9">
-<b>Availability عالية + Utilization عالية</b> → الجهاز متاح ويتم استغلاله بكفاءة عالية.<br>
-<b>Availability عالية + Utilization منخفضة</b> → الجهاز موثوق ومتاح لكن توجد سعة غير مستغلة؛ قد يكون ذلك طبيعيًا أو يشير إلى فرصة لإعادة توزيع الأحمال.<br>
-<b>Availability منخفضة + Utilization عالية</b> → الجهاز مطلوب بشدة لكن الأعطال/التوقفات غير المخططة تضغط السعة؛ هنا يجب مراجعة Reliability وDowntime.<br>
-<b>Availability منخفضة + Utilization منخفضة</b> → راجع الحاجة للجهاز، الأعطال، خطة العمل، وجدولة المختبر قبل اتخاذ أي قرار.
+<b>Availability ≥ Target + Utilization ≥ Target</b> → الأداء على الهدفين المحددين.<br>
+<b>Availability < Target + Utilization ≥ Target</b> → <b>Capacity Risk</b>: الطلب على الجهاز قوي لكن التوقف غير المخطط يضغط السعة المتاحة.<br>
+<b>Availability ≥ Target + Utilization < Target</b> → توجد سعة متاحة غير مستغلة بالكامل؛ راجع الجدولة والطلب قبل اعتبارها مشكلة.<br>
+<b>Availability < Target + Utilization < Target</b> → راجع Reliability + Scheduling + Demand معًا، ولا تفترض سببًا واحدًا.
 </div>
 """,
             unsafe_allow_html=True,
         )
-        st.info("لا تستخدم النسبة وحدها لإثبات Root Cause أو صلاحية الجهاز. هي Performance / capacity indicators تحتاج تفسيرًا في سياق الصيانة والمعايرة والأحداث الفعلية.")
+        st.info("هذه مؤشرات إدارية / تشغيلية مساعدة للقرار، وليست GMP disposition ولا تثبت Root Cause أو صلاحية الجهاز بمفردها.")
 
 
-# Add the calculation method to the practical guide without editing the base guide module.
+# Add the calculation + target method to the practical guide without editing the base guide module.
 _existing_perf_guide = globals().get("render_v03_user_guide")
 if callable(_existing_perf_guide) and not globals().get("_ilm_perf_guide_wrapped"):
     _ilm_perf_guide_wrapped = True
@@ -222,7 +373,7 @@ if callable(_existing_perf_guide) and not globals().get("_ilm_perf_guide_wrapped
                 """
 <div style="direction:rtl;text-align:right;line-height:1.95">
 <h3>لماذا نحتاج النسبتين؟</h3>
-<b>Availability %</b> تقيس قدرة الجهاز على أن يكون جاهزًا للاستخدام خلال الوقت المخطط له. وهي هنا <b>نسبة شهرية</b>.<br>
+<b>Availability %</b> تقيس قدرة الجهاز على أن يكون جاهزًا للاستخدام خلال الوقت المخطط له، وهي هنا نسبة شهرية.<br>
 <b>Utilization %</b> تقيس مقدار الاستخدام الفعلي للجهاز من الوقت الذي كان متاحًا فيه فعلًا.
 
 <h4>1) Planned Operating Time</h4>
@@ -235,23 +386,33 @@ if callable(_existing_perf_guide) and not globals().get("_ilm_perf_guide_wrapped
 
 <h4>3) Monthly Availability %</h4>
 <code>Available Time ÷ Planned Operating Time × 100</code><br>
-في هذا التطبيق نستبعد الـApproved Planned Downtime من مقام Availability حتى لا نعاقب الجهاز على توقف مخطط ومعتمد.
+نستبعد الـApproved Planned Downtime من مقام Availability حتى لا نعاقب الجهاز على توقف مخطط ومعروف.
 
 <h4>4) Instrument Utilization %</h4>
 <code>Productive Run Hours ÷ Available Time × 100</code><br>
 وبالتالي Utilization لا تقيس Reliability؛ بل تقيس مقدار استغلال الوقت الذي كان الجهاز متاحًا فيه.
 
 <h4>مثال عملي</h4>
-إذا كان الجهاز Scheduled = 176 h، وPlanned Downtime = 8 h، وUnplanned Downtime = 12 h، وProductive Run = 100 h:<br>
+Scheduled = 176 h، Planned Downtime = 8 h، Unplanned Downtime = 12 h، Productive Run = 100 h:<br>
 Planned Operating Time = 168 h<br>
 Available Time = 156 h<br>
 Availability = 156 ÷ 168 × 100 = <b>92.9%</b><br>
 Utilization = 100 ÷ 156 × 100 = <b>64.1%</b>
 
+<h4>5) Performance Targets</h4>
+التطبيق لا يفترض Target ثابتًا لكل الأجهزة. أدخل Target الـAvailability وTarget الـUtilization لكل جهاز حسب سياسة المعمل، خطة السعة، نوع الجهاز أو KPI المعتمد لديك. يمكن ترك الهدف فارغًا إذا لم يكن محددًا.
+
+<h4>6) Target Gap</h4>
+<code>Actual % − Target %</code><br>
+الفارق يعرض بوحدة <b>percentage points (pp)</b>، وليس نسبة تغير نسبية.
+
+<h4>7) Management Signal</h4>
+إذا كانت Availability أقل من الهدف بينما Utilization على/فوق الهدف، فهذه إشارة <b>Capacity Risk</b>: الجهاز مطلوب بقوة لكن Reliability / Downtime تضغط القدرة المتاحة. لا تعتبرها Root Cause؛ اعتبرها إشارة لتحديد أين تحقق أكثر.
+
 <h4>قاعدة مهمة</h4>
-لا تقارن نسب أجهزة مختلفة قبل التأكد أن تعريف Scheduled Service Hours موحّد. جهاز يعمل 24/7 لا يُقارن مباشرة بجهاز مخطط له 8 ساعات يوميًا إلا إذا كانت قواعد الجدولة واضحة.
+لا تقارن أجهزة مختلفة قبل التأكد أن تعريف Scheduled Service Hours موحد. جهاز يعمل 24/7 لا يقارن مباشرة بجهاز مخطط له 8 ساعات يوميًا إلا إذا كانت قواعد الجدولة واضحة.
 </div>
 """,
                 unsafe_allow_html=True,
             )
-            st.warning("Portfolio Availability وUtilization داخل التطبيق تُحسب Weighted by Hours، وليس بأخذ المتوسط الحسابي البسيط لنسب الأجهزة.")
+            st.warning("Portfolio Availability وUtilization داخل التطبيق محسوبة Weighted by Hours، وليست Average بسيط لنسب الأجهزة. Targets مؤشرات تشغيلية / إدارية وليست GMP release criteria.")
