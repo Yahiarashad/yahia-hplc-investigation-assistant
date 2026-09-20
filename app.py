@@ -52,8 +52,45 @@ st.markdown(
   unicode-bidi: plaintext;
   margin:.35rem 0;
 }
+
+/* Practical User Guide: force Arabic reading order for all narrative Markdown
+   inside the guide expander. The Excel widgets/tables keep their native layout. */
+div[data-testid="stExpander"]:has(.v03-guide-flow) div[data-testid="stMarkdownContainer"] {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext;
+}
+div[data-testid="stExpander"]:has(.v03-guide-flow) div[data-testid="stMarkdownContainer"] ul,
+div[data-testid="stExpander"]:has(.v03-guide-flow) div[data-testid="stMarkdownContainer"] ol {
+  direction: rtl !important;
+  text-align: right !important;
+  padding-right: 1.5rem !important;
+  padding-left: 0 !important;
+  margin-right: 0 !important;
+}
+div[data-testid="stExpander"]:has(.v03-guide-flow) div[data-testid="stMarkdownContainer"] li {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext;
+}
+.v03-guide-flow {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext !important;
+  border-right: 4px solid #d4af37 !important;
+  border-left: 0 !important;
+  line-height: 1.9 !important;
+}
+
 @media(max-width:700px){
   .v03-guide-rtl, .ilm-rtl { line-height:1.85; }
+  div[data-testid="stExpander"]:has(.v03-guide-flow) div[data-testid="stMarkdownContainer"] {
+    line-height: 1.85 !important;
+  }
+  .v03-guide-flow {
+    line-height: 2 !important;
+    padding: .8rem .9rem !important;
+  }
 }
 </style>
 """,
