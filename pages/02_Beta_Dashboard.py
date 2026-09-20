@@ -286,6 +286,97 @@ def _campaign_breakdown(rows):
 
 campaign_rows, tracked_campaign_visitors, linkedin_visitors = _campaign_breakdown(live_events)
 
+st.subheader("Investigation outcomes")
+
+conclusion_rows = [r for r in live_events if r.get("event") == "investigation_conclusion"]
+resolution_rows = [r for r in live_events if r.get("event") == "resolution_confirmed"]
+
+def _unique_latest(rows):
+    latest = {}
+    for row in rows:
+        latest[str(row.get("session_id") or "")] = row
+    return list(latest.values())
+
+conclusion_rows = _unique_latest(conclusion_rows)
+resolution_rows = _unique_latest(resolution_rows)
+resolution_by_session = {str(r.get("session_id") or ""): _metadata(r) for r in resolution_rows}
+
+outcome_counts = {"confirmed": 0, "probable": 0, "not_yet_identified": 0, "unspecified": 0}
+category_counts = {}
+turn_values = []
+recent_cases = []
+
+for row in conclusion_rows:
+    meta = _metadata(row)
+    outcome = str(meta.get("conclusion_type") or "unspecified")
+    category = str(meta.get("case_category") or "Other / Unclassified")
+    turns = int(meta.get("assistant_turns") or 0)
+    outcome_counts[outcome if outcome in outcome_counts else "unspecified"] += 1
+    category_counts[category] = category_counts.get(category, 0) + 1
+    if turns:
+        turn_values.append(turns)
+    resolution = resolution_by_session.get(str(row.get("session_id") or ""), {})
+    recent_cases.append({
+        "Date": str(row.get("created_at") or "")[:19],
+        "Case": str(row.get("session_id") or "")[:8],
+        "Source": str(_metadata(row).get("utm_content") or _metadata(row).get("utm_source") or "direct"),
+        "Category": category,
+        "Conclusion": outcome.replace("_", " ").title(),
+        "Resolution": str(resolution.get("resolution_status") or "awaiting confirmation").replace("_", " ").title(),
+        "Turns": turns,
+    })
+
+resolved_yes = sum(1 for m in resolution_by_session.values() if m.get("resolution_status") == "yes")
+resolved_partial = sum(1 for m in resolution_by_session.values() if m.get("resolution_status") == "partial")
+resolved_no = sum(1 for m in resolution_by_session.values() if m.get("resolution_status") == "no")
+resolved_not_tested = sum(1 for m in resolution_by_session.values() if m.get("resolution_status") == "not_tested")
+avg_turns = (sum(turn_values) / len(turn_values)) if turn_values else 0
+
+o1, o2, o3, o4, o5 = st.columns(5)
+o1.metric("Investigations started", len(investigation_starters))
+o2.metric("Reached conclusion", len(conclusion_rows))
+o3.metric("Root cause confirmed", outcome_counts["confirmed"])
+o4.metric("User-confirmed resolved", resolved_yes)
+o5.metric("Avg turns to conclusion", f"{avg_turns:.1f}" if turn_values else "—")
+
+left, right = st.columns(2)
+with left:
+    st.markdown("**Conclusion outcomes**")
+    st.dataframe([
+        {"Outcome": "Root Cause Confirmed", "Cases": outcome_counts["confirmed"]},
+        {"Outcome": "Root Cause Probable", "Cases": outcome_counts["probable"]},
+        {"Outcome": "Not Yet Identified", "Cases": outcome_counts["not_yet_identified"]},
+        {"Outcome": "Unspecified", "Cases": outcome_counts["unspecified"]},
+    ], use_container_width=True, hide_index=True)
+    st.markdown("**Actual resolution confirmation**")
+    st.dataframe([
+        {"Status": "Resolved", "Cases": resolved_yes},
+        {"Status": "Partially resolved", "Cases": resolved_partial},
+        {"Status": "Not resolved", "Cases": resolved_no},
+        {"Status": "Not tested yet", "Cases": resolved_not_tested},
+    ], use_container_width=True, hide_index=True)
+with right:
+    st.markdown("**Case categories**")
+    category_table = [
+        {"Category": name, "Cases": count}
+        for name, count in sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+    if category_table:
+        st.dataframe(category_table, use_container_width=True, hide_index=True)
+    else:
+        st.info("No categorized conclusions recorded yet.")
+
+st.markdown("**Recent investigations**")
+if recent_cases:
+    st.dataframe(list(reversed(recent_cases[-30:])), use_container_width=True, hide_index=True)
+else:
+    st.info("Outcome/category tracking starts with new investigations after this deployment.")
+
+st.caption(
+    "Privacy: category and outcome labels are stored, but the HPLC case text is not copied to analytics. "
+    "Resolved means the user explicitly confirmed the real-world outcome; a model conclusion alone is not counted as resolved."
+)
+
 st.subheader("Campaign attribution")
 a1, a2 = st.columns(2)
 a1.metric("Tracked campaign visitors", tracked_campaign_visitors)
