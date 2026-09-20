@@ -227,6 +227,44 @@ _exec_extension("instrument_executive_performance_report.py", "_ilm_exec_report_
 
 
 # -----------------------------------------------------------------------------
+# Arabic PDF font hardening.
+# Streamlit Cloud images do not guarantee system Arabic fonts. matplotlib ships
+# DejaVu Sans with broad Arabic coverage, so use it as a deterministic embedded
+# PDF font source before falling back to OS fonts. This patches both PDF engines
+# loaded above without storing or exposing user font files.
+# -----------------------------------------------------------------------------
+def _ilm_pdf_font_paths():
+    candidates = []
+    try:
+        import matplotlib
+        mpl_fonts = Path(matplotlib.get_data_path()) / "fonts" / "ttf"
+        candidates.extend([
+            (mpl_fonts / "DejaVuSans.ttf", mpl_fonts / "DejaVuSans-Bold.ttf"),
+        ])
+    except Exception:
+        pass
+    candidates.extend([
+        (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"), Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+        (Path("/usr/share/fonts/truetype/freefont/FreeSans.ttf"), Path("/usr/share/fonts/truetype/freefont/FreeSansBold.ttf")),
+    ])
+    for regular, bold in candidates:
+        try:
+            if regular.exists() and bold.exists():
+                return str(regular), str(bold)
+        except Exception:
+            continue
+    return None, None
+
+
+# instrument_pdf_reports.py resolves _find_arabic_font at call time.
+if "_find_arabic_font" in globals():
+    _find_arabic_font = _ilm_pdf_font_paths
+# instrument_executive_performance_report.py resolves _font_paths at call time.
+if "_font_paths" in globals():
+    _font_paths = _ilm_pdf_font_paths
+
+
+# -----------------------------------------------------------------------------
 # Convert the original six core tabs into the lifecycle-first navigation.
 # -----------------------------------------------------------------------------
 _real_tabs = st.tabs
