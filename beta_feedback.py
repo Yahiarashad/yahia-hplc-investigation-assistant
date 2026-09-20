@@ -9,6 +9,8 @@ from urllib import request
 
 import streamlit as st
 
+from analytics_context import analytics_metadata
+
 DB_PATH = Path("/tmp/yahia_beta_feedback.db")
 ATTRIBUTION_KEYS = (
     "utm_source",
@@ -71,8 +73,8 @@ def get_attribution():
 
 
 def campaign_metadata(metadata=None):
-    """Merge first-touch attribution into event metadata without overwriting event fields."""
-    merged = dict(metadata or {})
+    """Merge anonymous visitor context + first-touch attribution into event metadata."""
+    merged = analytics_metadata(metadata)
     for key, value in get_attribution().items():
         merged.setdefault(key, value)
     return merged
@@ -166,7 +168,7 @@ def test_external_storage():
             "source": "beta_dashboard",
             "event": "storage_test",
             "language": "en",
-            "metadata": {"purpose": "connection_test"},
+            "metadata": {"purpose": "connection_test", "traffic_type": "test"},
             "created_at": _now_iso(),
         }
     )
