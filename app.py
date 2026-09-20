@@ -115,6 +115,54 @@ def _conclusion_detected(messages):
     )
     return bool(last_answer) and any(marker.casefold() in text for marker in markers)
 
+def _last_assistant_answer(messages):
+    return next(
+        (message.get("content", "") for message in reversed(messages) if message.get("role") == "assistant"),
+        "",
+    )
+
+
+def _conclusion_type(messages):
+    text = _last_assistant_answer(messages).casefold()
+    if not text:
+        return ""
+    not_identified = ("root cause not yet identified", "not yet identified", "لم يتم تحديد السبب الجذري", "السبب الجذري غير محدد")
+    confirmed = ("root cause confirmed", "السبب الجذري مؤكد")
+    probable = ("root cause probable", "السبب الجذري المرجح", "السبب الجذري محتمل")
+    if any(x.casefold() in text for x in not_identified):
+        return "not_yet_identified"
+    if any(x.casefold() in text for x in confirmed):
+        return "confirmed"
+    if any(x.casefold() in text for x in probable):
+        return "probable"
+    return ""
+
+
+def _case_category(messages, selected_area="Auto-detect"):
+    """Classify only the category label; never persist case text."""
+    if selected_area and selected_area != "Auto-detect":
+        return selected_area
+    text = " ".join(
+        m.get("content", "") for m in messages if m.get("role") == "user"
+    ).casefold()
+    rules = (
+        ("Pressure", ("pressure", "bar", "psi", "ضغط")),
+        ("Retention Time", ("retention time", "retention", " rt ", "زمن الاحتجاز", "زمن الاستبقاء")),
+        ("Peak Shape", ("tailing", "fronting", "split peak", "peak shape", "broad peak", "شكل القمة", "تذييل", "قمة مشوه")),
+        ("Baseline / Noise", ("baseline", "noise", "drift", "خط الأساس", "ضوضاء", "انحراف خط")),
+        ("Carryover / Ghost Peaks", ("carryover", "ghost peak", "ghost peaks", "قمم وهم", "تداخل من الحقن")),
+        ("Resolution / Separation", ("resolution", "separation", "co-elut", "فصل", "ريزوليوشن")),
+        ("Injection / Autosampler", ("inject", "autosampler", "needle", "loop", "حقن", "اوتوسامبلر")),
+        ("Pump / Flow", ("pump", "flow", "check valve", "seal", "مضخة", "معدل التدفق")),
+        ("Detector", ("detector", "uv", "pda", "dad", "lamp", "كاشف")),
+        ("Column", ("column", "guard", "عمود")),
+        ("Mobile Phase", ("mobile phase", "buffer", "gradient", "طور متحرك", "بافر")),
+    )
+    for category, keywords in rules:
+        if any(k in text for k in keywords):
+            return category
+    return "Other / Unclassified"
+
 
 def format_api_error(exc, language: str) -> str:
     status = getattr(exc, "status_code", None)
@@ -607,13 +655,34 @@ if st.session_state.messages:
 
     if _conclusion_detected(st.session_state.messages):
         st.session_state[feedback_ready_key] = True
+        conclusion_key = f"_hplc_conclusion_logged_{CASE_ID}"
+        conclusion_type = _conclusion_type(st.session_state.messages)
+        case_category = _case_category(st.session_state.messages, area)
+        if not st.session_state.get(conclusion_key):
+            record_event(
+                CASE_ID,
+                "hplc_assistant",
+                "investigation_conclusion",
+                effective_language,
+                {
+                    "conclusion_type": conclusion_type or "unspecified",
+                    "case_category": case_category,
+                    "assistant_turns": assistant_turns,
+                },
+            )
+            st.session_state[conclusion_key] = True
         if not st.session_state.get(feedback_logged_key):
             record_event(
                 CASE_ID,
                 "hplc_assistant",
                 "feedback_prompted",
                 effective_language,
-                {"trigger": "investigation_conclusion", "assistant_turns": assistant_turns},
+                {
+                    "trigger": "investigation_conclusion",
+                    "assistant_turns": assistant_turns,
+                    "conclusion_type": conclusion_type or "unspecified",
+                    "case_category": case_category,
+                },
             )
             st.session_state[feedback_logged_key] = True
 
@@ -637,6 +706,52 @@ if st.session_state.messages:
                 )
                 st.session_state[feedback_logged_key] = True
             st.rerun()
+
+    resolution_key = f"_hplc_resolution_{CASE_ID}"
+    resolution_logged_key = f"_hplc_resolution_logged_{CASE_ID}"
+    if _conclusion_detected(st.session_state.messages) and not st.session_state.get(resolution_logged_key):
+        if is_ar:
+            st.markdown("### هل المشكلة اتحلت فعليًا بعد تنفيذ الإجراء؟")
+            resolution_labels = {
+                "نعم، اتحلت": "yes",
+                "جزئيًا": "partial",
+                "لا": "no",
+                "لسه ما اختبرتش": "not_tested",
+            }
+        else:
+            st.markdown("### Did the issue actually resolve after the action?")
+            resolution_labels = {
+                "Yes — resolved": "yes",
+                "Partially": "partial",
+                "No": "no",
+                "Not tested yet": "not_tested",
+            }
+        resolution_choice = st.radio(
+            "Resolution confirmation",
+            list(resolution_labels.keys()),
+            index=None,
+            label_visibility="collapsed",
+            key=resolution_key,
+        )
+        if resolution_choice and st.button(
+            "تأكيد النتيجة" if is_ar else "Confirm outcome",
+            use_container_width=True,
+            key=f"confirm_resolution_{CASE_ID}",
+        ):
+            record_event(
+                CASE_ID,
+                "hplc_assistant",
+                "resolution_confirmed",
+                effective_language,
+                {
+                    "resolution_status": resolution_labels[resolution_choice],
+                    "conclusion_type": _conclusion_type(st.session_state.messages) or "unspecified",
+                    "case_category": _case_category(st.session_state.messages, area),
+                    "assistant_turns": assistant_turns,
+                },
+            )
+            st.session_state[resolution_logged_key] = True
+            st.success("تم تسجيل النتيجة. شكرًا لك." if is_ar else "Outcome recorded. Thank you.")
 
     if st.session_state.get(feedback_ready_key):
         if is_ar:
