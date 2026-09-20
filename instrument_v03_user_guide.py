@@ -71,6 +71,39 @@ V03_EXCEL_BOOL_FIELDS = {"Site readiness confirmed", "Utilities confirmed"}
 V03_EXCEL_REQUIRED = {"Instrument ID", "Instrument name"}
 
 
+# -----------------------------------------------------------------------------
+# RTL polish for the later Excel-vs-app expander added by camera_capture.py.
+# We keep the English product term isolated so the browser does not reorder it.
+# -----------------------------------------------------------------------------
+if not hasattr(st, "_ilm_native_expander"):
+    st._ilm_native_expander = st.expander
+_native_expander = st._ilm_native_expander
+
+
+class _ExcelTrackerExpanderProxy:
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __enter__(self):
+        entered = self.inner.__enter__()
+        st.markdown('<div class="ilm-excel-tracker-marker"></div>', unsafe_allow_html=True)
+        return entered
+
+    def __exit__(self, exc_type, exc, tb):
+        return self.inner.__exit__(exc_type, exc, tb)
+
+
+def _guide_expander(label, *args, **kwargs):
+    text = str(label)
+    if "Excel Tracker" in text and ("لماذا أستخدم التطبيق" in text or "فائدة التطبيق" in text):
+        polished = "⭐ عندي \u2066Excel Tracker\u2069 بالفعل — فما فائدة التطبيق؟"
+        return _ExcelTrackerExpanderProxy(_native_expander(polished, *args, **kwargs))
+    return _native_expander(label, *args, **kwargs)
+
+
+st.expander = _guide_expander
+
+
 def _excel_blank(value) -> bool:
     if value is None:
         return True
@@ -325,60 +358,104 @@ def render_v03_user_guide():
     st.markdown(
         """
 <style>
-.v03-guide-banner{border:1px solid #d8e2ec;border-left:6px solid #d4af37;border-radius:18px;padding:.9rem 1rem;margin:.25rem 0 .75rem;background:linear-gradient(135deg,#ffffff,#f8fafc);box-shadow:0 5px 18px rgba(15,23,42,.045)}
+.v03-guide-banner{
+  direction:rtl;text-align:right;
+  border:1px solid #d8e2ec;border-right:6px solid #d4af37;border-left:1px solid #d8e2ec;
+  border-radius:18px;padding:.9rem 1rem;margin:.25rem 0 .75rem;
+  background:linear-gradient(135deg,#ffffff,#f8fafc);box-shadow:0 5px 18px rgba(15,23,42,.045)
+}
 .v03-guide-banner b{color:#0f2742;font-size:1.02rem}.v03-guide-banner span{display:block;color:#64748b;font-size:.86rem;margin-top:.18rem}
-.v03-guide-rtl{direction:rtl;text-align:right;line-height:1.9}.v03-guide-rule{border-left:4px solid #d4af37;background:#fffaf0;border-radius:12px;padding:.7rem .8rem;margin:.5rem 0}.v03-guide-flow{font-weight:800;color:#0f2742;background:#f1f5f9;border-radius:12px;padding:.65rem .75rem;margin:.45rem 0}
-@media(max-width:700px){.v03-guide-banner{padding:.78rem .82rem}.v03-guide-banner span{font-size:.82rem}.v03-guide-rtl{line-height:1.75}}
+.v03-guide-rtl{direction:rtl;text-align:right;line-height:1.9;unicode-bidi:plaintext}
+.v03-guide-rtl ul{padding-right:1.35rem;padding-left:0}
+.v03-guide-rule{direction:rtl;text-align:right;border-right:4px solid #d4af37;border-left:0;background:#fffaf0;border-radius:12px;padding:.75rem .85rem;margin:.6rem 0;line-height:1.85}
+.v03-guide-flow{
+  direction:rtl;text-align:right;color:#0f2742;background:#f8fafc;border:1px solid #dde5ee;
+  border-right:6px solid #d4af37;border-radius:20px;padding:.35rem 1rem;margin:.65rem 0 1rem;
+  box-shadow:0 8px 24px rgba(15,23,42,.07);overflow:hidden
+}
+.v03-flow-step{display:grid;grid-template-columns:42px 1fr;gap:.75rem;align-items:center;padding:.72rem 0;border-bottom:1px solid #e8edf3}
+.v03-flow-step:last-child{border-bottom:0}
+.v03-flow-num{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0f2742;color:#fff;font-weight:900;font-size:.9rem;box-shadow:0 3px 10px rgba(15,39,66,.18)}
+.v03-flow-main{font-weight:850;color:#102a45;font-size:.98rem;line-height:1.45}
+.v03-flow-sub{color:#66778a;font-size:.81rem;margin-top:.12rem;line-height:1.45}
+.v03-flow-main [dir="ltr"],.v03-flow-sub [dir="ltr"]{unicode-bidi:isolate}
+.v03-guide-tip{direction:rtl;text-align:right;border:1px solid #344354;border-radius:16px;background:rgba(255,255,255,.035);padding:.85rem 1rem;line-height:1.9;margin:.7rem 0}
+.v03-guide-tip b{color:inherit}
+
+/* Excel-vs-app expander added later by the camera module. */
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) summary,
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) summary *{
+  direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important
+}
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) div[data-testid="stMarkdownContainer"],
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) div[data-testid="stAlertContainer"]{
+  direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important;line-height:1.9
+}
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) ul,
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) ol{
+  direction:rtl!important;text-align:right!important;padding-right:1.4rem!important;padding-left:0!important
+}
+div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important}
+
+@media(max-width:700px){
+  .v03-guide-banner{padding:.78rem .82rem}.v03-guide-banner span{font-size:.82rem}.v03-guide-rtl{line-height:1.78}
+  .v03-guide-flow{padding:.28rem .8rem;border-radius:18px}
+  .v03-flow-step{grid-template-columns:38px 1fr;gap:.62rem;padding:.66rem 0}
+  .v03-flow-num{width:31px;height:31px;font-size:.82rem}
+  .v03-flow-main{font-size:.94rem}.v03-flow-sub{font-size:.79rem}
+}
 </style>
-<div class="v03-guide-banner"><b>📘 Start here | دليل الاستخدام العملي</b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
+<div class="v03-guide-banner"><b>📘 دليل الاستخدام العملي | <span dir="ltr" style="display:inline;color:inherit;font-size:inherit">Start here</span></b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
 """,
         unsafe_allow_html=True,
     )
 
-    with st.expander("📘 افتح دليل الاستخدام التفصيلي قبل إدخال البيانات | Practical User Guide", expanded=True):
+    with st.expander("📘 دليل الاستخدام التفصيلي | \u2066Practical User Guide\u2069", expanded=True):
         guide_tabs = st.tabs([
             "🎯 ابدأ من هنا",
             "↻ دورة الحياة",
             "🧾 الاستخدام اليومي",
-            "📥 Excel Import",
+            "📥 استيراد Excel",
             "🔎 التحقيق",
             "🔐 GMP & Privacy",
         ])
 
         with guide_tabs[0]:
-            st.markdown("### ما هو التطبيق؟")
             st.markdown(
                 """
 <div class="v03-guide-rtl">
-هذا التطبيق هو <b>ذاكرة تشغيلية ودورة حياة للأجهزة داخل Pharmaceutical QC</b>. الفكرة ليست تخزين بيانات فقط، بل ربط هوية الجهاز بمراحل شرائه وتأهيله وتشغيله وصيانته ومعايرته وأعطاله وتحقيقاته حتى التكهين.
+<h3>ما هو التطبيق؟</h3>
+<p>هذا التطبيق هو <b>ذاكرة تشغيلية ودورة حياة للأجهزة داخل Pharmaceutical QC</b>. الفكرة ليست تخزين بيانات فقط، بل ربط هوية الجهاز بمراحل شرائه وتأهيله وتشغيله وصيانته ومعايرته وأعطاله وتحقيقاته حتى التكهين.</p>
+<h4>المكونات الرئيسية التي ستستخدمها</h4>
+<ul>
+<li><b><span dir="ltr">Dashboard</span></b> — أين توجد المخاطر والمواعيد والـOOC والإشارات التي تحتاج قرارًا الآن.</li>
+<li><b><span dir="ltr">Lifecycle</span></b> — الرحلة الفعلية من <span dir="ltr">Need / URS</span> حتى <span dir="ltr">First Run</span> ثم <span dir="ltr">Performance Review / Retirement</span>.</li>
+<li><b><span dir="ltr">Passport</span></b> — الهوية الرقمية الثابتة للجهاز: ID، النوع، الشركة، الموديل، السيريال، المكان، المسؤول والحالة.</li>
+<li><b><span dir="ltr">Cal & PM</span></b> — <span dir="ltr">Calibration / Qualification / PM / Maintenance / Components</span> وتواريخ الاستحقاق.</li>
+<li><b><span dir="ltr">Events</span></b> — تسجيل العطل أو الحدث كما حدث فعلًا قبل كتابة أي تفسير.</li>
+<li><b><span dir="ltr">Investigation Intelligence</span></b> — ربط المشكلة بتاريخ الجهاز وفصل <span dir="ltr">Observed / Inferred / Unknown</span> وتحديد الخطوة التالية للحصول على دليل.</li>
+<li><b><span dir="ltr">Reports</span></b> — رؤية مجمعة للحالة الحالية والأولويات وتقارير قابلة للمشاركة.</li>
+<li><b><span dir="ltr">Guide / About</span></b> — مرجع للمبادئ، طريقة الاستخدام، وحدود النظام.</li>
+</ul>
+
+<h3 style="margin-top:1.1rem">أفضل طريقة تبدأ بها</h3>
+<div class="v03-guide-flow">
+  <div class="v03-flow-step"><div class="v03-flow-num">1</div><div><div class="v03-flow-main">أنشئ <span dir="ltr">Passport</span></div><div class="v03-flow-sub">ثبّت هوية الجهاز وبياناته الأساسية أولًا.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">2</div><div><div class="v03-flow-main">سجّل <span dir="ltr">Need / URS</span></div><div class="v03-flow-sub">وثّق الحاجة، الاستخدام المقصود، ومتطلبات المستخدم.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">3</div><div><div class="v03-flow-main"><span dir="ltr">Quotation / PR / PO / Receiving</span></div><div class="v03-flow-sub">تابع رحلة الشراء والاستلام بدون فقد التسلسل.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">4</div><div><div class="v03-flow-main"><span dir="ltr">Installation / IQ / OQ / PQ</span></div><div class="v03-flow-sub">سجّل التركيب والتأهيل بناءً على الدليل المتاح.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">5</div><div><div class="v03-flow-main"><span dir="ltr">Release / Issuance</span></div><div class="v03-flow-sub">وثّق إصدار الجهاز للاستخدام المنضبط بعد التأهيل.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">6</div><div><div class="v03-flow-main"><span dir="ltr">First Run</span></div><div class="v03-flow-sub">سجّل أول تشغيل روتيني معتمد — وليس تجربة غير رسمية.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">7</div><div><div class="v03-flow-main"><span dir="ltr">Routine Control</span></div><div class="v03-flow-sub">حافظ على <span dir="ltr">Calibration / PM / Qualification / Components</span> محدثة.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">8</div><div><div class="v03-flow-main"><span dir="ltr">Events / Investigation</span></div><div class="v03-flow-sub">سجّل ما حدث أولًا، ثم اتبع الدليل في التحقيق.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">9</div><div><div class="v03-flow-main"><span dir="ltr">Performance Review</span></div><div class="v03-flow-sub">راجع الاعتمادية، التوقفات، السعة، والاستخدام قبل القرار.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">10</div><div><div class="v03-flow-main"><span dir="ltr">Retirement</span></div><div class="v03-flow-sub">أغلق دورة الحياة مع الاحتفاظ بتاريخ الجهاز كدليل.</div></div></div>
+</div>
+
+<div class="v03-guide-tip"><b>نصيحة عملية:</b> لا تحاول إدخال كل شيء في جلسة واحدة إذا كانت البيانات غير متاحة. أدخل فقط ما لديك كدليل فعلي، واترك الناقص ظاهرًا. قيمة التطبيق تأتي من إظهار <b><span dir="ltr">Missing Evidence</span></b> بوضوح بدل تحويل الفراغات إلى افتراضات.</div>
 </div>
 """,
                 unsafe_allow_html=True,
-            )
-            st.markdown("**المكونات الرئيسية التي ستستخدمها:**")
-            st.markdown(
-                """
-- **Dashboard** — أين توجد المخاطر والمواعيد والـOOC والإشارات التي تحتاج قرارًا الآن.
-- **Lifecycle** — الرحلة الفعلية من Need وURS حتى First Run ثم Performance Review وRetirement.
-- **Passport** — الهوية الرقمية الثابتة للجهاز: ID، النوع، الشركة، الموديل، السيريال، المكان، المسؤول والحالة.
-- **Cal & PM** — Calibration / Qualification / PM / Maintenance / Components وتواريخ الاستحقاق.
-- **Events** — تسجيل العطل أو الحدث كما حدث فعلًا قبل كتابة أي تفسير.
-- **Investigation Intelligence** — ربط المشكلة بتاريخ الجهاز وفصل Observed / Inferred / Unknown وتحديد الخطوة التالية للحصول على دليل.
-- **Reports** — رؤية مجمعة للحالة الحالية والأولويات.
-- **Guide / About** — مرجع مختصر للمبادئ وحدود الاستخدام.
-"""
-            )
-            st.markdown("#### أفضل طريقة تبدأ بها")
-            st.markdown(
-                """
-<div class="v03-guide-flow">1) أنشئ Passport → 2) سجّل Need / URS → 3) أكمل Quotation / PR / PO / Receiving → 4) Installation / IQ / OQ / PQ → 5) Release → 6) First Run → 7) Routine Control → 8) Events / Investigation → 9) Performance Review → 10) Retirement</div>
-""",
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                """
-**نصيحة عملية:** لا تحاول ملء كل شيء في جلسة واحدة إذا كانت البيانات غير متاحة. أدخل ما لديك كدليل فقط، واترك الناقص ظاهرًا. قيمة التطبيق تأتي من أن المعلومة المفقودة تظل **Missing Evidence** بدل أن تتحول إلى افتراض.
-"""
             )
 
         with guide_tabs[1]:
