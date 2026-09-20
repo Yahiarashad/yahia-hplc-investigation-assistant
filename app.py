@@ -1,5 +1,5 @@
 # Yahia QC Instrument Lifecycle — persistent-auth application shell
-# v0.5: lifecycle-first navigation + performance intelligence + executive PDF + management cockpit.
+# v0.6: lifecycle-first navigation + performance intelligence + executive PDF + management cockpit + email escalation.
 
 from __future__ import annotations
 
@@ -224,6 +224,7 @@ _exec_extension("instrument_camera_capture.py", "_ilm_camera_module_error")
 _exec_extension("instrument_monthly_performance.py", "_ilm_performance_module_error")
 _exec_extension("instrument_pdf_reports.py", "_ilm_pdf_module_error")
 _exec_extension("instrument_executive_performance_report.py", "_ilm_exec_report_module_error")
+_exec_extension("instrument_notification_center.py", "_ilm_notification_module_error")
 
 
 # -----------------------------------------------------------------------------
@@ -299,6 +300,7 @@ def _tabs_v04(labels, *args, **kwargs):
             "📈 Performance",
             "⚠ Events",
             "🔎 Investigate",
+            "🔔 Alerts",
             "▦ Reports",
             "ⓘ Guide",
             "🎛 Cockpit",
@@ -306,18 +308,19 @@ def _tabs_v04(labels, *args, **kwargs):
         rendered = _real_tabs(display_items, *args, **kwargs)
         # Return containers in the order expected by the v0.2 core.
         # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
-        # Dashboard/Lifecycle/Performance/Cockpit remain custom containers at 6/7/8/9.
+        # Dashboard/Lifecycle/Performance/Cockpit/Alerts remain custom containers at 6/7/8/9/10.
         return [
-            rendered[7],
+            rendered[8],
             rendered[2],
             rendered[3],
             rendered[5],
             rendered[6],
-            rendered[8],
+            rendered[9],
             rendered[0],
             rendered[1],
             rendered[4],
-            rendered[9],
+            rendered[10],
+            rendered[7],
         ]
     return _real_tabs(items, *args, **kwargs)
 
@@ -460,6 +463,23 @@ except Exception as exc:
     try:
         with main_tabs[9]:
             st.error("Instrument Management Cockpit could not load.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+
+# Three-level email notification center ----------------------------------------
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 11 and _is_signed_in:
+        with main_tabs[10]:
+            if callable(globals().get("render_instrument_notification_center")):
+                render_instrument_notification_center()
+            else:
+                st.error("Email Notification Center could not load.")
+except Exception as exc:
+    try:
+        with main_tabs[10]:
+            st.error("Email Notification Center could not load completely.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
