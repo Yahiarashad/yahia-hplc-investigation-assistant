@@ -1,45 +1,198 @@
 """Application-wide startup customizations for Yahia QC Instrument Lifecycle.
 
-1) Keep Streamlit expanders collapsed until the user opens them.
-2) Pre-register a premium Arabic PDF typography stack using system-installed
-   Noto fonts. No font files are bundled with or exposed by the application.
+Product shell decisions:
+1) Keep the signed-in workspace focused on one page at a time.
+2) Replace the crowded top-level tab strip with a persistent grouped sidebar.
+3) Preserve the selected workspace across Streamlit reruns (including PDF generation).
+4) Keep secondary expanders collapsed by default, except the active PDF Report Center.
+5) Pre-register premium Arabic PDF typography using system-installed Noto fonts.
+
+No font files are bundled with or exposed by the application.
 """
 
 from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
-# Streamlit interaction default: all expanders start collapsed.
+# Streamlit application shell: persistent sidebar + one active workspace.
 # ---------------------------------------------------------------------------
 try:
     import streamlit as st
 
     _ilm_native_expander_default = st.expander
+    _ilm_native_tabs = st.tabs
+    _ilm_native_page_config = st.set_page_config
+
+    _ILM_MAIN_TABS = [
+        "🏠 Dashboard",
+        "↻ Lifecycle",
+        "🪪 Passport",
+        "◎ Cal & PM",
+        "📈 Performance",
+        "⚠ Events",
+        "🔎 Investigate",
+        "🔔 Alerts",
+        "▦ Reports",
+        "ⓘ Guide",
+        "🎛 Cockpit",
+    ]
+
+    _ILM_NAV_GROUPS = [
+        ("", [
+            ("🏠 Dashboard", "🏠 Dashboard"),
+        ]),
+        ("INSTRUMENT MANAGEMENT", [
+            ("🪪 Instrument Passport", "🪪 Passport"),
+            ("↻ Lifecycle", "↻ Lifecycle"),
+            ("🎛 Decision Cockpit", "🎛 Cockpit"),
+        ]),
+        ("CONTROL & PERFORMANCE", [
+            ("◎ Calibration & PM", "◎ Cal & PM"),
+            ("📈 Monthly Performance", "📈 Performance"),
+        ]),
+        ("QUALITY & DECISIONS", [
+            ("⚠ Events", "⚠ Events"),
+            ("🔎 Investigation", "🔎 Investigate"),
+            ("🔔 Email Alerts", "🔔 Alerts"),
+        ]),
+        ("REPORTS & SUPPORT", [
+            ("▦ Reports", "▦ Reports"),
+            ("ⓘ User Guide", "ⓘ Guide"),
+        ]),
+    ]
+
+    def _ilm_page_config(*args, **kwargs):
+        # Desktop product decision: navigation should be immediately visible.
+        # Streamlit still keeps its normal drawer behavior on narrow/mobile screens.
+        kwargs["initial_sidebar_state"] = "expanded"
+        return _ilm_native_page_config(*args, **kwargs)
+
+    st.set_page_config = _ilm_page_config
 
     def _ilm_collapsed_expander(label, *args, **kwargs):
-        # Product decision: every accordion/expander starts closed.
-        # Explicit expanded=True in older modules is intentionally overridden.
-        kwargs["expanded"] = False
+        """Collapse secondary content, but keep the active report workflow open."""
+        text = str(label)
+        active = st.session_state.get("ilm_sidebar_page", "🏠 Dashboard")
+        report_center = "PDF Report Center" in text or "مركز التقارير" in text
+        kwargs["expanded"] = bool(active == "▦ Reports" and report_center)
         return _ilm_native_expander_default(label, *args, **kwargs)
 
     st.expander = _ilm_collapsed_expander
+
+    def _ilm_sidebar_menu():
+        active = st.session_state.get("ilm_sidebar_page", "🏠 Dashboard")
+        if active not in _ILM_MAIN_TABS:
+            active = "🏠 Dashboard"
+            st.session_state["ilm_sidebar_page"] = active
+
+        with st.sidebar:
+            st.markdown(
+                """
+                <div class="ilm-side-brand">
+                    <div class="ilm-side-kicker">PHARMACEUTICAL QC</div>
+                    <div class="ilm-side-title">🧪 Yahia QC</div>
+                    <div class="ilm-side-sub">Instrument Lifecycle & Decision Intelligence</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            try:
+                auth = st.session_state.get("_ilm_auth") or {}
+                email = str((auth.get("user") or {}).get("email") or "").strip()
+                if email:
+                    st.caption(email)
+            except Exception:
+                pass
+
+            st.markdown("---")
+            for heading, entries in _ILM_NAV_GROUPS:
+                if heading:
+                    st.markdown(f'<div class="ilm-nav-group">{heading}</div>', unsafe_allow_html=True)
+                for label, route in entries:
+                    clicked = st.button(
+                        label,
+                        key=f"ilm_sidebar_nav_{route}",
+                        use_container_width=True,
+                        type="primary" if active == route else "secondary",
+                    )
+                    if clicked:
+                        active = route
+                        st.session_state["ilm_sidebar_page"] = route
+
+            st.markdown("---")
+            st.caption("DON'T GUESS. FOLLOW THE EVIDENCE.")
+
+        return active
+
+    def _ilm_sidebar_tabs(labels, *args, **kwargs):
+        """Route only the app's 11 top-level workspaces through the sidebar.
+
+        Nested tabs (login, forms, reports, guide sections) remain normal Streamlit
+        tabs. Reordering the top-level tabs makes the selected workspace the active
+        first tab while remapping the returned containers back to their original
+        semantic order, so existing application code does not need to be rewritten.
+        """
+        items = list(labels)
+        if len(items) == len(_ILM_MAIN_TABS) and set(items) == set(_ILM_MAIN_TABS):
+            active = _ilm_sidebar_menu()
+            if active not in items:
+                active = "🏠 Dashboard"
+
+            st.markdown(
+                """
+                <style>
+                /* Hide only the 11-item application navigation strip. Nested tabs stay visible. */
+                div[data-baseweb="tab-list"]:has(> button:nth-child(11)) {
+                    display:none !important;
+                }
+
+                [data-testid="stSidebar"] {
+                    border-right:1px solid rgba(128,128,128,.18);
+                }
+                [data-testid="stSidebar"] .stButton > button {
+                    justify-content:flex-start !important;
+                    text-align:left !important;
+                    border-radius:10px !important;
+                    min-height:2.45rem !important;
+                    margin:.04rem 0 !important;
+                    font-weight:700 !important;
+                }
+                .ilm-side-brand {padding:.2rem 0 .1rem;}
+                .ilm-side-kicker {font-size:.66rem;font-weight:900;letter-spacing:.11em;color:#d4af37;}
+                .ilm-side-title {font-size:1.28rem;font-weight:900;color:#102a43;margin:.1rem 0;}
+                .ilm-side-sub {font-size:.74rem;color:#718096;line-height:1.35;}
+                .ilm-nav-group {
+                    font-size:.65rem;
+                    font-weight:900;
+                    letter-spacing:.08em;
+                    color:#78889b;
+                    margin:.82rem 0 .26rem;
+                }
+
+                /* Keep the sidebar persistent on desktop. Keep Streamlit's drawer affordance on mobile. */
+                @media (min-width: 801px) {
+                    [data-testid="stSidebarCollapseButton"] {display:none !important;}
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            ordered = [active] + [item for item in items if item != active]
+            rendered = _ilm_native_tabs(ordered, *args, **kwargs)
+            by_label = dict(zip(ordered, rendered))
+            return [by_label[item] for item in items]
+
+        return _ilm_native_tabs(items, *args, **kwargs)
+
+    st.tabs = _ilm_sidebar_tabs
 except Exception:
-    # Never block application startup if Streamlit is unavailable during
-    # interpreter bootstrap.
+    # Never block application startup if Streamlit changes a UI implementation detail.
     pass
 
 
 # ---------------------------------------------------------------------------
 # Arabic PDF typography.
-#
-# Streamlit Cloud installs fonts-noto-core from packages.txt. We intentionally
-# use two complementary Arabic faces:
-#   • Noto Naskh Arabic Regular for readable body text and long evidence notes.
-#   • Noto Kufi Arabic Bold for headings, table labels and management metrics.
-#
-# The PDF modules historically register their own aliases (ILM/ILMB and
-# EXECV2REG/EXECV2BOLD). We pre-register those aliases here and protect only
-# those names from being overwritten later by a DejaVu fallback.
 # ---------------------------------------------------------------------------
 try:
     from reportlab.pdfbase import pdfmetrics
@@ -64,11 +217,9 @@ try:
                 continue
         return None
 
-    # Preferred premium stack.
     _naskh_regular = _find_font("NotoNaskhArabic-Regular.ttf")
     _kufi_bold = _find_font("NotoKufiArabic-Bold.ttf")
 
-    # Graceful fallbacks if a distro ships a slightly different Noto subset.
     if _naskh_regular is None:
         _naskh_regular = _find_font("NotoSansArabic-Regular.ttf")
     if _kufi_bold is None:
@@ -79,20 +230,17 @@ try:
     if _naskh_regular is not None and _kufi_bold is not None:
         _native_register_font = pdfmetrics.registerFont
 
-        # Lifecycle Evidence PDF aliases.
         if "ILM" not in pdfmetrics.getRegisteredFontNames():
             _native_register_font(TTFont("ILM", str(_naskh_regular)))
         if "ILMB" not in pdfmetrics.getRegisteredFontNames():
             _native_register_font(TTFont("ILMB", str(_kufi_bold)))
 
-        # Executive Performance PDF aliases.
         if "EXECV2REG" not in pdfmetrics.getRegisteredFontNames():
             _native_register_font(TTFont("EXECV2REG", str(_naskh_regular)))
         if "EXECV2BOLD" not in pdfmetrics.getRegisteredFontNames():
             _native_register_font(TTFont("EXECV2BOLD", str(_kufi_bold)))
 
         def _ilm_register_font_once(font):
-            """Protect our Arabic aliases; preserve normal ReportLab behavior."""
             try:
                 name = str(getattr(font, "fontName", "") or "")
                 if name in _protected_aliases and name in pdfmetrics.getRegisteredFontNames():
@@ -103,6 +251,4 @@ try:
 
         pdfmetrics.registerFont = _ilm_register_font_once
 except Exception:
-    # PDF generation must still work with the existing fallback fonts if the
-    # Noto package is temporarily unavailable during a deployment.
     pass
