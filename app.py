@@ -110,13 +110,9 @@ def _conclusion_detected(messages):
     markers = (
         "root cause confirmed",
         "root cause probable",
-        "root cause not yet identified",
-        "not yet identified",
         "السبب الجذري مؤكد",
         "السبب الجذري المرجح",
         "السبب الجذري محتمل",
-        "لم يتم تحديد السبب الجذري",
-        "السبب الجذري غير محدد",
     )
     return bool(last_answer) and any(marker.casefold() in text for marker in markers)
 
@@ -272,6 +268,8 @@ TEXT = {
         "guide": "📘 How to use Yahia HPLC Investigation Assistant",
         "start_note": "Start with what you observed — not the diagnosis you suspect.",
         "finish": "I've finished this investigation — share feedback 💬",
+        "your_turn": "Your turn — continue the investigation",
+        "your_turn_copy": "Answer the question above or tell me the result of the requested check. You can type or use the microphone below.",
     },
     "ar": {
         "setup": "إعداد التحقيق",
@@ -290,6 +288,8 @@ TEXT = {
         "guide": "📘 دليل استخدام مساعد يحيى للتحقيق في HPLC",
         "start_note": "ابدأ بما لاحظته فعليًا — وليس بالسبب الذي تتوقعه.",
         "finish": "أنهيت التحقيق — أرسل ملاحظتي 💬",
+        "your_turn": "دورك الآن — كمّل التحقيق",
+        "your_turn_copy": "جاوب على السؤال اللي فوق أو اكتب نتيجة الفحص المطلوب. تقدر تكتب أو تستخدم الميكروفون بالأسفل.",
     },
 }
 T = TEXT[effective_language]
@@ -335,6 +335,9 @@ st.markdown(
       .start-item { border-radius:14px; border:1px solid #e2e8f0; background:#fff; padding:.7rem .75rem; color:#4b5563; font-size:.79rem; line-height:1.5; }
       .start-item strong { display:block; color:#172033; margin-bottom:.18rem; font-size:.82rem; }
       .small-note { font-size:.82rem; opacity:.72; }
+      .continue-card { margin:1rem 0 .65rem; padding:.9rem 1rem; border-radius:16px; border:1px solid rgba(202,167,80,.58); background:linear-gradient(145deg,#fffaf0,#ffffff); color:#374151; line-height:1.65; }
+      .continue-card strong { display:block; color:#172033; font-size:1rem; margin-bottom:.15rem; }
+      .continue-card-ar { direction:rtl; text-align:right; unicode-bidi:plaintext; }
       .feedback-nudge { margin:1rem 0 .55rem; padding:.85rem 1rem; border-radius:16px; border:1px solid #dfc77c; background:#fffaf0; color:#374151; line-height:1.7; }
       .feedback-nudge-ar { direction:rtl; text-align:right; }
       div[data-baseweb="select"] > div { border-radius:14px; }
@@ -634,7 +637,17 @@ else:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    chat_text = st.chat_input(T["input"])
+    retained_audio = st.session_state.get(f"_last_spoken_{CASE_ID}")
+    if retained_audio:
+        st.audio(retained_audio, format="audio/mp3")
+    continue_class = "continue-card continue-card-ar" if is_ar else "continue-card"
+    st.markdown(
+        f'<div class="{continue_class}"><strong>{T["your_turn"]}</strong>{T["your_turn_copy"]}</div>',
+        unsafe_allow_html=True,
+    )
+    chat_text = st.chat_input(
+        "اكتب ردك هنا لمواصلة التحقيق..." if is_ar else "Type your reply here to continue the investigation..."
+    )
     voice_reply = st.audio_input("🎙️ رد بصوتك" if is_ar else "🎙️ Reply by voice", key=f"reply_voice_{CASE_ID}_{len(st.session_state.messages)}")
     if chat_text:
         user_input = chat_text
@@ -746,6 +759,7 @@ if user_input:
                 try:
                     spoken = synthesize_speech(answer)
                     if spoken:
+                        st.session_state[f"_last_spoken_{CASE_ID}"] = spoken
                         st.audio(spoken, format="audio/mp3")
                         record_event(CASE_ID, "hplc_assistant", "voice_reply_generated", response_language)
                 except Exception:
@@ -757,6 +771,8 @@ if user_input:
                     response_language,
                     {"assistant_turn": _assistant_turn_count(st.session_state.messages)},
                 )
+                if first_user_message:
+                    st.rerun()
             except Exception as exc:
                 answer = format_api_error(exc, response_language)
                 st.markdown(answer)
