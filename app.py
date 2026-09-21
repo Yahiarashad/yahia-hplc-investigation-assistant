@@ -291,16 +291,6 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
       section[data-testid="stSidebar"] { min-width: 285px !important; max-width: 285px !important; }
       section[data-testid="stSidebar"] > div { width: 285px !important; }
     }
-    @media (max-width: 768px) {
-      button[data-testid="stBaseButton-headerNoPadding"]::after,
-      button[kind="headerNoPadding"]::after {
-        content: "  ابدأ هنا ←";
-        font-weight: 800;
-        font-size: .82rem;
-        color: #b08a22;
-        white-space: nowrap;
-      }
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -625,7 +615,12 @@ st.markdown(
 <style>
 /* Clean application shell: hide legacy core welcome/CTA/KPIs and the old primary tab navigation.
    Module content remains mounted so existing forms and data logic keep working. */
-section.main div[data-testid="stTabs"]:first-of-type > div[data-baseweb="tab-list"]{
+/* Primary navigation is sidebar-only. Never show the legacy horizontal route strip. */
+section.main div[data-testid="stTabs"]:has(button[data-baseweb="tab"]:first-child) > div[data-baseweb="tab-list"]:has(button[data-baseweb="tab"]){
+  display:none!important;
+}
+/* Fallback for Streamlit DOM variants: the first top-level tabset is the route host. */
+section.main > div div[data-testid="stTabs"]:first-of-type > div[data-baseweb="tab-list"]{
   display:none!important;
 }
 
@@ -637,23 +632,6 @@ section.main .cta{display:none!important;}
    landing-page content; the role-aware Dashboard owns the signed-in summary. */
 section.main div[data-testid="stMetric"]:not(.v03-dashboard-hero div[data-testid="stMetric"]){
   /* individual module metrics are intentionally not globally hidden */
-}
-
-/* Compact horizontal mobile navigation */
-div[data-baseweb="tab-list"]{
-  overflow-x:auto!important;
-  flex-wrap:nowrap!important;
-  scrollbar-width:none!important;
-  gap:.12rem!important;
-  scroll-snap-type:x proximity;
-  padding-bottom:.15rem;
-}
-div[data-baseweb="tab-list"]::-webkit-scrollbar{display:none!important;}
-button[data-baseweb="tab"]{
-  white-space:nowrap!important;
-  flex:0 0 auto!important;
-  scroll-snap-align:start;
-  border-radius:10px 10px 0 0!important;
 }
 
 /* Tactile controls */
