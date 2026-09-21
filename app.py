@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="Yahia QC Instrument Lifecycle & Investigation Intelligence",
     page_icon="🧪",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 RemoveEmptyElementContainer()
@@ -207,6 +207,92 @@ st.rerun = _cookie_aware_rerun
 
 
 # -----------------------------------------------------------------------------
+# Role-aware onboarding + persistent workspace navigation.
+# The role personalizes priorities; it does NOT change RLS permissions.
+# -----------------------------------------------------------------------------
+_signed_in_shell = bool((st.session_state.get("_ilm_auth") or {}).get("access_token"))
+
+ROLE_OPTIONS = {
+    "QC Analyst": "Daily execution · events · investigations · evidence",
+    "QC Supervisor": "Team control · exceptions · due work · investigations",
+    "QC Manager": "Operations · performance · capacity · escalations",
+    "QC Director / Head": "Business risk · capacity · investment · executive evidence",
+    "Calibration / Maintenance": "Calibration · PM · qualification · components",
+    "QA / Reviewer": "Evidence readiness · traceability · open quality signals",
+}
+
+if _signed_in_shell and not st.session_state.get("ilm_user_role"):
+    @st.dialog("Welcome · Set up your workspace")
+    def _ilm_role_onboarding():
+        st.markdown("### What is your role in QC?")
+        st.caption("We will organize the workspace around the decisions you make. This does not change your database permissions.")
+        role = st.selectbox("Your role", list(ROLE_OPTIONS), key="ilm_role_onboarding_select")
+        st.info(ROLE_OPTIONS[role])
+        if st.button("Enter my workspace →", type="primary", use_container_width=True, key="ilm_role_onboarding_go"):
+            st.session_state.ilm_user_role = role
+            st.session_state.ilm_route = "🏠 Dashboard"
+            st.rerun()
+    _ilm_role_onboarding()
+
+_ROUTE_GROUPS = {
+    "HOME": ["🏠 Dashboard"],
+    "MY INSTRUMENTS": ["🪪 Passport", "↻ Lifecycle"],
+    "CONTROL": ["◎ Cal & PM"],
+    "QUALITY EVENTS": ["⚠ Events", "🔎 Investigate"],
+    "INTELLIGENCE": ["📈 Performance"],
+    "COMMUNICATION": ["🔔 Alerts"],
+    "EVIDENCE": ["▦ Reports"],
+    "MANAGEMENT": ["🎛 Cockpit"],
+    "SYSTEM": ["ⓘ Guide"],
+}
+_ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
+
+if _signed_in_shell and st.session_state.get("ilm_user_role"):
+    with st.sidebar:
+        st.markdown("## QC Intelligence")
+        st.caption("From data → evidence → decision → action")
+        st.markdown(f"**{st.session_state.ilm_user_role}**")
+        st.caption(ROLE_OPTIONS.get(st.session_state.ilm_user_role, ""))
+        st.divider()
+        current = st.session_state.get("ilm_route", "🏠 Dashboard")
+        if current not in _ROUTE_ITEMS:
+            current = "🏠 Dashboard"
+        chosen = st.radio(
+            "Workspace",
+            _ROUTE_ITEMS,
+            index=_ROUTE_ITEMS.index(current),
+            key="ilm_sidebar_route",
+            label_visibility="collapsed",
+        )
+        st.session_state.ilm_route = chosen
+        st.divider()
+        if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
+            st.session_state.pop("ilm_user_role", None)
+            st.rerun()
+
+    # Desktop: sidebar is the permanent navigation rail. Mobile: Streamlit's
+    # responsive sidebar is collapsed; make the menu trigger self-explanatory.
+    st.markdown("""
+    <style>
+    @media (min-width: 769px) {
+      section[data-testid="stSidebar"] { min-width: 285px !important; max-width: 285px !important; }
+      section[data-testid="stSidebar"] > div { width: 285px !important; }
+    }
+    @media (max-width: 768px) {
+      button[data-testid="stBaseButton-headerNoPadding"]::after,
+      button[kind="headerNoPadding"]::after {
+        content: "  ابدأ هنا ←";
+        font-weight: 800;
+        font-size: .82rem;
+        color: #b08a22;
+        white-space: nowrap;
+      }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# -----------------------------------------------------------------------------
 # Load extension definitions before the core is executed.
 # -----------------------------------------------------------------------------
 def _exec_extension(filename: str, error_key: str | None = None):
@@ -305,7 +391,7 @@ def _tabs_v04(labels, *args, **kwargs):
             "ⓘ Guide",
             "🎛 Cockpit",
         ]
-        rendered = _real_tabs(display_items, *args, **kwargs)
+        selected = st.session_state.get("ilm_route", "🏠 Dashboard")\n        if selected not in display_items:\n            selected = "🏠 Dashboard"\n        try:\n            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)\n        except TypeError:\n            rendered = _real_tabs(display_items, *args, **kwargs)
         # Return containers in the order expected by the v0.2 core.
         # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
         # Dashboard/Lifecycle/Performance/Cockpit/Alerts remain custom containers at 6/7/8/9/10.
@@ -525,6 +611,11 @@ except Exception as exc:
 st.markdown(
     """
 <style>
+/* The primary app navigation now lives in the persistent sidebar. */
+section.main div[data-testid="stTabs"]:first-of-type > div[data-baseweb="tab-list"]{
+  display:none!important;
+}
+
 /* Compact horizontal mobile navigation */
 div[data-baseweb="tab-list"]{
   overflow-x:auto!important;
