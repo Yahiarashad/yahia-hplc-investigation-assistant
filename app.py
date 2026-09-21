@@ -257,14 +257,19 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         current = st.session_state.get("ilm_route", "🏠 Dashboard")
         if current not in _ROUTE_ITEMS:
             current = "🏠 Dashboard"
-        chosen = st.radio(
-            "Workspace",
-            _ROUTE_ITEMS,
-            index=_ROUTE_ITEMS.index(current),
-            key="ilm_sidebar_route",
-            label_visibility="collapsed",
-        )
-        st.session_state.ilm_route = chosen
+        for group_name, group_items in _ROUTE_GROUPS.items():
+            st.caption(group_name)
+            for route_item in group_items:
+                is_active = route_item == current
+                if st.button(
+                    route_item,
+                    key="ilm_nav_" + route_item,
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary",
+                ):
+                    if not is_active:
+                        st.session_state.ilm_route = route_item
+                        st.rerun()
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
             st.session_state.pop("ilm_user_role", None)
