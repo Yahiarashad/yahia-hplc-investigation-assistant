@@ -123,40 +123,35 @@ def _last_assistant_answer(messages):
     )
 
 
+def _investigation_status(messages):
+    last = _last_assistant_answer(messages)
+    match = re.search(r"INVESTIGATION_STATUS\s*:\s*(INVESTIGATING|AWAITING_USER|AWAITING_TEST|PROBABLE|CONFIRMED)", last, re.I)
+    return match.group(1).upper() if match else "INVESTIGATING"
+
+
+def _display_answer(answer):
+    return re.sub(
+        r"\n?INVESTIGATION_STATUS\s*:\s*(?:INVESTIGATING|AWAITING_USER|AWAITING_TEST|PROBABLE|CONFIRMED)\s*$",
+        "",
+        answer or "",
+        flags=re.I,
+    ).strip()
+
+
 def _resolution_check_ready(messages):
-    """Ask real-world resolution only after the assistant has reached a probable/confirmed root cause
-    AND the latest answer is not still asking the user for another investigation step."""
-    conclusion = _conclusion_type(messages)
-    if conclusion not in ("confirmed", "probable"):
-        return False
-    last = _last_assistant_answer(messages).casefold()
-    active_markers = (
-        "المطلوب منك الآن",
-        "next step",
-        "your turn",
-        "root cause not yet identified",
-        "not yet identified",
-        "لم يتم تحديد السبب الجذري",
-        "السبب الجذري غير محدد",
-    )
-    return not any(marker.casefold() in last for marker in active_markers)
+    return _investigation_status(messages) in ("PROBABLE", "CONFIRMED")
 
 
 def _conclusion_type(messages):
-    text = _last_assistant_answer(messages).casefold()
-    if not text:
-        return ""
-    not_identified = ("root cause not yet identified", "not yet identified", "لم يتم تحديد السبب الجذري", "السبب الجذري غير محدد")
-    confirmed = ("root cause confirmed", "السبب الجذري مؤكد")
-    probable = ("root cause probable", "السبب الجذري المرجح", "السبب الجذري محتمل")
-    if any(x.casefold() in text for x in not_identified):
-        return "not_yet_identified"
-    if any(x.casefold() in text for x in confirmed):
+    status = _investigation_status(messages)
+    if status == "CONFIRMED":
         return "confirmed"
-    if any(x.casefold() in text for x in probable):
+    if status == "PROBABLE":
         return "probable"
+    text = _last_assistant_answer(messages).casefold()
+    if any(x in text for x in ("root cause not yet identified", "not yet identified", "لم يتم تحديد السبب الجذري", "السبب الجذري غير محدد")):
+        return "not_yet_identified"
     return ""
-
 
 def _case_category(messages, selected_area="Auto-detect"):
     """Classify only the category label; never persist case text."""
@@ -655,7 +650,7 @@ Already checked: two independently prepared mobile phases produced the same resu
 else:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(_display_answer(message["content"]))
     continue_class = "continue-card continue-card-ar" if is_ar else "continue-card"
     st.markdown(
         f'<div class="{continue_class}"><strong>{T["your_turn"]}</strong>{T["your_turn_copy"]}</div>',
@@ -757,7 +752,8 @@ if user_input:
         + f"\n\nCURRENT UI INVESTIGATION AREA: {area}\n"
         + "Treat this selected area only as a hint. If the evidence points to another area, say so.\n"
         + f"LANGUAGE BEHAVIOR: {language_instruction}\n"
-        + f"VISIBLE INVESTIGATION SUMMARY: {reasoning_summary_instruction}\n\n"
+        + f"VISIBLE INVESTIGATION SUMMARY: {reasoning_summary_instruction}\n"
+        + "STATE CONTRACT: End every reply with exactly one machine-readable line: INVESTIGATION_STATUS: INVESTIGATING, AWAITING_USER, AWAITING_TEST, PROBABLE, or CONFIRMED. Use AWAITING_USER when one answer is needed; AWAITING_TEST when one test/check result is needed; PROBABLE only when a probable root cause is supported and no further investigation step is requested; CONFIRMED only after discriminating evidence confirms the root cause and no further investigation step is requested. Never use PROBABLE or CONFIRMED in a reply that asks the user for another investigative action. Do not explain this status line.\n\n"
         + evidence_context
     )
 
@@ -778,21 +774,18 @@ if user_input:
                 if not answer:
                     answer = TEXT[response_language]["no_text"]
 
-                # Chat-like reveal: render progressively so the reply feels conversational.
-                # This is presentation only; the complete answer is saved once.
+                visible_answer = _display_answer(answer)
                 placeholder = st.empty()
                 rendered = ""
-                chunks = re.findall(r"\S+\s*", answer)
+                chunks = re.findall(r"\S+\s*", visible_answer)
                 for i, chunk in enumerate(chunks):
                     rendered += chunk
                     placeholder.markdown(rendered + ("▌" if i < len(chunks) - 1 else ""))
                     time.sleep(0.018)
-                placeholder.markdown(answer)
-
-                st.session_state.messages.append({"role": "assistant", "content": answer})
+                placeholder.markdown(visible_answer)\n\n                st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
                 try:
-                    spoken = synthesize_speech(answer)
+                    spoken = synthesize_speech(visible_answer)
                     if spoken:
                         st.session_state[f"_last_spoken_{CASE_ID}"] = spoken
                         st.audio(spoken, format="audio/mp3")
