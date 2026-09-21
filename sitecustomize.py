@@ -36,6 +36,7 @@ try:
         "ⓘ Guide",
         "🎛 Cockpit",
     ]
+    _ILM_LEGACY_TAB = "__CORE_LEGACY__"
 
     _ILM_NAV_GROUPS = [
         ("", [
@@ -62,8 +63,6 @@ try:
     ]
 
     def _ilm_page_config(*args, **kwargs):
-        # Desktop product decision: navigation should be immediately visible.
-        # Streamlit still keeps its normal drawer behavior on narrow/mobile screens.
         kwargs["initial_sidebar_state"] = "expanded"
         return _ilm_native_page_config(*args, **kwargs)
 
@@ -125,23 +124,24 @@ try:
         return active
 
     def _ilm_sidebar_tabs(labels, *args, **kwargs):
-        """Route only the app's 11 top-level workspaces through the sidebar.
+        """Route only the app's top-level workspaces through the sidebar.
 
-        Nested tabs (login, forms, reports, guide sections) remain normal Streamlit
-        tabs. Reordering the top-level tabs makes the selected workspace the active
-        first tab while remapping the returned containers back to their original
-        semantic order, so existing application code does not need to be rewritten.
+        A hidden legacy core container may also be present. It receives obsolete
+        Command Center output so those old tables never contaminate Reports.
+        Nested tabs remain normal Streamlit tabs.
         """
         items = list(labels)
-        if len(items) == len(_ILM_MAIN_TABS) and set(items) == set(_ILM_MAIN_TABS):
+        visible = [item for item in items if item != _ILM_LEGACY_TAB]
+        is_shell = len(visible) == len(_ILM_MAIN_TABS) and set(visible) == set(_ILM_MAIN_TABS)
+        if is_shell:
             active = _ilm_sidebar_menu()
-            if active not in items:
+            if active not in visible:
                 active = "🏠 Dashboard"
 
             st.markdown(
                 """
                 <style>
-                /* Hide only the 11-item application navigation strip. Nested tabs stay visible. */
+                /* Hide only the large application navigation strip. Nested tabs stay visible. */
                 div[data-baseweb="tab-list"]:has(> button:nth-child(11)) {
                     display:none !important;
                 }
@@ -169,7 +169,6 @@ try:
                     margin:.82rem 0 .26rem;
                 }
 
-                /* Keep the sidebar persistent on desktop. Keep Streamlit's drawer affordance on mobile. */
                 @media (min-width: 801px) {
                     [data-testid="stSidebarCollapseButton"] {display:none !important;}
                 }
@@ -178,7 +177,10 @@ try:
                 unsafe_allow_html=True,
             )
 
-            ordered = [active] + [item for item in items if item != active]
+            # Selected route becomes first so Streamlit keeps it active on every rerun.
+            ordered = [active] + [item for item in visible if item != active]
+            if _ILM_LEGACY_TAB in items:
+                ordered.append(_ILM_LEGACY_TAB)
             rendered = _ilm_native_tabs(ordered, *args, **kwargs)
             by_label = dict(zip(ordered, rendered))
             return [by_label[item] for item in items]
@@ -187,7 +189,6 @@ try:
 
     st.tabs = _ilm_sidebar_tabs
 except Exception:
-    # Never block application startup if Streamlit changes a UI implementation detail.
     pass
 
 
