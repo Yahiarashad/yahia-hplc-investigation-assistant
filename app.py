@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -14,6 +15,9 @@ from evidence_engine import format_evidence_context, retrieve_evidence
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
 MODEL = "gpt-5.6-terra"
+TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+TTS_MODEL = "gpt-4o-mini-tts"
+TTS_VOICE = "alloy"
 APP_VERSION = "v1.1"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 
@@ -465,6 +469,42 @@ if not API_KEY:
     st.stop()
 
 client = OpenAI(api_key=API_KEY)
+
+def transcribe_audio(uploaded_audio, language_hint=None):
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(uploaded_audio.getvalue())
+        tmp_path = tmp.name
+    try:
+        with open(tmp_path, "rb") as audio_file:
+            kwargs = {"model": TRANSCRIBE_MODEL, "file": audio_file}
+            if language_hint in ("ar", "en"):
+                kwargs["language"] = language_hint
+            result = client.audio.transcriptions.create(**kwargs)
+        return (getattr(result, "text", "") or "").strip()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+def synthesize_speech(text):
+    clean = re.sub(r"[*#_`>]+", " ", text or "")
+    clean = re.sub(r"\\s+", " ", clean).strip()
+    if not clean:
+        return None
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        with client.audio.speech.with_streaming_response.create(model=TTS_MODEL, voice=TTS_VOICE, input=clean[:4096]) as response:
+            response.stream_to_file(tmp_path)
+        with open(tmp_path, "rb") as fh:
+            return fh.read()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
 user_input = None
 
 if not st.session_state.messages:
@@ -493,12 +533,27 @@ if not st.session_state.messages:
             unsafe_allow_html=True,
         )
 
+    voice_label = "🎙️ أو سجّل المشكلة بصوتك" if is_ar else "🎙️ Or describe the problem by voice"
+    audio_case = st.audio_input(voice_label, key=f"initial_voice_{CASE_ID}")
+    if audio_case is not None:
+        audio_sig = str(len(audio_case.getvalue()))
+        if st.session_state.get(f"_voice_sig_{CASE_ID}") != audio_sig:
+            with st.spinner("بنحوّل كلامك لنص للمراجعة..." if is_ar else "Transcribing your voice for review..."):
+                try:
+                    transcript = transcribe_audio(audio_case, effective_language)
+                    if transcript:
+                        st.session_state[f"voice_transcript_{CASE_ID}"] = transcript
+                        st.session_state[f"_voice_sig_{CASE_ID}"] = audio_sig
+                        record_event(CASE_ID, "hplc_assistant", "voice_transcribed", effective_language)
+                except Exception as exc:
+                    st.warning(format_api_error(exc, effective_language))
+    default_initial = st.session_state.get(f"voice_transcript_{CASE_ID}", "")
+    if default_initial:
+        st.info("راجع النص المستخرج من صوتك وعدّله لو لزم قبل بدء التحقيق." if is_ar else "Review the transcript and correct anything needed before starting.")
     with st.form("initial_case_form", clear_on_submit=False):
         initial_text = st.text_area(
-            "Initial case",
-            placeholder=T["input"],
-            label_visibility="collapsed",
-            height=180,
+            "Initial case", value=default_initial, placeholder=T["input"],
+            label_visibility="collapsed", height=180,
         )
         submitted = st.form_submit_button(T["begin"], use_container_width=True, type="primary")
         if submitted and initial_text.strip():
@@ -579,7 +634,33 @@ else:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    user_input = st.chat_input(T["input"])
+    chat_text = st.chat_input(T["input"])
+    voice_reply = st.audio_input("🎙️ رد بصوتك" if is_ar else "🎙️ Reply by voice", key=f"reply_voice_{CASE_ID}_{len(st.session_state.messages)}")
+    if chat_text:
+        user_input = chat_text
+    elif voice_reply is not None:
+        audio_sig = str(len(voice_reply.getvalue()))
+        sig_key = f"_reply_voice_sig_{CASE_ID}"
+        if st.session_state.get(sig_key) != audio_sig:
+            with st.spinner("بنحوّل كلامك لنص..." if is_ar else "Transcribing..."):
+                try:
+                    transcript = transcribe_audio(voice_reply, effective_language)
+                    if transcript:
+                        st.session_state[sig_key] = audio_sig
+                        st.session_state[f"_pending_voice_{CASE_ID}"] = transcript
+                        record_event(CASE_ID, "hplc_assistant", "voice_transcribed", effective_language)
+                except Exception as exc:
+                    st.warning(format_api_error(exc, effective_language))
+        pending_voice = st.session_state.get(f"_pending_voice_{CASE_ID}", "")
+        if pending_voice:
+            st.markdown(("**سمعتك بتقول:** " if is_ar else "**I heard:** ") + pending_voice)
+            c1, c2 = st.columns(2)
+            if c1.button("✓ أرسل" if is_ar else "✓ Send", key=f"send_voice_{CASE_ID}_{len(st.session_state.messages)}", use_container_width=True):
+                user_input = pending_voice
+                st.session_state.pop(f"_pending_voice_{CASE_ID}", None)
+            if c2.button("إلغاء" if is_ar else "Cancel", key=f"cancel_voice_{CASE_ID}_{len(st.session_state.messages)}", use_container_width=True):
+                st.session_state.pop(f"_pending_voice_{CASE_ID}", None)
+                st.rerun()
 
 if user_input:
     first_user_message = not any(message["role"] == "user" for message in st.session_state.messages)
@@ -662,6 +743,13 @@ if user_input:
 
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
+                try:
+                    spoken = synthesize_speech(answer)
+                    if spoken:
+                        st.audio(spoken, format="audio/mp3")
+                        record_event(CASE_ID, "hplc_assistant", "voice_reply_generated", response_language)
+                except Exception:
+                    pass
                 record_event(
                     CASE_ID,
                     "hplc_assistant",
