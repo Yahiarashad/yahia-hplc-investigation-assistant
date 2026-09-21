@@ -212,14 +212,16 @@ st.rerun = _cookie_aware_rerun
 # -----------------------------------------------------------------------------
 _signed_in_shell = bool((st.session_state.get("_ilm_auth") or {}).get("access_token"))
 
-ROLE_OPTIONS = {
-    "QC Analyst": "Daily execution · events · investigations · evidence",
-    "QC Supervisor": "Team control · exceptions · due work · investigations",
-    "QC Manager": "Operations · performance · capacity · escalations",
-    "QC Director / Head": "Business risk · capacity · investment · executive evidence",
-    "Calibration / Maintenance": "Calibration · PM · qualification · components",
-    "QA / Reviewer": "Evidence readiness · traceability · open quality signals",
-}
+ROLE_OPTIONS = [
+    ("QC Analyst", "Daily execution · events · investigations · evidence"),
+    ("QC Supervisor", "Team control · exceptions · due work · investigations"),
+    ("QC Manager", "Operations · performance · capacity · escalations"),
+    ("QC Director / Head", "Business risk · capacity · investment · executive evidence"),
+    ("Calibration / Maintenance", "Calibration · PM · qualification · components"),
+    ("QA / Reviewer", "Evidence readiness · traceability · open quality signals"),
+]
+ROLE_LABELS = [item[0] for item in ROLE_OPTIONS]
+ROLE_HELP = {item[0]: item[1] for item in ROLE_OPTIONS}
 
 if _signed_in_shell and not st.session_state.get("ilm_user_role"):
     @st.dialog("Welcome · Set up your workspace")
@@ -228,11 +230,11 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
         st.caption("We will organize the workspace around the decisions you make. This does not change your database permissions.")
         role = st.selectbox(
             "Your role",
-            options=list(ROLE_OPTIONS.keys()),
+            options=ROLE_LABELS,
             key="ilm_role_onboarding_select",
         )
         role_label = str(role or "QC Analyst")
-        role_help = ROLE_OPTIONS.get(role_label, ROLE_OPTIONS["QC Analyst"])
+        role_help = ROLE_HELP.get(role_label, ROLE_HELP["QC Analyst"])
         st.info(role_help)
         if st.button("Enter my workspace →", type="primary", use_container_width=True, key="ilm_role_onboarding_go"):
             st.session_state.ilm_user_role = role_label
@@ -258,7 +260,7 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         st.markdown("## QC Intelligence")
         st.caption("From data → evidence → decision → action")
         st.markdown(f"**{st.session_state.ilm_user_role}**")
-        st.caption(ROLE_OPTIONS.get(st.session_state.ilm_user_role, ""))
+        st.caption(ROLE_HELP.get(st.session_state.ilm_user_role, ""))
         st.divider()
         current = st.session_state.get("ilm_route", "🏠 Dashboard")
         if current not in _ROUTE_ITEMS:
