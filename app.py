@@ -206,6 +206,28 @@ def _cookie_aware_rerun(*args, **kwargs):
 st.rerun = _cookie_aware_rerun
 
 
+# Mobile navigation helper: after choosing a route, close the sidebar and
+# return the main viewport to the first line of the newly selected workspace.
+def _ilm_mobile_route_transition():
+    try:
+        import streamlit.components.v1 as components
+        components.html(
+            """<script>
+            try {
+              const w = window.parent;
+              w.scrollTo({top: 0, behavior: 'instant'});
+              const sidebar = w.document.querySelector('section[data-testid="stSidebar"]');
+              const collapse = sidebar && sidebar.querySelector('button[data-testid="stSidebarCollapseButton"], button[aria-label*="Close sidebar"], button[aria-label*="Collapse sidebar"]');
+              if (collapse && w.innerWidth <= 768) { collapse.click(); }
+            } catch (e) {}
+            </script>""",
+            height=0,
+            width=0,
+        )
+    except Exception:
+        pass
+
+
 # -----------------------------------------------------------------------------
 # Role-aware onboarding + persistent workspace navigation.
 # The role personalizes priorities; it does NOT change RLS permissions.
@@ -269,6 +291,8 @@ _ROUTE_GROUPS = {name: _ALL_ROUTE_GROUPS[name] for name in _allowed_groups}
 _ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
+    if st.session_state.pop("ilm_route_transition", False):
+        _ilm_mobile_route_transition()
     with st.sidebar:
         st.markdown("## QC Intelligence")
         st.caption("From data → evidence → decision → action")
@@ -290,6 +314,7 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
                 ):
                     if not is_active:
                         st.session_state.ilm_route = route_item
+                        st.session_state.ilm_route_transition = True
                         st.rerun()
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
