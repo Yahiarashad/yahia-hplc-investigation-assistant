@@ -782,7 +782,9 @@ if user_input:
                     rendered += chunk
                     placeholder.markdown(rendered + ("▌" if i < len(chunks) - 1 else ""))
                     time.sleep(0.018)
-                placeholder.markdown(visible_answer)\n\n                st.session_state.messages.append({"role": "assistant", "content": answer})
+                placeholder.markdown(visible_answer)
+
+                st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
                 try:
                     spoken = synthesize_speech(visible_answer)
