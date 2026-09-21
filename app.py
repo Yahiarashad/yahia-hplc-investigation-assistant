@@ -226,10 +226,16 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
     def _ilm_role_onboarding():
         st.markdown("### What is your role in QC?")
         st.caption("We will organize the workspace around the decisions you make. This does not change your database permissions.")
-        role = st.selectbox("Your role", list(ROLE_OPTIONS), key="ilm_role_onboarding_select")
-        st.info(ROLE_OPTIONS[role])
+        role = st.selectbox(
+            "Your role",
+            options=list(ROLE_OPTIONS.keys()),
+            key="ilm_role_onboarding_select",
+        )
+        role_label = str(role or "QC Analyst")
+        role_help = ROLE_OPTIONS.get(role_label, ROLE_OPTIONS["QC Analyst"])
+        st.info(role_help)
         if st.button("Enter my workspace →", type="primary", use_container_width=True, key="ilm_role_onboarding_go"):
-            st.session_state.ilm_user_role = role
+            st.session_state.ilm_user_role = role_label
             st.session_state.ilm_route = "🏠 Dashboard"
             st.rerun()
     _ilm_role_onboarding()
