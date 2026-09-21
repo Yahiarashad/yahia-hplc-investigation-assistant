@@ -396,29 +396,21 @@ def _tabs_v04(labels, *args, **kwargs):
         if selected not in _ROUTE_ITEMS:
             selected = "🏠 Dashboard"
             st.session_state.ilm_route = selected
+        try:
+            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)
+        except TypeError:
+            rendered = _real_tabs(display_items, *args, **kwargs)
 
-        # Route hosts replace the old top-level st.tabs navigation.
-        # Each host gets a stable marker; CSS shows exactly one active workspace.
-        rendered = []
-        for route_name in display_items:
-            host = st.container(key="ilm_route_host_" + route_name)
-            with host:
-                st.markdown(
-                    '<span class="ilm-route-marker" data-route="' +
-                    route_name.replace('"', '&quot;') + '"></span>',
-                    unsafe_allow_html=True,
-                )
-            rendered.append(host)
-
+        # Keep Streamlit's panel isolation, but the visible navigation is sidebar-only.
         st.markdown(
             '<style>'
-            'div[data-testid="stVerticalBlockBorderWrapper"]:has(.ilm-route-marker){display:none!important;}'
-            'div[data-testid="stVerticalBlockBorderWrapper"]:has(.ilm-route-marker[data-route="' +
-            selected.replace('"', '&quot;') +
-            '"]){display:block!important;}'
+            'div[data-testid="stTabs"]:has(.ilm-primary-route-sentinel) > div[data-baseweb="tab-list"]'
+            '{display:none!important;}'
             '</style>',
             unsafe_allow_html=True,
         )
+        with rendered[0]:
+            st.markdown('<span class="ilm-primary-route-sentinel"></span>', unsafe_allow_html=True)
 
         return [
             rendered[8], rendered[2], rendered[3], rendered[5], rendered[6],
@@ -638,6 +630,11 @@ section.main .cta{display:none!important;}
    landing-page content; the role-aware Dashboard owns the signed-in summary. */
 section.main div[data-testid="stMetric"]:not(.v03-dashboard-hero div[data-testid="stMetric"]){
   /* individual module metrics are intentionally not globally hidden */
+}
+
+/* Sidebar is the only primary navigation. Keep tab panels for single-screen isolation. */
+div[data-testid="stTabs"]:has(.ilm-primary-route-sentinel) > div[data-baseweb="tab-list"]{
+  display:none!important;
 }
 
 /* Tactile controls */
