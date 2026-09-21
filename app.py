@@ -123,6 +123,25 @@ def _last_assistant_answer(messages):
     )
 
 
+def _resolution_check_ready(messages):
+    """Ask real-world resolution only after the assistant has reached a probable/confirmed root cause
+    AND the latest answer is not still asking the user for another investigation step."""
+    conclusion = _conclusion_type(messages)
+    if conclusion not in ("confirmed", "probable"):
+        return False
+    last = _last_assistant_answer(messages).casefold()
+    active_markers = (
+        "المطلوب منك الآن",
+        "next step",
+        "your turn",
+        "root cause not yet identified",
+        "not yet identified",
+        "لم يتم تحديد السبب الجذري",
+        "السبب الجذري غير محدد",
+    )
+    return not any(marker.casefold() in last for marker in active_markers)
+
+
 def _conclusion_type(messages):
     text = _last_assistant_answer(messages).casefold()
     if not text:
@@ -799,7 +818,8 @@ if st.session_state.messages:
     assistant_turns = _assistant_turn_count(st.session_state.messages)
 
     if _conclusion_detected(st.session_state.messages):
-        st.session_state[feedback_ready_key] = True
+        if _resolution_check_ready(st.session_state.messages):
+            st.session_state[feedback_ready_key] = True
         conclusion_key = f"_hplc_conclusion_logged_{CASE_ID}"
         conclusion_type = _conclusion_type(st.session_state.messages)
         case_category = _case_category(st.session_state.messages, area)
@@ -837,7 +857,7 @@ if st.session_state.messages:
 
     resolution_key = f"_hplc_resolution_{CASE_ID}"
     resolution_logged_key = f"_hplc_resolution_logged_{CASE_ID}"
-    if _conclusion_detected(st.session_state.messages) and not st.session_state.get(resolution_logged_key):
+    if _resolution_check_ready(st.session_state.messages) and not st.session_state.get(resolution_logged_key):
         if is_ar:
             st.markdown("### هل المشكلة اتحلت فعليًا بعد تنفيذ الإجراء؟")
             resolution_labels = {
