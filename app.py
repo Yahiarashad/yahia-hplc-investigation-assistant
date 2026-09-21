@@ -396,21 +396,25 @@ def _tabs_v04(labels, *args, **kwargs):
         if selected not in _ROUTE_ITEMS:
             selected = "🏠 Dashboard"
             st.session_state.ilm_route = selected
-        try:
-            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)
-        except TypeError:
-            rendered = _real_tabs(display_items, *args, **kwargs)
+        active_idx = display_items.index(selected)
 
-        # Keep Streamlit's panel isolation, but the visible navigation is sidebar-only.
+        # The legacy core expects tab-like context managers. Use keyed containers
+        # instead, then hide every inactive route by its stable Streamlit key class.
+        # This makes the sidebar the ONLY navigation and guarantees one visible workspace.
+        rendered = [
+            st.container(key=f"ilm_workspace_{idx}")
+            for idx, _route in enumerate(display_items)
+        ]
+        hide_rules = []
+        for idx in range(len(display_items)):
+            if idx != active_idx:
+                hide_rules.append(f".st-key-ilm_workspace_{idx}{{display:none!important;}}")
         st.markdown(
-            '<style>'
-            'div[data-testid="stTabs"]:has(.ilm-primary-route-sentinel) > div[data-baseweb="tab-list"]'
-            '{display:none!important;}'
-            '</style>',
+            "<style>" + "".join(hide_rules) +
+            ".st-key-ilm_workspace_" + str(active_idx) + "{display:block!important;}" +
+            "</style>",
             unsafe_allow_html=True,
         )
-        with rendered[0]:
-            st.markdown('<span class="ilm-primary-route-sentinel"></span>', unsafe_allow_html=True)
 
         return [
             rendered[8], rendered[2], rendered[3], rendered[5], rendered[6],
@@ -619,10 +623,7 @@ except Exception as exc:
 st.markdown(
     """
 <style>
-/* Clean application shell: hide legacy core welcome/CTA/KPIs and the old primary tab navigation.
-   Module content remains mounted so existing forms and data logic keep working. */
-
-/* Legacy signed-in preamble emitted by instrument_supabase_app.py */
+/* Clean application shell. Primary navigation is rendered only in the sidebar. */\n\n/* Legacy signed-in preamble emitted by instrument_supabase_app.py */
 section.main .hero:not(.v03-dashboard-hero){display:none!important;}
 section.main .cta{display:none!important;}
 
@@ -630,11 +631,6 @@ section.main .cta{display:none!important;}
    landing-page content; the role-aware Dashboard owns the signed-in summary. */
 section.main div[data-testid="stMetric"]:not(.v03-dashboard-hero div[data-testid="stMetric"]){
   /* individual module metrics are intentionally not globally hidden */
-}
-
-/* Sidebar is the only primary navigation. Keep tab panels for single-screen isolation. */
-div[data-testid="stTabs"]:has(.ilm-primary-route-sentinel) > div[data-baseweb="tab-list"]{
-  display:none!important;
 }
 
 /* Tactile controls */
