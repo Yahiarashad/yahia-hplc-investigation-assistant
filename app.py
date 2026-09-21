@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+import time
 import uuid
 from pathlib import Path
 
@@ -336,6 +337,8 @@ st.markdown(
       [data-testid="stTextArea"] textarea { border-radius:16px !important; min-height:170px !important; }
       [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] { unicode-bidi:plaintext; }
       [data-testid="stChatMessage"] code { direction:ltr; unicode-bidi:isolate; }
+      .thinking-card { margin:.45rem 0 .75rem; padding:.7rem .85rem; border-radius:14px; border:1px solid #d8e2ee; background:#f8fbff; color:#526173; font-size:.82rem; line-height:1.6; }
+      .thinking-card-ar { direction:rtl; text-align:right; unicode-bidi:plaintext; }
       @media (max-width:640px) {
         .block-container { padding-left:1rem; padding-right:1rem; padding-top:5.8rem; }
         .hero-card { border-radius:19px; padding:1.1rem 1rem; }
@@ -593,6 +596,11 @@ if user_input:
         response_language = "ar" if contains_arabic(user_input) else "en"
 
     if response_language == "ar":
+        reasoning_summary_instruction = (
+            "At the start of every reply, include a short section titled '🧭 كيف أفكر في الحالة الآن' with 2–4 concise bullets. "
+            "Show only a useful investigation summary: what is observed, what remains unknown, the current hypothesis direction, and why the next question/test is discriminating. "
+            "Do not reveal hidden chain-of-thought, private reasoning, or internal deliberation. "
+        )
         language_instruction = (
             "Respond in natural professional Arabic. Begin headings and bullets in Arabic. "
             "Keep useful standard HPLC/QC abbreviations in English only when they improve precision, preferably in parentheses after the Arabic term. "
@@ -600,6 +608,11 @@ if user_input:
             "Keep paragraphs short and mobile-friendly."
         )
     else:
+        reasoning_summary_instruction = (
+            "At the start of every reply, include a short section titled '🧭 How I am approaching this case' with 2–4 concise bullets. "
+            "Show only a useful investigation summary: what is observed, what remains unknown, the current hypothesis direction, and why the next question/test is discriminating. "
+            "Do not reveal hidden chain-of-thought, private reasoning, or internal deliberation. "
+        )
         language_instruction = "Respond in clear professional English. Keep the response concise and mobile-friendly."
 
     recent_user_context = "\n".join(
@@ -614,7 +627,8 @@ if user_input:
         CORE_PROMPT
         + f"\n\nCURRENT UI INVESTIGATION AREA: {area}\n"
         + "Treat this selected area only as a hint. If the evidence points to another area, say so.\n"
-        + f"LANGUAGE BEHAVIOR: {language_instruction}\n\n"
+        + f"LANGUAGE BEHAVIOR: {language_instruction}\n"
+        + f"VISIBLE INVESTIGATION SUMMARY: {reasoning_summary_instruction}\n\n"
         + evidence_context
     )
 
@@ -634,7 +648,18 @@ if user_input:
                 answer = response.output_text.strip()
                 if not answer:
                     answer = TEXT[response_language]["no_text"]
-                st.markdown(answer)
+
+                # Chat-like reveal: render progressively so the reply feels conversational.
+                # This is presentation only; the complete answer is saved once.
+                placeholder = st.empty()
+                rendered = ""
+                chunks = re.findall(r"\S+\s*", answer)
+                for i, chunk in enumerate(chunks):
+                    rendered += chunk
+                    placeholder.markdown(rendered + ("▌" if i < len(chunks) - 1 else ""))
+                    time.sleep(0.018)
+                placeholder.markdown(answer)
+
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
                 record_event(
