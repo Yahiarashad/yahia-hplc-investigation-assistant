@@ -242,7 +242,7 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
             st.rerun()
     _ilm_role_onboarding()
 
-_ROUTE_GROUPS = {
+_ALL_ROUTE_GROUPS = {
     "HOME": ["🏠 Dashboard"],
     "MY INSTRUMENTS": ["🪪 Passport", "↻ Lifecycle"],
     "CONTROL": ["◎ Cal & PM"],
@@ -253,6 +253,19 @@ _ROUTE_GROUPS = {
     "MANAGEMENT": ["🎛 Cockpit"],
     "SYSTEM": ["ⓘ Guide"],
 }
+
+_ROLE_ROUTE_GROUPS = {
+    "QC Analyst": ["HOME", "MY INSTRUMENTS", "QUALITY EVENTS", "EVIDENCE", "SYSTEM"],
+    "QC Supervisor": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "INTELLIGENCE", "COMMUNICATION", "EVIDENCE", "SYSTEM"],
+    "QC Manager": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "INTELLIGENCE", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
+    "QC Director / Head": ["HOME", "INTELLIGENCE", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
+    "Calibration / Maintenance": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "EVIDENCE", "SYSTEM"],
+    "QA / Reviewer": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
+}
+_active_role = st.session_state.get("ilm_user_role", "QC Analyst")
+_allowed_groups = _ROLE_ROUTE_GROUPS.get(_active_role, _ROLE_ROUTE_GROUPS["QC Analyst"])
+_ROUTE_GROUPS = {name: _ALL_ROUTE_GROUPS[name] for name in _allowed_groups}
+
 _ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
@@ -375,43 +388,44 @@ def _tabs_v04(labels, *args, **kwargs):
     if items == _MAIN_TABS:
         _core_main_tabs_seen = True
         display_items = [
-            "🏠 Dashboard",
-            "↻ Lifecycle",
-            "🪪 Passport",
-            "◎ Cal & PM",
-            "📈 Performance",
-            "⚠ Events",
-            "🔎 Investigate",
-            "🔔 Alerts",
-            "▦ Reports",
-            "ⓘ Guide",
-            "🎛 Cockpit",
+            "🏠 Dashboard", "↻ Lifecycle", "🪪 Passport", "◎ Cal & PM",
+            "📈 Performance", "⚠ Events", "🔎 Investigate", "🔔 Alerts",
+            "▦ Reports", "ⓘ Guide", "🎛 Cockpit",
         ]
         selected = st.session_state.get("ilm_route", "🏠 Dashboard")
-        if selected not in display_items:
+        if selected not in _ROUTE_ITEMS:
             selected = "🏠 Dashboard"
-        try:
-            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)
-        except TypeError:
-            rendered = _real_tabs(display_items, *args, **kwargs)
-        # Return containers in the order expected by the v0.2 core.
-        # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
-        # Dashboard/Lifecycle/Performance/Cockpit/Alerts remain custom containers at 6/7/8/9/10.
+            st.session_state.ilm_route = selected
+
+        # Route hosts replace the old top-level st.tabs navigation.
+        # Each host gets a stable marker; CSS shows exactly one active workspace.
+        rendered = []
+        for route_name in display_items:
+            host = st.container(key="ilm_route_host_" + route_name)
+            with host:
+                st.markdown(
+                    '<span class="ilm-route-marker" data-route="' +
+                    route_name.replace('"', '&quot;') + '"></span>',
+                    unsafe_allow_html=True,
+                )
+            rendered.append(host)
+
+        st.markdown(
+            '<style>'
+            'div[data-testid="stVerticalBlockBorderWrapper"]:has(.ilm-route-marker){display:none!important;}'
+            'div[data-testid="stVerticalBlockBorderWrapper"]:has(.ilm-route-marker[data-route="' +
+            selected.replace('"', '&quot;') +
+            '"]){display:block!important;}'
+            '</style>',
+            unsafe_allow_html=True,
+        )
+
         return [
-            rendered[8],
-            rendered[2],
-            rendered[3],
-            rendered[5],
-            rendered[6],
-            rendered[9],
-            rendered[0],
-            rendered[1],
-            rendered[4],
-            rendered[10],
+            rendered[8], rendered[2], rendered[3], rendered[5], rendered[6],
+            rendered[9], rendered[0], rendered[1], rendered[4], rendered[10],
             rendered[7],
         ]
     return _real_tabs(items, *args, **kwargs)
-
 
 st.tabs = _tabs_v04
 
@@ -615,14 +629,6 @@ st.markdown(
 <style>
 /* Clean application shell: hide legacy core welcome/CTA/KPIs and the old primary tab navigation.
    Module content remains mounted so existing forms and data logic keep working. */
-/* Primary navigation is sidebar-only. Never show the legacy horizontal route strip. */
-section.main div[data-testid="stTabs"]:has(button[data-baseweb="tab"]:first-child) > div[data-baseweb="tab-list"]:has(button[data-baseweb="tab"]){
-  display:none!important;
-}
-/* Fallback for Streamlit DOM variants: the first top-level tabset is the route host. */
-section.main > div div[data-testid="stTabs"]:first-of-type > div[data-baseweb="tab-list"]{
-  display:none!important;
-}
 
 /* Legacy signed-in preamble emitted by instrument_supabase_app.py */
 section.main .hero:not(.v03-dashboard-hero){display:none!important;}
