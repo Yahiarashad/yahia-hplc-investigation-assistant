@@ -637,9 +637,6 @@ else:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-    retained_audio = st.session_state.get(f"_last_spoken_{CASE_ID}")
-    if retained_audio:
-        st.audio(retained_audio, format="audio/mp3")
     continue_class = "continue-card continue-card-ar" if is_ar else "continue-card"
     st.markdown(
         f'<div class="{continue_class}"><strong>{T["your_turn"]}</strong>{T["your_turn_copy"]}</div>',
@@ -706,15 +703,19 @@ if user_input:
 
     if response_language == "ar":
         reasoning_summary_instruction = (
-            "At the start of every reply, include a short section titled '🧭 كيف أفكر في الحالة الآن' with 2–4 concise bullets. "
+            "At the start of every reply, include a very short section titled '🧭 كيف أفكر في الحالة الآن' with no more than 2 concise bullets. "
             "Show only a useful investigation summary: what is observed, what remains unknown, the current hypothesis direction, and why the next question/test is discriminating. "
             "Do not reveal hidden chain-of-thought, private reasoning, or internal deliberation. "
         )
         language_instruction = (
-            "Respond in natural professional Arabic. Begin headings and bullets in Arabic. "
+            "Respond in natural professional Arabic and address the user consistently in masculine singular form (أنت/اكتب/راجع/نفّذ/أرسل), never feminine forms. "
+            "Begin headings and bullets in Arabic. "
             "Keep useful standard HPLC/QC abbreviations in English only when they improve precision, preferably in parentheses after the Arabic term. "
             "Avoid awkward mixed Arabic-English constructions such as Arabic definite articles attached to English terms. "
-            "Keep paragraphs short and mobile-friendly."
+            "Keep paragraphs short and mobile-friendly. "
+            "This is an interactive investigation chat, not a report: end every non-final turn with exactly one explicit NEXT STEP for the user—either one question to answer OR one test/check to perform, not several at once. "
+            "Make that final instruction unmistakable under the Arabic heading '🎯 المطلوب منك الآن'. "
+            "Do not show closure, outcome confirmation, or feedback language while the root cause is not yet identified."
         )
     else:
         reasoning_summary_instruction = (
@@ -830,26 +831,9 @@ if st.session_state.messages:
             )
             st.session_state[feedback_logged_key] = True
 
-    if not st.session_state.get(feedback_ready_key) and assistant_turns >= 2:
-        nudge_class = "feedback-nudge feedback-nudge-ar" if is_ar else "feedback-nudge"
-        nudge_text = (
-            "لو وصلت للنقطة اللي كنت محتاجها، أنهِ التحقيق وسأظهر لك Feedback قصير لتحسين النسخة القادمة."
-            if is_ar
-            else "If you reached the decision you needed, finish the investigation and a short feedback form will open."
-        )
-        st.markdown(f'<div class="{nudge_class}">{nudge_text}</div>', unsafe_allow_html=True)
-        if st.button(T["finish"], use_container_width=True, key=f"finish_investigation_{CASE_ID}"):
-            st.session_state[feedback_ready_key] = True
-            if not st.session_state.get(feedback_logged_key):
-                record_event(
-                    CASE_ID,
-                    "hplc_assistant",
-                    "feedback_prompted",
-                    effective_language,
-                    {"trigger": "user_finished", "assistant_turns": assistant_turns},
-                )
-                st.session_state[feedback_logged_key] = True
-            st.rerun()
+    # Keep unresolved investigations focused on continuation.
+    # Feedback is offered only after a true probable/confirmed conclusion,
+    # not simply because the chat has reached two assistant turns.
 
     resolution_key = f"_hplc_resolution_{CASE_ID}"
     resolution_logged_key = f"_hplc_resolution_logged_{CASE_ID}"
