@@ -396,7 +396,13 @@ def _tabs_v04(labels, *args, **kwargs):
             "ⓘ Guide",
             "🎛 Cockpit",
         ]
-        selected = st.session_state.get("ilm_route", "🏠 Dashboard")\n        if selected not in display_items:\n            selected = "🏠 Dashboard"\n        try:\n            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)\n        except TypeError:\n            rendered = _real_tabs(display_items, *args, **kwargs)
+        selected = st.session_state.get("ilm_route", "🏠 Dashboard")
+        if selected not in display_items:
+            selected = "🏠 Dashboard"
+        try:
+            rendered = _real_tabs(display_items, *args, default=selected, **kwargs)
+        except TypeError:
+            rendered = _real_tabs(display_items, *args, **kwargs)
         # Return containers in the order expected by the v0.2 core.
         # 0 Reports, 1 Passport, 2 Cal&PM, 3 Events, 4 Investigate, 5 Guide.
         # Dashboard/Lifecycle/Performance/Cockpit/Alerts remain custom containers at 6/7/8/9/10.
