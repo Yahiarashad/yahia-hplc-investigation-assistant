@@ -384,13 +384,6 @@ def _tabs_v04(labels, *args, **kwargs):
     items = list(labels)
     if items == _MAIN_TABS:
         _core_main_tabs_seen = True
-        try:
-            if callable(globals().get("render_v03_user_guide")):
-                render_v03_user_guide()
-        except Exception as exc:
-            st.warning("The practical user guide could not load completely.")
-            st.caption(f"Guide diagnostic: {type(exc).__name__}")
-
         display_items = [
             "🏠 Dashboard",
             "↻ Lifecycle",
@@ -630,9 +623,20 @@ except Exception as exc:
 st.markdown(
     """
 <style>
-/* The primary app navigation now lives in the persistent sidebar. */
+/* Clean application shell: hide legacy core welcome/CTA/KPIs and the old primary tab navigation.
+   Module content remains mounted so existing forms and data logic keep working. */
 section.main div[data-testid="stTabs"]:first-of-type > div[data-baseweb="tab-list"]{
   display:none!important;
+}
+
+/* Legacy signed-in preamble emitted by instrument_supabase_app.py */
+section.main .hero:not(.v03-dashboard-hero){display:none!important;}
+section.main .cta{display:none!important;}
+
+/* The core emits four standalone metrics before the main tabs. They are legacy
+   landing-page content; the role-aware Dashboard owns the signed-in summary. */
+section.main div[data-testid="stMetric"]:not(.v03-dashboard-hero div[data-testid="stMetric"]){
+  /* individual module metrics are intentionally not globally hidden */
 }
 
 /* Compact horizontal mobile navigation */
