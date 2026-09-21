@@ -666,13 +666,28 @@ else:
                     st.warning(format_api_error(exc, effective_language))
         pending_voice = st.session_state.get(f"_pending_voice_{CASE_ID}", "")
         if pending_voice:
-            st.markdown(("**سمعتك بتقول:** " if is_ar else "**I heard:** ") + pending_voice)
+            st.markdown(
+                "**راجع وعدّل النص قبل الإرسال:**" if is_ar
+                else "**Review and edit the transcript before sending:**"
+            )
+            edit_key = f"_voice_edit_{CASE_ID}_{len(st.session_state.messages)}"
+            if edit_key not in st.session_state:
+                st.session_state[edit_key] = pending_voice
+            edited_voice = st.text_area(
+                "Voice transcript",
+                key=edit_key,
+                label_visibility="collapsed",
+                height=130,
+                placeholder="عدّل النص هنا قبل الإرسال..." if is_ar else "Edit the transcript here before sending...",
+            )
             c1, c2 = st.columns(2)
-            if c1.button("✓ أرسل" if is_ar else "✓ Send", key=f"send_voice_{CASE_ID}_{len(st.session_state.messages)}", use_container_width=True):
-                user_input = pending_voice
-                st.session_state.pop(f"_pending_voice_{CASE_ID}", None)
+            if c1.button("✓ أرسل بعد المراجعة" if is_ar else "✓ Send reviewed text", key=f"send_voice_{CASE_ID}_{len(st.session_state.messages)}", use_container_width=True):
+                if edited_voice.strip():
+                    user_input = edited_voice.strip()
+                    st.session_state.pop(f"_pending_voice_{CASE_ID}", None)
             if c2.button("إلغاء" if is_ar else "Cancel", key=f"cancel_voice_{CASE_ID}_{len(st.session_state.messages)}", use_container_width=True):
                 st.session_state.pop(f"_pending_voice_{CASE_ID}", None)
+                st.session_state.pop(edit_key, None)
                 st.rerun()
 
 if user_input:
