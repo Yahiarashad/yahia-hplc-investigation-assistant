@@ -489,6 +489,15 @@ if st.session_state.gap_done:
     share_text=(f"The QC Analyst Decision Gap™ — {VERSION}\n{T['result']}: {overall}/100\n{level}\n{T['strongest']}: {dim_name(strongest)} ({pct[strongest]}%)\n{primary_label}: {dim_name(primary)} ({pct[primary]}%)\n{secondary_label}: {dim_name(secondary)} ({pct[secondary]}%)\n{TAGLINE}")
     with st.expander(T["share"]): st.code(share_text,language=None)
     st.markdown(f"### {T['to_case']}"); st.write(T["to_case_copy"]); st.page_link("app.py",label=T["open_assistant"],use_container_width=True)
+    st.markdown("---")
+    if lang == "ar":
+        st.markdown("### 🔗 تابع تطوير Yahia QC")
+        st.caption("للتواصل، إرسال اقتراحاتك، متابعة التحديثات، والتعرف على التطبيقات والأدوات الجديدة.")
+        st.link_button("تابع وتواصل معي على LinkedIn ↗", "https://www.linkedin.com/in/yahia-rashad-mohamed", use_container_width=True)
+    else:
+        st.markdown("### 🔗 Stay connected with Yahia QC")
+        st.caption("Connect, suggest improvements, follow updates, and discover new QC applications and tools.")
+        st.link_button("Follow & Connect on LinkedIn ↗", "https://www.linkedin.com/in/yahia-rashad-mohamed", use_container_width=True)
     if st.button(T["reset"],use_container_width=True): reset_test(); st.rerun()
     st.stop()
 
