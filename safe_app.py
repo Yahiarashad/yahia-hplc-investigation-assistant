@@ -1,65 +1,40 @@
 """Stable Streamlit entrypoint for Yahia QC Instrument Intelligence.
 
-Why this exists
----------------
-The application shell historically monkeypatched ``st.rerun`` so every rerun could
-flush the encrypted refresh-token cookie first. Streamlit reuses the imported
-``streamlit`` module between script reruns. If the shell is executed again while a
-previous wrapper is still installed, the wrapper can end up calling itself and
-produce a RecursionError.
-
-This entrypoint keeps the *real* Streamlit rerun callable authoritative. The app is
-still free to use its other temporary UI wrappers, but assignments that try to
-replace ``st.rerun`` are ignored. Authentication persistence is still written by
-``app.py`` at the end of normal runs; native reruns no longer recurse.
+This file repairs any stale Streamlit monkeypatches left in the running interpreter
+before executing app.py. Do not cache previously wrapped callables: import the
+canonical Streamlit commands directly on every run.
 """
 
 from __future__ import annotations
 
-import types
 from pathlib import Path
 
 import streamlit as st
-from streamlit.delta_generator import DeltaGenerator
+from streamlit.commands.execution_control import rerun as _native_rerun
+from streamlit.commands.page_config import set_page_config as _native_set_page_config
 
 
-# Capture pristine callables once per Python interpreter. These attributes remain
-# on the imported Streamlit module across script reruns.
-if not hasattr(st, "_yqii_native_markdown"):
-    st._yqii_native_markdown = st.markdown
-if not hasattr(st, "_yqii_native_rerun"):
-    st._yqii_native_rerun = st.rerun
-if not hasattr(st, "_yqii_native_tabs"):
-    st._yqii_native_tabs = st.tabs
-if not hasattr(st, "_yqii_native_set_page_config"):
-    st._yqii_native_set_page_config = st.set_page_config
-if not hasattr(DeltaGenerator, "_yqii_native_metric"):
-    DeltaGenerator._yqii_native_metric = DeltaGenerator.metric
+# Always restore authoritative Streamlit callables from their source modules.
+# This deliberately ignores any stale _yqii_* attributes that may survive a hot reload.
+st.rerun = _native_rerun
+st.set_page_config = _native_set_page_config
 
+# Top-level element functions are bound to Streamlit's main DeltaGenerator.
+# Rebind them from _main so an interrupted previous run cannot leave recursive wrappers.
+try:
+    st.markdown = st._main.markdown
+    st.tabs = st._main.tabs
+except Exception:
+    pass
 
-class _YQIIStreamlitModule(types.ModuleType):
-    """Keep rerun native even if legacy shell code tries to wrap it again."""
-
-    def __setattr__(self, name, value):
-        if name == "rerun" and hasattr(self, "_yqii_native_rerun"):
-            native = types.ModuleType.__getattribute__(self, "_yqii_native_rerun")
-            # Allow restoring the real function, but reject wrapper replacement.
-            if value is not native:
-                return
-        return types.ModuleType.__setattr__(self, name, value)
-
-
-# Upgrade the existing module object in place. Imports elsewhere keep pointing to
-# the same object, but rerun replacement becomes impossible.
-if not isinstance(st, _YQIIStreamlitModule):
-    st.__class__ = _YQIIStreamlitModule
-
-# Repair anything left by a previous failed run before executing the shell.
-st.markdown = st._yqii_native_markdown
-st.rerun = st._yqii_native_rerun
-DeltaGenerator.metric = DeltaGenerator._yqii_native_metric
-st.tabs = st._yqii_native_tabs
-st.set_page_config = st._yqii_native_set_page_config
+# Overwrite stale compatibility aliases as well, so subsequent hot reloads start clean.
+st._yqii_native_rerun = _native_rerun
+try:
+    st._yqii_native_markdown = st._main.markdown
+    st._yqii_native_tabs = st._main.tabs
+except Exception:
+    pass
+st._yqii_native_set_page_config = _native_set_page_config
 
 _app = Path(__file__).resolve().with_name("app.py")
 exec(compile(_app.read_text(encoding="utf-8"), str(_app), "exec"), globals(), globals())
