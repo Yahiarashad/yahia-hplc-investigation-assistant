@@ -12,6 +12,7 @@ from openai import OpenAI
 
 from beta_feedback import record_event, render_feedback_form
 from evidence_engine import format_evidence_context, retrieve_evidence
+from portrait_asset import PORTRAIT_B64
 
 APP_TITLE = "Yahia HPLC Investigation Assistant"
 TAGLINE = "DON'T GUESS. FOLLOW THE EVIDENCE."
@@ -50,10 +51,12 @@ def contains_arabic(text: str) -> bool:
     return bool(re.search(r"[\u0600-\u06FF]", text or ""))
 
 def portrait_data_uri():
-    if not PORTRAIT_PATH.exists():
-        return ""
-    encoded = base64.b64encode(PORTRAIT_PATH.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    if PORTRAIT_PATH.exists():
+        encoded = base64.b64encode(PORTRAIT_PATH.read_bytes()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    if PORTRAIT_B64:
+        return f"data:image/jpeg;base64,{PORTRAIT_B64}"
+    return ""
 
 
 def init_db():
