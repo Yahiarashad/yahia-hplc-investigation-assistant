@@ -127,7 +127,7 @@ def _header_footer(canvas, doc):
     if doc.page > 1:
         canvas.setStrokeColor(GOLD); canvas.setLineWidth(.7); canvas.line(15*mm, 13*mm, w-15*mm, 13*mm)
         canvas.setFont('Helvetica', 7.2); canvas.setFillColor(SLATE)
-        canvas.drawString(15*mm, 8.5*mm, 'Yahia QC Instrument Intelligence - Product & User Guide')
+        canvas.drawString(15*mm, 8.5*mm, 'Yahia QC Instrument Intelligence - Official Guide v1.0')
         canvas.drawRightString(w-15*mm, 8.5*mm, f'Page {doc.page}')
     canvas.restoreState()
 
@@ -153,7 +153,7 @@ def _cover(canvas, doc):
     canvas.setFont('Helvetica', 9.2); canvas.setFillColor(colors.HexColor('#C9D3DC'))
     canvas.drawString(22*mm,44*mm,'Lifecycle · Control · Investigation · Performance · Governance · Evidence')
     canvas.setFont('Helvetica', 7.4); canvas.setFillColor(colors.HexColor('#92A4B5'))
-    canvas.drawString(22*mm,28*mm,'Decision-support platform. Official GxP records remain in approved company systems.')
+    canvas.drawString(22*mm,28*mm,'Official Guide v1.0 · Decision-support platform. Official GxP records remain in approved company systems.')
     canvas.restoreState()
 
 
@@ -174,7 +174,7 @@ def _section(story, styles, number, title, arabic_title=None):
 
 def build_product_user_guide_pdf() -> bytes:
     styles=_styles(); out=BytesIO()
-    doc=SimpleDocTemplate(out,pagesize=A4,rightMargin=16*mm,leftMargin=16*mm,topMargin=17*mm,bottomMargin=18*mm,title='Yahia QC Instrument Intelligence - Product & User Guide',author='Yahia Abdelhalim')
+    doc=SimpleDocTemplate(out,pagesize=A4,rightMargin=16*mm,leftMargin=16*mm,topMargin=17*mm,bottomMargin=18*mm,title='Yahia QC Instrument Intelligence - Official Guide v1.0',author='Yahia Abdelhalim')
     story=[Spacer(1,245*mm), PageBreak()]
 
     _section(story,styles,1,'Why This Platform Exists','لماذا تم بناء هذه المنصة؟')

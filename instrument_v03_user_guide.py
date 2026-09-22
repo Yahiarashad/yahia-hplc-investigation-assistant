@@ -429,14 +429,14 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
     )
     try:
         st.download_button(
-            "⬇️ Download Premium Product & User Guide (PDF)",
+            "⬇️ Download Official Product & User Guide (PDF)",
             data=_premium_product_guide_pdf_bytes(),
-            file_name="Yahia_QC_Instrument_Intelligence_Product_User_Guide.pdf",
+            file_name="Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf",
             mime="application/pdf",
             use_container_width=True,
             key="v03_download_premium_product_guide",
         )
-        st.caption("نسخة تعريفية وتسويقية وتدريبية قابلة للمشاركة مع المستخدمين والإدارة والعملاء المحتملين — بدون أي بيانات خاصة بالـWorkspace.")
+        st.caption("الدليل الرسمي الموحد للمنتج — نسخة Product + User + Management قابلة للمشاركة، بدون أي بيانات خاصة بالـWorkspace.")
     except Exception as exc:
         st.error("Premium PDF could not be generated on this deployment.")
         st.caption(f"PDF diagnostic: {type(exc).__name__}")
