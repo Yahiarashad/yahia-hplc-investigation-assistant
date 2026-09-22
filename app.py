@@ -365,13 +365,17 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
         role_label = str(role or "QC Analyst")
         role_help = ROLE_HELP.get(role_label, ROLE_HELP["QC Analyst"])
         st.info(role_help)
-        st.button(
+        if st.button(
             "Enter my workspace →",
             type="primary",
             use_container_width=True,
             key="ilm_role_onboarding_go",
-            on_click=_ilm_complete_role_onboarding,
-        )
+        ):
+            _ilm_complete_role_onboarding()
+            # st.dialog behaves like a fragment: widget interaction reruns only
+            # the dialog unless we explicitly request a full-app rerun.
+            # Full rerun re-evaluates the outer condition and removes the modal.
+            st.rerun()
     _ilm_role_onboarding()
 
 _ALL_ROUTE_GROUPS = {
