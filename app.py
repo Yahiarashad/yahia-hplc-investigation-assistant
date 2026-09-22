@@ -23,7 +23,7 @@ TTS_VOICE = "alloy"
 APP_VERSION = "v1.1"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 LINKEDIN_URL = "https://www.linkedin.com/in/yahia-rashad-mohamed"
-PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile.jpg"
+PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile_420.jpg"
 
 st.set_page_config(
     page_title=APP_TITLE,
