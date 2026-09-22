@@ -228,6 +228,52 @@ def _ilm_mobile_route_transition():
         pass
 
 
+def _shell_rest_list(table: str, select: str = "*", order: str | None = None):
+    """Small authenticated REST reader used before the core DB helpers are loaded."""
+    token = str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
+    if not token or not SUPABASE_URL or not SUPABASE_KEY:
+        return []
+    from urllib import parse as _urlparse
+    path = f"{table}?select={_urlparse.quote(select, safe=',()*')}"
+    if order:
+        path += f"&order={_urlparse.quote(order, safe='.,')}"
+    req = urlrequest.Request(
+        f"{SUPABASE_URL}/rest/v1/{path}",
+        headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="GET",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def _shell_workspace_context():
+    auth_user = (st.session_state.get("_ilm_auth") or {}).get("user") or {}
+    uid = str(auth_user.get("id") or "")
+    if not uid:
+        return [], None, None
+    members = _shell_rest_list(
+        "qc_workspace_members",
+        "workspace_id,user_id,job_role,access_role,account_status,is_admin,permissions,joined_at",
+        "joined_at.asc",
+    )
+    mine = [m for m in members if str(m.get("user_id")) == uid and m.get("account_status") == "active"]
+    if not mine:
+        return [], None, None
+    ids = [str(m.get("workspace_id")) for m in mine]
+    workspaces = _shell_rest_list("qc_workspaces", "id,name,workspace_type,created_by,created_at", "created_at.asc")
+    visible = [w for w in workspaces if str(w.get("id")) in ids]
+    active = str(st.session_state.get("ilm_workspace_id") or "")
+    if active not in ids:
+        active = ids[0]
+        st.session_state.ilm_workspace_id = active
+    membership = next((m for m in mine if str(m.get("workspace_id")) == active), None)
+    return visible, active, membership
+
+
 # -----------------------------------------------------------------------------
 # Role-aware onboarding + persistent workspace navigation.
 # The role personalizes priorities; it does NOT change RLS permissions.
@@ -286,9 +332,9 @@ _ROLE_ROUTE_GROUPS = {
     "QA / Reviewer": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
 }
 _ilm_workspaces, _ilm_workspace_id, _ilm_membership = ([], None, None)
-if _signed_in_shell and "_workspace_context" in globals():
+if _signed_in_shell:
     try:
-        _ilm_workspaces, _ilm_workspace_id, _ilm_membership = _workspace_context()
+        _ilm_workspaces, _ilm_workspace_id, _ilm_membership = _shell_workspace_context()
     except Exception:
         pass
 if _ilm_membership and _ilm_membership.get("job_role"):
@@ -469,7 +515,7 @@ def _tabs_v04(labels, *args, **kwargs):
         return [
             rendered[8], rendered[2], rendered[3], rendered[5], rendered[6],
             rendered[9], rendered[0], rendered[1], rendered[4], rendered[10],
-            rendered[7],
+            rendered[7], rendered[11],
         ]
     return _real_tabs(items, *args, **kwargs)
 
