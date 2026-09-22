@@ -546,20 +546,14 @@ linkedin_copy = (
     if is_ar else
     "Connect with me on LinkedIn to share ideas, follow updates, and discover new QC applications and tools."
 )
-linkedin_initials = "YA"
 st.markdown(
     f"""
-    <div class="linkedin-card" dir="{'rtl' if is_ar else 'ltr'}">
-      <div class="linkedin-head">
-        <div class="linkedin-avatar linkedin-avatar-fallback">{linkedin_initials}</div>
-        <div>
-          <div class="linkedin-name">Yahia Abdelhalim</div>
-          <div class="linkedin-role">Pharmaceutical QC Expert<br>Helping Pharmaceutical Analysts Make Better Laboratory Decisions</div>
-        </div>
-      </div>
-      <div class="linkedin-copy">{linkedin_copy}</div>
-    </div>
-    """,
+<div class="linkedin-card" dir="{'rtl' if is_ar else 'ltr'}">
+<div class="linkedin-name">Yahia Abdelhalim</div>
+<div class="linkedin-role">Pharmaceutical QC Expert<br>Helping Pharmaceutical Analysts Make Better Laboratory Decisions</div>
+<div class="linkedin-copy">{linkedin_copy}</div>
+</div>
+""",
     unsafe_allow_html=True,
 )
 st.link_button(
