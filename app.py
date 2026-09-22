@@ -1,5 +1,6 @@
 import os
 import re
+import base64
 import sqlite3
 import tempfile
 import time
@@ -20,6 +21,8 @@ TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"
 APP_VERSION = "v1.1"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
+LINKEDIN_URL = "https://www.linkedin.com/in/yahia-rashad-mohamed"
+PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile.png"
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -45,6 +48,12 @@ def get_api_key():
 
 def contains_arabic(text: str) -> bool:
     return bool(re.search(r"[\u0600-\u06FF]", text or ""))
+
+def portrait_data_uri():
+    if not PORTRAIT_PATH.exists():
+        return ""
+    encoded = base64.b64encode(PORTRAIT_PATH.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def init_db():
@@ -311,7 +320,27 @@ T = TEXT[effective_language]
 st.markdown(
     """
     <style>
-      .block-container { max-width:820px; padding-top:4.8rem; padding-bottom:4.5rem; }
+      .block-container { max-width:900px; padding-top:4.2rem; padding-bottom:4.5rem; }
+      .brand-hero { position:relative; overflow:hidden; min-height:350px; border-radius:26px; padding:2rem 2rem 1.55rem; margin-bottom:1rem; color:#fff; background:radial-gradient(circle at 78% 20%,rgba(16,132,214,.32),transparent 34%),linear-gradient(135deg,#06152b 0%,#082b50 55%,#061425 100%); border:1px solid rgba(214,181,90,.52); box-shadow:0 22px 48px rgba(2,12,27,.22); }
+      .brand-hero:after { content:""; position:absolute; inset:auto -8% -35% 35%; height:65%; background:radial-gradient(circle,rgba(30,144,255,.18),transparent 65%); pointer-events:none; }
+      .brand-copy { position:relative; z-index:2; width:54%; }
+      .brand-logo { font-size:3rem; line-height:.95; font-weight:950; letter-spacing:.02em; margin-bottom:.6rem; }
+      .brand-logo span { color:#e8bd58; }
+      .brand-kicker { font-size:.72rem; letter-spacing:.22em; color:#c7d5e8; font-weight:800; margin-bottom:1.25rem; }
+      .brand-rule { width:145px; height:2px; background:#e8bd58; margin-bottom:1.25rem; }
+      .brand-tagline { font-size:1.65rem; line-height:1.12; font-weight:900; margin-bottom:.7rem; }
+      .brand-tagline span { color:#efc65f; }
+      .brand-sub { color:#d3deeb; font-size:.92rem; line-height:1.55; max-width:390px; }
+      .brand-values { display:flex; gap:.55rem; flex-wrap:wrap; margin-top:1.15rem; }
+      .brand-value { padding:.35rem .6rem; border-radius:999px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.07); font-size:.68rem; font-weight:800; }
+      .brand-portrait { position:absolute; z-index:1; right:-1%; bottom:0; width:48%; height:96%; object-fit:cover; object-position:center 15%; mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); }
+      .brand-glow { position:absolute; right:8%; top:7%; width:34%; aspect-ratio:1; border-radius:50%; border:2px solid rgba(35,172,255,.45); box-shadow:0 0 55px rgba(0,148,255,.2); }
+      .linkedin-card { margin:1rem 0 1.1rem; padding:1rem; border-radius:18px; border:1px solid #dbe5f0; background:linear-gradient(145deg,#fff,#f5f9ff); box-shadow:0 10px 26px rgba(15,23,42,.06); }
+      .linkedin-head { display:flex; align-items:center; gap:.85rem; }
+      .linkedin-avatar { width:68px; height:68px; border-radius:50%; object-fit:cover; border:3px solid #fff; box-shadow:0 4px 16px rgba(15,23,42,.14); }
+      .linkedin-name { font-size:1.05rem; font-weight:900; color:#10213e; }
+      .linkedin-role { color:#53657c; font-size:.82rem; line-height:1.45; }
+      .linkedin-copy { margin-top:.7rem; padding:.65rem .75rem; border-radius:12px; background:#edf5ff; color:#314a6b; font-size:.8rem; line-height:1.55; }
       .hero-card {
         position:relative; overflow:hidden; padding:1.3rem; margin:0 0 1rem 0;
         border-radius:22px; background:linear-gradient(145deg,#07101f 0%,#101b2d 58%,#161a22 100%);
@@ -373,6 +402,17 @@ st.markdown(
       .thinking-card-ar { direction:rtl; text-align:right; unicode-bidi:plaintext; }
       @media (max-width:640px) {
         .block-container { padding-left:1rem; padding-right:1rem; padding-top:5.8rem; }
+        .brand-hero { min-height:430px; padding:1.25rem 1.1rem; border-radius:20px; }
+        .brand-copy { width:100%; position:relative; z-index:3; }
+        .brand-logo { font-size:2.25rem; }
+        .brand-tagline { font-size:1.35rem; max-width:62%; }
+        .brand-sub { max-width:58%; font-size:.8rem; }
+        .brand-kicker { font-size:.62rem; }
+        .brand-values { max-width:58%; }
+        .brand-value { font-size:.6rem; }
+        .brand-portrait { width:66%; height:82%; right:-16%; object-position:center 10%; opacity:.94; }
+        .brand-glow { width:55%; right:-2%; top:16%; }
+        .linkedin-avatar { width:58px; height:58px; }
         .hero-card { border-radius:19px; padding:1.1rem 1rem; }
         .hero-title { font-size:1.55rem; }
         .hero-tagline { font-size:.79rem; }
@@ -422,36 +462,42 @@ if is_ar:
         unsafe_allow_html=True,
     )
 
-if is_ar:
-    hero_title_html = '🧪 مساعد يحيى لتحقيق <span class="ltr-term">HPLC</span>'
-    hero_description_html = 'دعم اتخاذ القرار والتحقيق في مشكلات <span class="ltr-term">HPLC</span> داخل معامل الرقابة الدوائية، بناءً على الأدلة.'
-    title_class = "hero-title hero-title-ar"
-    description_class = "hero-description hero-description-ar"
-    language_label_html = '<div class="section-label section-label-ar">اختر اللغة</div>'
-else:
-    hero_title_html = "🧪 Yahia HPLC Investigation Assistant"
-    hero_description_html = "Evidence-based HPLC troubleshooting & analytical decision support for Pharmaceutical QC"
-    title_class = "hero-title"
-    description_class = "hero-description"
-    language_label_html = '<div class="section-label">Choose your language · اختر اللغة</div>' if language_mode == "auto" else '<div class="section-label">Choose your language</div>'
-
+portrait_uri = portrait_data_uri()
+hero_direction = "rtl" if is_ar else "ltr"
+hero_sub = (
+    "أدوات عملية تساعد محللي الرقابة الدوائية على اتخاذ قرارات معملية أفضل."
+    if is_ar else
+    "Practical tools that help pharmaceutical analysts make better laboratory decisions."
+)
+hero_values = (
+    ("تعلّم", "حلّل", "اتخذ قرارًا", "مجتمع QC أقوى")
+    if is_ar else
+    ("LEARN", "SOLVE", "DECIDE", "A STRONGER QC COMMUNITY")
+)
+portrait_html = f'<img class="brand-portrait" src="{portrait_uri}" alt="Yahia Abdelhalim">' if portrait_uri else ""
 st.markdown(
     f"""
-    <div class="hero-card">
-      <div class="hero-eyebrow">Pharmaceutical QC · Analytical Decision Support</div>
-      <div class="{title_class}">{hero_title_html}</div>
-      <div class="hero-tagline">{TAGLINE}</div>
-      <div class="{description_class}">{hero_description_html}</div>
-      <div class="hero-byline">Yahia Abdelhalim · Pharmaceutical QC Expert</div>
-      <div class="badge-row">
-        <span class="hero-badge">Evidence-Driven</span>
-        <span class="hero-badge">Verified Sources</span>
-        <span class="hero-badge">Investigation-First</span>
-        <span class="hero-badge">Arabic + English</span>
+    <section class="brand-hero" dir="{hero_direction}">
+      <div class="brand-glow"></div>
+      {portrait_html}
+      <div class="brand-copy">
+        <div class="brand-logo">YAHIA <span>QC</span></div>
+        <div class="brand-kicker">PHARMACEUTICAL QUALITY CONTROL</div>
+        <div class="brand-rule"></div>
+        <div class="brand-tagline">DON'T GUESS.<br><span>FOLLOW THE EVIDENCE.</span></div>
+        <div class="brand-sub">{hero_sub}</div>
+        <div class="brand-values">
+          {''.join(f'<span class="brand-value">{x}</span>' for x in hero_values)}
+        </div>
       </div>
-    </div>
+    </section>
     """,
     unsafe_allow_html=True,
+)
+language_label_html = (
+    '<div class="section-label section-label-ar">🌐 اختر اللغة</div>'
+    if is_ar else
+    '<div class="section-label">🌐 Choose your language · اختر اللغة</div>'
 )
 
 st.markdown(language_label_html, unsafe_allow_html=True)
@@ -480,6 +526,32 @@ if nav2.button("ابدأ حل مشكلة جديدة" if is_ar else "Start a New 
     st.rerun()
 if nav3.button("شاركنا رأيك" if is_ar else "Share Your Feedback", use_container_width=True, key="nav_feedback"):
     st.switch_page("pages/03_Founding_Beta_Feedback.py")
+
+linkedin_copy = (
+    "تابعني على LinkedIn للتواصل، إرسال اقتراحاتك، متابعة التحديثات، والتعرف على التطبيقات والأدوات الجديدة."
+    if is_ar else
+    "Connect with me on LinkedIn to share ideas, follow updates, and discover new QC applications and tools."
+)
+st.markdown(
+    f"""
+    <div class="linkedin-card" dir="{'rtl' if is_ar else 'ltr'}">
+      <div class="linkedin-head">
+        {f'<img class="linkedin-avatar" src="{portrait_uri}" alt="Yahia Abdelhalim">' if portrait_uri else ''}
+        <div>
+          <div class="linkedin-name">Yahia Abdelhalim</div>
+          <div class="linkedin-role">Pharmaceutical QC Expert<br>Helping Pharmaceutical Analysts Make Better Laboratory Decisions</div>
+        </div>
+      </div>
+      <div class="linkedin-copy">{linkedin_copy}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+st.link_button(
+    "تابع وتواصل معي على LinkedIn ↗" if is_ar else "Follow & Connect on LinkedIn ↗",
+    LINKEDIN_URL,
+    use_container_width=True,
+)
 
 AREA_EN = {
     "Auto-detect": "Auto-detect",
