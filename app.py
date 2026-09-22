@@ -354,6 +354,40 @@ def _shell_workspace_context():
     return visible, active, membership
 
 
+def _shell_persist_own_job_role(role_label: str):
+    """Best-effort persistence for the signed-in member's UX role.
+
+    This is presentation metadata only; it does not grant permissions.
+    """
+    token = str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
+    user = (st.session_state.get("_ilm_auth") or {}).get("user") or {}
+    uid = str(user.get("id") or "")
+    wid = str(st.session_state.get("ilm_workspace_id") or "")
+    if not token or not uid or not wid or not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    from urllib import parse as _urlparse
+    path = (
+        f"qc_workspace_members?workspace_id=eq.{_urlparse.quote(wid)}"
+        f"&user_id=eq.{_urlparse.quote(uid)}"
+    )
+    req = urlrequest.Request(
+        f"{SUPABASE_URL}/rest/v1/{path}",
+        data=json.dumps({"job_role": role_label}, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        method="PATCH",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=15):
+            pass
+    except Exception:
+        pass
+
+
 # -----------------------------------------------------------------------------
 # Role-aware onboarding + persistent workspace navigation.
 # The role personalizes priorities; it does NOT change RLS permissions.
@@ -371,24 +405,27 @@ ROLE_OPTIONS = [
 ROLE_LABELS = [item[0] for item in ROLE_OPTIONS]
 ROLE_HELP = {item[0]: item[1] for item in ROLE_OPTIONS}
 
-# Mobile route links can create a fresh Streamlit session. Persist only the UX
-# role in the URL so navigation never re-opens onboarding. This value controls
-# presentation only; database permissions remain workspace/RLS controlled.
-try:
-    _url_ui_role = str(st.query_params.get("ui_role", "") or "").strip()
-except Exception:
-    _url_ui_role = ""
-if _url_ui_role in ROLE_LABELS and not st.session_state.get("ilm_user_role"):
-    st.session_state.ilm_user_role = _url_ui_role
+# Resolve workspace membership before onboarding. A stored job_role is the
+# persistent UX role; security remains enforced by workspace membership/RLS.
+_ilm_workspaces, _ilm_workspace_id, _ilm_membership = ([], None, None)
+if _signed_in_shell:
+    try:
+        _ilm_workspaces, _ilm_workspace_id, _ilm_membership = _shell_workspace_context()
+    except Exception:
+        pass
+if _ilm_membership and str(_ilm_membership.get("job_role") or "") in ROLE_LABELS:
+    st.session_state.ilm_user_role = str(_ilm_membership.get("job_role"))
 
 def _ilm_complete_role_onboarding():
     role_label = str(st.session_state.get("ilm_role_onboarding_select") or "QC Analyst")
     st.session_state.ilm_user_role = role_label
     st.session_state.ilm_route = "🏠 Dashboard"
     st.session_state.ilm_route_transition = True
+    _shell_persist_own_job_role(role_label)
     try:
-        st.query_params["ui_role"] = role_label
         st.query_params["route"] = "dashboard"
+        if "ui_role" in st.query_params:
+            del st.query_params["ui_role"]
     except Exception:
         pass
 
@@ -440,14 +477,6 @@ _ROLE_ROUTE_GROUPS = {
     "Calibration / Maintenance": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "EVIDENCE", "SYSTEM"],
     "QA / Reviewer": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
 }
-_ilm_workspaces, _ilm_workspace_id, _ilm_membership = ([], None, None)
-if _signed_in_shell:
-    try:
-        _ilm_workspaces, _ilm_workspace_id, _ilm_membership = _shell_workspace_context()
-    except Exception:
-        pass
-if _ilm_membership and _ilm_membership.get("job_role"):
-    st.session_state.ilm_user_role = str(_ilm_membership.get("job_role"))
 _active_role = st.session_state.get("ilm_user_role", "QC Analyst")
 _allowed_groups = _ROLE_ROUTE_GROUPS.get(_active_role, _ROLE_ROUTE_GROUPS["QC Analyst"])
 if _ilm_membership and _ilm_membership.get("is_admin") and "ADMIN" not in _allowed_groups:
@@ -484,20 +513,20 @@ if _requested_route and _requested_route in _ROUTE_ITEMS:
 
 def _ilm_route_href(route_item: str) -> str:
     from urllib.parse import urlencode
-    params = {}
     try:
-        for key in st.query_params:
-            if str(key) == "route":
-                continue
-            value = st.query_params.get(key)
-            if value not in (None, ""):
-                params[str(key)] = value
+        base = str(st.context.url).split("?", 1)[0].split("#", 1)[0]
+    except Exception:
+        base = ""
+    params = {"route": _ROUTE_SLUGS.get(route_item, "dashboard")}
+    try:
+        instrument = st.query_params.get("instrument")
+        if instrument:
+            params["instrument"] = instrument
     except Exception:
         pass
-    params["route"] = _ROUTE_SLUGS.get(route_item, "dashboard")
-    if st.session_state.get("ilm_user_role") in ROLE_LABELS:
-        params["ui_role"] = st.session_state.ilm_user_role
-    return "?" + urlencode(params, doseq=True) + "#ilm-top"
+    query = urlencode(params, doseq=True)
+    return (base + "?" + query) if base else ("?" + query)
+
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
     st.markdown('<div id="ilm-top" style="height:0;overflow:hidden"></div>', unsafe_allow_html=True)
@@ -526,19 +555,16 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         st.markdown(
             """
 <style>
-.ilm-mobile-nav{display:none!important}
-@media(max-width:768px){
-  .ilm-mobile-nav{
-    display:flex!important;align-items:center;justify-content:center;
-    min-height:52px;margin:.36rem 0;padding:.55rem .7rem;
-    border:1px solid rgba(226,232,240,.82);border-radius:18px;
-    color:#f8fafc!important;text-decoration:none!important;font-weight:650;
-    background:rgba(255,255,255,.025);box-sizing:border-box;
-  }
-  .ilm-mobile-nav.active{background:#ff4b4b!important;border-color:#ff7676!important;color:white!important}
-  .ilm-mobile-nav:visited{color:#f8fafc!important}
-  [class*="st-key-ilm_desktop_nav_"]{display:none!important}
+.ilm-route-link{
+  display:flex!important;align-items:center;justify-content:center;
+  min-height:50px;margin:.34rem 0;padding:.55rem .75rem;
+  border:1px solid rgba(226,232,240,.82);border-radius:17px;
+  color:#f8fafc!important;text-decoration:none!important;font-weight:650;
+  background:rgba(255,255,255,.025);box-sizing:border-box;
 }
+.ilm-route-link.active{background:#ff4b4b!important;border-color:#ff7676!important;color:white!important}
+.ilm-route-link:visited{color:#f8fafc!important}
+.ilm-route-link:hover{border-color:#ffffff!important}
 </style>
 """,
             unsafe_allow_html=True,
@@ -547,26 +573,19 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
             st.caption(group_name)
             for route_item in group_items:
                 is_active = route_item == current
-                _nav_class = "ilm-mobile-nav active" if is_active else "ilm-mobile-nav"
+                _nav_class = "ilm-route-link active" if is_active else "ilm-route-link"
                 st.markdown(
-                    f'<a class="{_nav_class}" href="{_ilm_route_href(route_item)}" target="_top">{route_item}</a>',
+                    f'<a class="{_nav_class}" href="{_ilm_route_href(route_item)}">{route_item}</a>',
                     unsafe_allow_html=True,
                 )
-                _desktop_key = "ilm_desktop_nav_" + _ROUTE_SLUGS.get(route_item, "dashboard").replace("-", "_")
-                with st.container(key=_desktop_key):
-                    if st.button(
-                        route_item,
-                        key="ilm_nav_" + route_item,
-                        use_container_width=True,
-                        type="primary" if is_active else "secondary",
-                    ):
-                        st.session_state.ilm_route = route_item
-                        st.session_state.ilm_route_transition = True
-                        st.rerun()
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
             st.session_state.pop("ilm_user_role", None)
+            # Clear only the personal UX role metadata. Security roles/permissions are untouched.
+            _shell_persist_own_job_role("")
             try:
+                if "route" in st.query_params:
+                    del st.query_params["route"]
                 if "ui_role" in st.query_params:
                     del st.query_params["ui_role"]
             except Exception:
