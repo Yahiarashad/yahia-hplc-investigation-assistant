@@ -753,47 +753,11 @@ with tabs[4]:
 
 # Guide -----------------------------------------------------------------------
 with tabs[5]:
-    st.header("How to Use | دليل الاستخدام")
-    st.markdown("""
-### Welcome
-This application is designed for Pharmaceutical QC teams who want instrument history to support decisions — not sit unused in disconnected files.
-
-### Quick start — 5 steps
-1. **Create the Instrument Passport** — Add identity, owner/location, status, and current Qualification / PM / Calibration due dates.
-2. **Build the lifecycle history** — Log maintenance, calibration/qualification, and key component installation/replacement dates.
-3. **Log failures as observations** — Record what happened, severity, subsystem, containment, and investigation reference. Avoid writing a suspected diagnosis as an observed fact.
-4. **Use the Command Center** — Health Score helps prioritize attention by combining lifecycle dates, open events, recurrence, and component status.
-5. **Use Investigation Intelligence when a problem appears** — Enter Expected → Actual → Changed → Unchanged → Evidence. The app connects the issue with instrument history and proposes the next evidence action.
-
----
-### What the Health Score means
-**Health Score is a prioritization aid, not a GMP disposition.** A lower score means more signals require attention. It does **not** independently mean the instrument is non-compliant or unfit for use.
-
-### Evidence rules
-- **OBSERVED / REPORTED** = what is actually known.
-- **INFERRED** = supported interpretation, not confirmed fact.
-- **UNKNOWN** = information still needed.
-- Repeated failures are a **pattern**, not automatic root cause.
-- Change **one discriminating variable at a time** where scientifically and procedurally appropriate.
-- Do not retest into pass or create unofficial injections / unofficial data.
-
-### Data privacy
-Each account sees only its own database rows. Supabase Row Level Security is the enforcement layer.
-
-### Important GMP boundary
-This application is **decision-support software**, not a validated GxP system of record. Keep official records, approvals, deviations, maintenance evidence, certificates, and SOP-controlled forms in your approved company systems.
-
----
-### دليل سريع بالعربي
-- ابدأ بعمل **Passport** لكل جهاز.
-- سجّل مواعيد **PM / Calibration / Qualification** الحالية.
-- سجّل الصيانة وتغيير الأجزاء المهمة وقت حدوثها.
-- عند ظهور مشكلة، سجّل **ما حدث فعلاً** قبل كتابة أي تشخيص.
-- استخدم **Investigation Intelligence** لربط الحالة بتاريخ الجهاز وتحديد أقوى خطوة تالية للحصول على دليل.
-- تكرار المشكلة يقوّي الفرضية، لكنه **لا يثبت Root Cause وحده**.
-""")
-    st.markdown(f'<div class="cta"><b>Ready for the next decision?</b><br>Keep this application as the instrument memory, then use the evidence to decide what to test next.<br><b>{TAGLINE}</b></div>',unsafe_allow_html=True)
-    st.link_button("Investigate an HPLC problem with Yahia HPLC Assistant ↗",HPLC_ASSISTANT_URL,use_container_width=True)
+    if callable(globals().get("render_v03_user_guide")):
+        render_v03_user_guide()
+    else:
+        st.header("Guide")
+        st.error("Premium Product & User Guide module could not load.")
 
 st.divider()
 st.caption(f"Yahia Abdelhalim · Pharmaceutical QC Expert · {APP_VERSION} · Helping Pharmaceutical Analysts Make Better Laboratory Decisions")
