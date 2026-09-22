@@ -281,7 +281,7 @@ if callable(_existing_user_guide):
 #### أفضل Workflow
 **Existing Excel Tracker → Import → Lifecycle Intelligence → Priorities / Decisions → Investigation Memory / Reports**
 
-يمكن رفع Excel، لكن التطبيق يتعرف **فقط على الأعمدة التي تحمل نفس اسم الحقل داخل التطبيق**. أي اسم مختلف لا يتم تخمينه أو ربطه تلقائيًا. الأفضل تنزيل Template التطبيق أو توحيد أسماء الأعمدة معه.
+يمكن رفع Excel، لكن التطبيق يتعرف **فقط على الأعمدة التي تحمل نفس اسم الحقل داخل التطبيق**. أي اسم مختلف لا يتم تخمينه أو ربطه تلقائيًا. الأفضل فتح **MY INSTRUMENTS → Instruments → Import Instrument List** ثم تنزيل Template التطبيق من هناك أو توحيد أسماء الأعمدة معه.
 
 > **Excel tracks instruments. Yahia QC Instrument Lifecycle helps you decide what needs attention next — and why.**
 """

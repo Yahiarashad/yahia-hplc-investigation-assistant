@@ -540,9 +540,9 @@ with tabs[0]:
 
 # Instrument Passport ----------------------------------------------------------
 with tabs[1]:
-    st.header("Digital Instrument Passport")
-    st.caption("One instrument identity. One lifecycle view. One history you can actually use.")
-    with st.expander("➕ Add new instrument", expanded=(len(instruments)==0)):
+    st.header("Instrument Registry & Passport")
+    st.caption("Add one instrument, import an instrument list, then open any asset's Digital Passport.")
+    with st.expander("➕ Add one instrument | إضافة جهاز", expanded=(len(instruments)==0)):
         with st.form("add_instrument", clear_on_submit=True):
             c1,c2=st.columns(2); code=c1.text_input("Instrument ID *",placeholder="HPLC-001"); name=c2.text_input("Instrument name *",placeholder="Waters Alliance")
             c1,c2,c3=st.columns(3); inst_type=c1.selectbox("Type",["HPLC","UHPLC","GC","LC-MS","LC-MS/MS","UV-Vis","Dissolution","Balance","pH Meter","Other"]); manufacturer=c2.text_input("Manufacturer"); model=c3.text_input("Model")
@@ -558,7 +558,26 @@ with tabs[1]:
                 ok,_,_,err=_db_insert("instruments",{"instrument_code":clean,"instrument_name":name.strip(),"instrument_type":inst_type,"manufacturer":manufacturer.strip(),"model":model.strip(),"serial_number":serial.strip(),"location":location.strip(),"operational_status":status,"responsible_team":owner.strip(),"qualification_due":q_due.isoformat(),"pm_due":pm_due.isoformat(),"calibration_due":cal_due.isoformat(),"notes":notes.strip()})
                 if ok: st.success(f"{clean} created."); st.rerun()
                 else: st.error(err or "Could not create instrument.")
+
+    with st.expander("📥 إضافة / استيراد قائمة أجهزة | Import Instrument List", expanded=False):
+        if callable(globals().get("_render_excel_import")):
+            _render_excel_import()
+        else:
+            st.error("Instrument list import is temporarily unavailable.")
+
     if instruments:
+        with st.expander("📋 سجل الأجهزة الحالي | Current Instrument Registry", expanded=False):
+            registry_rows = [{
+                "Instrument ID": x.get("instrument_code") or "",
+                "Instrument name": x.get("instrument_name") or "",
+                "Type": x.get("instrument_type") or "",
+                "Manufacturer": x.get("manufacturer") or "",
+                "Model": x.get("model") or "",
+                "Location": x.get("location") or "",
+                "Status": x.get("operational_status") or "",
+            } for x in instruments]
+            st.dataframe(pd.DataFrame(registry_rows), use_container_width=True, hide_index=True)
+
         codes=[str(x.get("instrument_code")) for x in instruments]; default_index=codes.index(deep_code) if deep_code in codes else 0
         selected_code=st.selectbox("Open Instrument Passport",codes,index=default_index,key="passport_selected")
         inst=next(x for x in instruments if str(x.get("instrument_code"))==selected_code); inst_id=str(inst.get("id")); score,reasons=health_score_v2(inst,events,components)

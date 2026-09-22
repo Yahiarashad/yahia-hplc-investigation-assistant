@@ -387,6 +387,29 @@ def render_v03_user_guide():
 .v03-flow-main [dir="ltr"],.v03-flow-sub [dir="ltr"]{unicode-bidi:isolate}
 .v03-guide-tip{direction:rtl;text-align:right;border:1px solid #344354;border-radius:16px;background:rgba(255,255,255,.035);padding:.85rem 1rem;line-height:1.9;margin:.7rem 0}
 .v03-guide-tip b{color:inherit}
+.v03-guide-banner-brand{direction:ltr;text-align:left;color:#0f2742;font-weight:900;font-size:1rem;unicode-bidi:isolate}
+.v03-guide-banner-title{direction:rtl;text-align:right;color:#0f2742;font-weight:900;font-size:1.06rem;margin-top:.35rem}
+
+/* The practical guide is Arabic-first. Keep widgets/data tables native, but
+   force narrative markdown and tab labels to read naturally right-to-left. */
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) summary,
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) summary *{
+  direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important
+}
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) div[data-testid="stMarkdownContainer"]{
+  direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important;line-height:1.9
+}
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) div[data-baseweb="tab-list"]{
+  direction:rtl!important;justify-content:flex-start!important
+}
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) button[data-baseweb="tab"],
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) button[data-baseweb="tab"] *{
+  direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important
+}
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) ul,
+div[data-testid="stExpander"]:has(.v03-guide-shell-marker) ol{
+  direction:rtl!important;text-align:right!important;padding-right:1.45rem!important;padding-left:0!important
+}
 
 /* Excel-vs-app expander added later by the camera module. */
 div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) summary,
@@ -411,7 +434,11 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
   .v03-flow-main{font-size:.94rem}.v03-flow-sub{font-size:.79rem}
 }
 </style>
-<div class="v03-guide-banner"><b>🚀 Yahia QC Instrument Intelligence™ | <span dir="ltr" style="display:inline;color:inherit;font-size:inherit">Start here</span></b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
+<div class="v03-guide-banner">
+  <div class="v03-guide-banner-brand">🚀 Yahia QC Instrument Intelligence™</div>
+  <div class="v03-guide-banner-title">دليل الاستخدام العملي</div>
+  <span>افهم المنصة، دورة العمل الصحيحة، وكيف تستخدمها يوميًا قبل أن تبدأ.</span>
+</div>
 """,
         unsafe_allow_html=True,
     )
@@ -436,19 +463,19 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
             use_container_width=True,
             key="v03_download_premium_product_guide",
         )
-        st.caption("الدليل الرسمي الموحد للمنتج — نسخة Product + User + Management قابلة للمشاركة، بدون أي بيانات خاصة بالـWorkspace.")
+        st.caption("الدليل الرسمي الموحد للمنتج — نسخة قابلة للمشاركة بدون أي بيانات خاصة بمساحة العمل.")
     except Exception as exc:
         st.error("Premium PDF could not be generated on this deployment.")
         st.caption(f"PDF diagnostic: {type(exc).__name__}")
 
-    with st.expander("📘 دليل الاستخدام التفصيلي | \u2066Practical User Guide\u2069", expanded=True):
+    with st.expander("📘 دليل الاستخدام العملي", expanded=True):
+        st.markdown('<div class="v03-guide-shell-marker"></div>', unsafe_allow_html=True)
         guide_tabs = st.tabs([
             "🎯 ابدأ من هنا",
             "↻ دورة الحياة",
             "🧾 الاستخدام اليومي",
-            "📥 استيراد Excel",
             "🔎 التحقيق",
-            "🔐 GMP & Privacy",
+            "🔐 الحوكمة والخصوصية",
         ])
 
         with guide_tabs[0]:
@@ -468,6 +495,8 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 <li><b><span dir="ltr">Reports</span></b> — رؤية مجمعة للحالة الحالية والأولويات وتقارير قابلة للمشاركة.</li>
 <li><b><span dir="ltr">Guide / About</span></b> — مرجع للمبادئ، طريقة الاستخدام، وحدود النظام.</li>
 </ul>
+
+<div class="v03-guide-rule"><b>لإضافة عدة أجهزة دفعة واحدة:</b> استخدم <span dir="ltr">MY INSTRUMENTS → Instruments → Import Instrument List</span>. القالب والرفع والمراجعة موجودة هناك، وليس داخل الدليل.</div>
 
 <h3 style="margin-top:1.1rem">أفضل طريقة تبدأ بها</h3>
 <div class="v03-guide-flow">
@@ -540,22 +569,6 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
             st.markdown("<div class='v03-guide-rule'><b>أفضل استفادة:</b> استخدم التطبيق باستمرار كـ instrument memory، وليس فقط عندما تظهر مشكلة. جودة التحقيق غدًا تعتمد على جودة التاريخ الذي تسجله اليوم.</div>", unsafe_allow_html=True)
 
         with guide_tabs[3]:
-            _render_excel_import()
-            st.markdown("#### أسماء الأعمدة التي يتعرف عليها التطبيق")
-            field_table = pd.DataFrame({
-                "Excel header — must match": list(V03_EXCEL_FIELD_MAP.keys()),
-                "Section": [
-                    "Passport" if i < 13 else "Need / Initiation" if i < 21 else "Acquisition / Qualification"
-                    for i in range(len(V03_EXCEL_FIELD_MAP))
-                ],
-            })
-            st.dataframe(field_table, use_container_width=True, hide_index=True)
-            st.caption(
-                "أي عمود باسم مختلف — حتى لو كان معناه قريبًا — لا يتم ربطه تلقائيًا. "
-                "مثال: 'PO No.' لا يساوي 'PO number'. استخدم القالب لتجنب أخطاء التسمية."
-            )
-
-        with guide_tabs[4]:
             st.markdown("### Investigation Intelligence — كيف تستخدمه صح؟")
             st.markdown(
                 """
@@ -578,7 +591,7 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 """
             )
 
-        with guide_tabs[5]:
+        with guide_tabs[4]:
             st.markdown("### GMP / Data Integrity / Privacy")
             st.markdown(
                 """

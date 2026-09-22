@@ -406,7 +406,7 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
 
 _ALL_ROUTE_GROUPS = {
     "HOME": ["🏠 Dashboard"],
-    "MY INSTRUMENTS": ["🪪 Passport", "↻ Lifecycle"],
+    "MY INSTRUMENTS": ["📋 Instruments", "↻ Lifecycle"],
     "CONTROL": ["◎ Cal & PM"],
     "QUALITY EVENTS": ["⚠ Events", "🔎 Investigate"],
     "INTELLIGENCE": ["📈 Performance"],
@@ -441,6 +441,47 @@ _ROUTE_GROUPS = {name: _ALL_ROUTE_GROUPS[name] for name in _allowed_groups}
 
 _ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
 
+# Stable URL slugs make mobile navigation a real same-tab page navigation.
+# This is deliberately used instead of trying to click Streamlit sidebar DOM
+# controls from a sandboxed component iframe, which is not reliable on mobile.
+_ROUTE_SLUGS = {
+    "🏠 Dashboard": "dashboard",
+    "📋 Instruments": "instruments",
+    "↻ Lifecycle": "lifecycle",
+    "◎ Cal & PM": "cal-pm",
+    "⚠ Events": "events",
+    "🔎 Investigate": "investigate",
+    "📈 Performance": "performance",
+    "🔔 Alerts": "alerts",
+    "▦ Reports": "reports",
+    "🎛 Cockpit": "cockpit",
+    "ⓘ Guide": "guide",
+    "🛡 Admin": "admin",
+}
+_ROUTE_BY_SLUG = {slug: route for route, slug in _ROUTE_SLUGS.items()}
+try:
+    _requested_route_slug = str(st.query_params.get("route", "") or "").strip().lower()
+except Exception:
+    _requested_route_slug = ""
+_requested_route = _ROUTE_BY_SLUG.get(_requested_route_slug)
+if _requested_route and _requested_route in _ROUTE_ITEMS:
+    st.session_state.ilm_route = _requested_route
+
+def _ilm_route_href(route_item: str) -> str:
+    from urllib.parse import urlencode
+    params = {}
+    try:
+        for key in st.query_params:
+            if str(key) == "route":
+                continue
+            value = st.query_params.get(key)
+            if value not in (None, ""):
+                params[str(key)] = value
+    except Exception:
+        pass
+    params["route"] = _ROUTE_SLUGS.get(route_item, "dashboard")
+    return "?" + urlencode(params, doseq=True)
+
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
     with st.sidebar:
         st.markdown("## QC Intelligence")
@@ -464,19 +505,46 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         current = st.session_state.get("ilm_route", "🏠 Dashboard")
         if current not in _ROUTE_ITEMS:
             current = "🏠 Dashboard"
+        st.markdown(
+            """
+<style>
+.ilm-mobile-nav{display:none!important}
+@media(max-width:768px){
+  .ilm-mobile-nav{
+    display:flex!important;align-items:center;justify-content:center;
+    min-height:52px;margin:.36rem 0;padding:.55rem .7rem;
+    border:1px solid rgba(226,232,240,.82);border-radius:18px;
+    color:#f8fafc!important;text-decoration:none!important;font-weight:650;
+    background:rgba(255,255,255,.025);box-sizing:border-box;
+  }
+  .ilm-mobile-nav.active{background:#ff4b4b!important;border-color:#ff7676!important;color:white!important}
+  .ilm-mobile-nav:visited{color:#f8fafc!important}
+  [class*="st-key-ilm_desktop_nav_"]{display:none!important}
+}
+</style>
+""",
+            unsafe_allow_html=True,
+        )
         for group_name, group_items in _ROUTE_GROUPS.items():
             st.caption(group_name)
             for route_item in group_items:
                 is_active = route_item == current
-                if st.button(
-                    route_item,
-                    key="ilm_nav_" + route_item,
-                    use_container_width=True,
-                    type="primary" if is_active else "secondary",
-                ):
-                    st.session_state.ilm_route = route_item
-                    st.session_state.ilm_route_transition = True
-                    st.rerun()
+                _nav_class = "ilm-mobile-nav active" if is_active else "ilm-mobile-nav"
+                st.markdown(
+                    f'<a class="{_nav_class}" href="{_ilm_route_href(route_item)}" target="_self">{route_item}</a>',
+                    unsafe_allow_html=True,
+                )
+                _desktop_key = "ilm_desktop_nav_" + _ROUTE_SLUGS.get(route_item, "dashboard").replace("-", "_")
+                with st.container(key=_desktop_key):
+                    if st.button(
+                        route_item,
+                        key="ilm_nav_" + route_item,
+                        use_container_width=True,
+                        type="primary" if is_active else "secondary",
+                    ):
+                        st.session_state.ilm_route = route_item
+                        st.session_state.ilm_route_transition = True
+                        st.rerun()
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
             st.session_state.pop("ilm_user_role", None)
@@ -575,7 +643,7 @@ def _tabs_v04(labels, *args, **kwargs):
     if items == _MAIN_TABS:
         _core_main_tabs_seen = True
         display_items = [
-            "🏠 Dashboard", "↻ Lifecycle", "🪪 Passport", "◎ Cal & PM",
+            "🏠 Dashboard", "↻ Lifecycle", "📋 Instruments", "◎ Cal & PM",
             "📈 Performance", "⚠ Events", "🔎 Investigate", "🔔 Alerts",
             "▦ Reports", "ⓘ Guide", "🎛 Cockpit", "🛡 Admin",
         ]
