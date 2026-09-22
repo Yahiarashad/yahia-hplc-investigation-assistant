@@ -388,6 +388,54 @@ def _shell_persist_own_job_role(role_label: str):
         pass
 
 
+def _shell_logout():
+    """Sign out from Supabase, clear local session state and remove the persistent auth cookie."""
+    token = str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
+    if token and SUPABASE_URL and SUPABASE_KEY:
+        req = urlrequest.Request(
+            f"{SUPABASE_URL}/auth/v1/logout",
+            data=b"{}",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=15):
+                pass
+        except Exception:
+            # Local sign-out must still complete even if the network call fails.
+            pass
+
+    for key in list(st.session_state.keys()):
+        if key.startswith("_ilm_") or key.startswith("ilm_") or key.startswith("form_"):
+            st.session_state.pop(key, None)
+    try:
+        controller.remove(COOKIE_NAME)
+    except Exception:
+        pass
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+
+def _shell_reopen_role_onboarding():
+    """Clear only the UX job role so the onboarding role selector opens again."""
+    st.session_state.pop("ilm_user_role", None)
+    _shell_persist_own_job_role("")
+    try:
+        if "route" in st.query_params:
+            del st.query_params["route"]
+        if "ui_role" in st.query_params:
+            del st.query_params["ui_role"]
+    except Exception:
+        pass
+
+
+
 # -----------------------------------------------------------------------------
 # Role-aware onboarding + persistent workspace navigation.
 # The role personalizes priorities; it does NOT change RLS permissions.
@@ -579,17 +627,12 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
                     unsafe_allow_html=True,
                 )
         st.divider()
-        if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
-            st.session_state.pop("ilm_user_role", None)
-            # Clear only the personal UX role metadata. Security roles/permissions are untouched.
-            _shell_persist_own_job_role("")
-            try:
-                if "route" in st.query_params:
-                    del st.query_params["route"]
-                if "ui_role" in st.query_params:
-                    del st.query_params["ui_role"]
-            except Exception:
-                pass
+        st.caption("ACCOUNT")
+        if st.button("👤 Change my role", use_container_width=True, key="ilm_change_role"):
+            _shell_reopen_role_onboarding()
+            st.rerun()
+        if st.button("↪ Log out", use_container_width=True, key="ilm_logout"):
+            _shell_logout()
             st.rerun()
 
     # Responsive navigation split.
@@ -642,6 +685,18 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
                         f'<a class="{_cls}" href="{_href}" target="_self">{_route_item}</a>',
                         unsafe_allow_html=True,
                     )
+            st.divider()
+            st.caption("ACCOUNT")
+            _mobile_user = (st.session_state.get("_ilm_auth") or {}).get("user") or {}
+            _mobile_email = str(_mobile_user.get("email") or "").strip()
+            if _mobile_email:
+                st.caption(_mobile_email)
+            if st.button("👤 Change role", use_container_width=True, key="ilm_mobile_change_role"):
+                _shell_reopen_role_onboarding()
+                st.rerun()
+            if st.button("↪ Log out", use_container_width=True, key="ilm_mobile_logout", type="secondary"):
+                _shell_logout()
+                st.rerun()
 
 
 # -----------------------------------------------------------------------------
