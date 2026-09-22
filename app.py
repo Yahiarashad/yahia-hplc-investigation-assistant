@@ -371,11 +371,26 @@ ROLE_OPTIONS = [
 ROLE_LABELS = [item[0] for item in ROLE_OPTIONS]
 ROLE_HELP = {item[0]: item[1] for item in ROLE_OPTIONS}
 
+# Mobile route links can create a fresh Streamlit session. Persist only the UX
+# role in the URL so navigation never re-opens onboarding. This value controls
+# presentation only; database permissions remain workspace/RLS controlled.
+try:
+    _url_ui_role = str(st.query_params.get("ui_role", "") or "").strip()
+except Exception:
+    _url_ui_role = ""
+if _url_ui_role in ROLE_LABELS and not st.session_state.get("ilm_user_role"):
+    st.session_state.ilm_user_role = _url_ui_role
+
 def _ilm_complete_role_onboarding():
     role_label = str(st.session_state.get("ilm_role_onboarding_select") or "QC Analyst")
     st.session_state.ilm_user_role = role_label
     st.session_state.ilm_route = "🏠 Dashboard"
     st.session_state.ilm_route_transition = True
+    try:
+        st.query_params["ui_role"] = role_label
+        st.query_params["route"] = "dashboard"
+    except Exception:
+        pass
 
 
 if _signed_in_shell and not st.session_state.get("ilm_user_role"):
@@ -480,9 +495,12 @@ def _ilm_route_href(route_item: str) -> str:
     except Exception:
         pass
     params["route"] = _ROUTE_SLUGS.get(route_item, "dashboard")
-    return "?" + urlencode(params, doseq=True)
+    if st.session_state.get("ilm_user_role") in ROLE_LABELS:
+        params["ui_role"] = st.session_state.ilm_user_role
+    return "?" + urlencode(params, doseq=True) + "#ilm-top"
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
+    st.markdown('<div id="ilm-top" style="height:0;overflow:hidden"></div>', unsafe_allow_html=True)
     with st.sidebar:
         st.markdown("## QC Intelligence")
         st.caption("From data → evidence → decision → action")
@@ -531,7 +549,7 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
                 is_active = route_item == current
                 _nav_class = "ilm-mobile-nav active" if is_active else "ilm-mobile-nav"
                 st.markdown(
-                    f'<a class="{_nav_class}" href="{_ilm_route_href(route_item)}" target="_self">{route_item}</a>',
+                    f'<a class="{_nav_class}" href="{_ilm_route_href(route_item)}" target="_top">{route_item}</a>',
                     unsafe_allow_html=True,
                 )
                 _desktop_key = "ilm_desktop_nav_" + _ROUTE_SLUGS.get(route_item, "dashboard").replace("-", "_")
@@ -548,6 +566,11 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
             st.session_state.pop("ilm_user_role", None)
+            try:
+                if "ui_role" in st.query_params:
+                    del st.query_params["ui_role"]
+            except Exception:
+                pass
             st.rerun()
 
     # Desktop: sidebar is the permanent navigation rail. Mobile: Streamlit's
