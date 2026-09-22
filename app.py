@@ -274,6 +274,7 @@ _ALL_ROUTE_GROUPS = {
     "EVIDENCE": ["▦ Reports"],
     "MANAGEMENT": ["🎛 Cockpit"],
     "SYSTEM": ["ⓘ Guide"],
+    "ADMIN": ["🛡 Admin"],
 }
 
 _ROLE_ROUTE_GROUPS = {
@@ -284,8 +285,18 @@ _ROLE_ROUTE_GROUPS = {
     "Calibration / Maintenance": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "EVIDENCE", "SYSTEM"],
     "QA / Reviewer": ["HOME", "MY INSTRUMENTS", "CONTROL", "QUALITY EVENTS", "COMMUNICATION", "EVIDENCE", "MANAGEMENT", "SYSTEM"],
 }
+_ilm_workspaces, _ilm_workspace_id, _ilm_membership = ([], None, None)
+if _signed_in_shell and "_workspace_context" in globals():
+    try:
+        _ilm_workspaces, _ilm_workspace_id, _ilm_membership = _workspace_context()
+    except Exception:
+        pass
+if _ilm_membership and _ilm_membership.get("job_role"):
+    st.session_state.ilm_user_role = str(_ilm_membership.get("job_role"))
 _active_role = st.session_state.get("ilm_user_role", "QC Analyst")
 _allowed_groups = _ROLE_ROUTE_GROUPS.get(_active_role, _ROLE_ROUTE_GROUPS["QC Analyst"])
+if _ilm_membership and _ilm_membership.get("is_admin") and "ADMIN" not in _allowed_groups:
+    _allowed_groups = list(_allowed_groups) + ["ADMIN"]
 _ROUTE_GROUPS = {name: _ALL_ROUTE_GROUPS[name] for name in _allowed_groups}
 
 _ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
@@ -298,6 +309,19 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
         st.caption("From data → evidence → decision → action")
         st.markdown(f"**{st.session_state.ilm_user_role}**")
         st.caption(ROLE_HELP.get(st.session_state.ilm_user_role, ""))
+        if _ilm_workspaces and _ilm_workspace_id:
+            _ws_names = {str(w.get("id")): str(w.get("name") or "Workspace") for w in _ilm_workspaces}
+            _ws_ids = list(_ws_names)
+            if len(_ws_ids) > 1:
+                _chosen_ws = st.selectbox("Workspace", _ws_ids, index=_ws_ids.index(_ilm_workspace_id), format_func=lambda x: _ws_names[x], key="ilm_workspace_picker")
+                if _chosen_ws != _ilm_workspace_id:
+                    st.session_state.ilm_workspace_id = _chosen_ws
+                    st.session_state.ilm_route = "🏠 Dashboard"
+                    st.rerun()
+            else:
+                st.caption("🏢 " + _ws_names.get(_ilm_workspace_id, "Workspace"))
+            if _ilm_membership and _ilm_membership.get("is_admin"):
+                st.caption("🛡 Workspace Admin")
         st.divider()
         current = st.session_state.get("ilm_route", "🏠 Dashboard")
         if current not in _ROUTE_ITEMS:
@@ -352,6 +376,7 @@ _exec_extension("instrument_monthly_performance.py", "_ilm_performance_module_er
 _exec_extension("instrument_pdf_reports.py", "_ilm_pdf_module_error")
 _exec_extension("instrument_executive_performance_report.py", "_ilm_exec_report_module_error")
 _exec_extension("instrument_notification_center.py", "_ilm_notification_module_error")
+_exec_extension("instrument_admin_control.py", "_ilm_admin_module_error")
 
 
 # -----------------------------------------------------------------------------
