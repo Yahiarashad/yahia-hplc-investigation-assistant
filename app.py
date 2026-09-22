@@ -464,6 +464,7 @@ st.selectbox(
 )
 selected_language_code = LANG_OPTIONS[st.session_state.ui_language_label]
 if st.query_params.get("lang") != selected_language_code:
+    st.query_params["lang"] = selected_language_code
 
 # Primary navigation — deliberately visible on the main screen, not hidden in the sidebar.
 nav1, nav2, nav3 = st.columns(3)
@@ -479,7 +480,6 @@ if nav2.button("ابدأ حل مشكلة جديدة" if is_ar else "Start a New 
     st.rerun()
 if nav3.button("شاركنا رأيك" if is_ar else "Share Your Feedback", use_container_width=True, key="nav_feedback"):
     st.switch_page("pages/03_Founding_Beta_Feedback.py")
-    st.query_params["lang"] = selected_language_code
 
 AREA_EN = {
     "Auto-detect": "Auto-detect",
