@@ -56,10 +56,10 @@ def portrait_data_uri():
     try:
         if PORTRAIT_PATH.exists():
             raw = PORTRAIT_PATH.read_bytes()
-            if raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+            if raw.startswith(b"\x89PNG\r\n\x1a\n"):
                 encoded = base64.b64encode(raw).decode("ascii")
                 return f"data:image/png;base64,{encoded}"
-            if raw.startswith(b"\\xff\\xd8") and raw.endswith(b"\\xff\\xd9"):
+            if raw.startswith(b"\xff\xd8") and raw.endswith(b"\xff\xd9"):
                 encoded = base64.b64encode(raw).decode("ascii")
                 return f"data:image/jpeg;base64,{encoded}"
     except Exception:
