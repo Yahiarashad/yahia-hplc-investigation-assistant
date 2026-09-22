@@ -303,39 +303,9 @@ def build_product_user_guide_pdf() -> bytes:
 
 
 def render_product_guide_hub():
-    st.markdown(
-        """
-<style>
-.yqii-hero{border:1px solid #d9e1e9;border-radius:22px;padding:1.15rem 1.2rem;margin:.25rem 0 1rem;background:linear-gradient(135deg,#0b1d31 0%,#102a45 64%,#173b60 100%);box-shadow:0 12px 32px rgba(15,39,66,.16)}
-.yqii-kicker{color:#d7bd7a;font-weight:800;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}.yqii-title{color:#fff;font-weight:900;font-size:1.52rem;line-height:1.2;margin:.25rem 0 .35rem}.yqii-sub{color:#dbe7f2;line-height:1.6;font-size:.95rem}.yqii-promise{margin-top:.85rem;padding:.7rem .8rem;border:1px solid rgba(215,189,122,.5);border-radius:14px;color:#fff;font-weight:800;background:rgba(255,255,255,.04)}
-.yqii-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.65rem;margin:.75rem 0}.yqii-card{border:1px solid #dce4ec;border-radius:15px;padding:.75rem;background:#fff;box-shadow:0 5px 16px rgba(15,39,66,.045)}.yqii-card b{color:#102a45}.yqii-card span{display:block;color:#64748b;font-size:.83rem;line-height:1.55;margin-top:.2rem}.yqii-flow{border:1px solid #eadfca;background:#fffaf0;border-radius:15px;padding:.78rem .85rem;font-weight:800;color:#102a45;line-height:1.75;margin:.65rem 0}.yqii-boundary{border-right:4px solid #c6a15b;background:#f8fafc;border-radius:12px;padding:.7rem .8rem;direction:rtl;text-align:right;line-height:1.75;color:#44566a}
-@media(max-width:760px){.yqii-grid{grid-template-columns:1fr}.yqii-title{font-size:1.25rem}.yqii-hero{padding:.95rem}}
-</style>
-<div class="yqii-hero"><div class="yqii-kicker">Product • User • Management Guide</div><div class="yqii-title">Yahia QC Instrument Intelligence™</div><div class="yqii-sub">From Instrument Data to Evidence-Based Decisions.<br>منصة تربط قصة الجهاز من الهوية ودورة الحياة إلى التحقيق والأداء والإدارة — مع إبقاء الدليل منفصلًا عن الافتراض.</div><div class="yqii-promise">ENTER LESS. DECIDE BETTER. KEEP THE INSTRUMENT STORY CONNECTED.</div></div>
-<div class="yqii-grid">
- <div class="yqii-card"><b>Connected Instrument Story</b><span>Passport + Lifecycle + Control + Events + Investigation + Performance + Evidence.</span></div>
- <div class="yqii-card"><b>Evidence-First Investigation</b><span>Observed / Inferred / Unknown + next controlled evidence action.</span></div>
- <div class="yqii-card"><b>Management Intelligence</b><span>Availability, utilization, downtime, due control, capacity and executive reporting.</span></div>
- <div class="yqii-card"><b>Organization Foundation</b><span>Workspaces, members, job roles, access roles, admin privileges and access audit.</span></div>
- <div class="yqii-card"><b>Controlled Migration</b><span>Exact Excel template, validation, preview, duplicate control and no blind mapping.</span></div>
- <div class="yqii-card"><b>Decision-Support Boundary</b><span>Missing evidence stays visible; inference is never silently promoted to fact.</span></div>
-</div>
-<div class="yqii-flow">DETECT → PRIORITIZE → INVESTIGATE → DECIDE → ACT → VERIFY → DOCUMENT → LEARN</div>
-<div class="yqii-boundary"><b>حدود الإصدار الحالي:</b> بنية الـWorkspace والعضويات والصلاحيات والإدارة موجودة. تفعيل الصلاحيات على مستوى جميع جداول بيانات الأجهزة يتم على مراحل، ولذلك يستمر حاليًا نموذج RLS المحافظ على مستوى المالك إلى أن تكتمل عملية الانتقال.</div>
-""", unsafe_allow_html=True)
-    pdf_bytes = build_product_user_guide_pdf()
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        st.download_button("⬇️ Download Premium Product & User Guide (PDF)", data=pdf_bytes,
-            file_name="Yahia_QC_Instrument_Intelligence_Product_User_Guide.pdf", mime="application/pdf",
-            use_container_width=True, key="yqii_download_product_guide", disabled=not bool(pdf_bytes))
-    with c2:
-        st.info("21-page bilingual executive guide • No customer instrument data is embedded")
-    with st.expander("💼 Why this matters to a QC organization", expanded=False):
-        st.markdown("""
-**Before:** scattered trackers, manual follow-up, repeated searching, knowledge held by individuals, investigations that can restart from zero.
+    """Legacy 21-page guide UI retired.
 
-**With the platform:** one connected instrument story, visible missing evidence, role-aware attention, controlled admin structure, performance intelligence and a reusable investigation history.
-
-> **STOP MANAGING INSTRUMENT DATA. START MANAGING INSTRUMENT DECISIONS.**
-""")
+    Kept as a no-op for backward compatibility with older adapters/imports.
+    The application exposes only the official 19-page Product & User Guide.
+    """
+    return None
