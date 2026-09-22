@@ -70,6 +70,14 @@ def render_instrument_feedback(*, compact: bool = True, language: str = "ar") ->
     ar = language == "ar"
     _apply_guide_rtl_css()
 
+    # Premium product/user/management guide. It is generated without customer
+    # instrument records, so users can safely download and share the brochure.
+    try:
+        from instrument_product_guide import render_product_guide_hub
+        render_product_guide_hub()
+    except Exception as exc:
+        st.caption(f"Premium Product Guide is temporarily unavailable ({type(exc).__name__}).")
+
     # Report Center is intentionally shown before the feedback step so the user
     # can export a real lifecycle report, review it, then comment on the workflow.
     try:
