@@ -216,63 +216,89 @@ if not st.session_state.get("_ilm_auth"):
 # Mobile navigation helper: after choosing a route, close the sidebar and
 # return the main viewport to the first line of the newly selected workspace.
 def _ilm_mobile_route_transition():
-    """Finish a route change after the selected workspace has rendered.
-
-    On mobile this closes Streamlit's overlay sidebar. On every device it moves
-    the viewport to the first visible line of the active keyed workspace.
-    """
+    """Close the mobile sidebar and focus the active route after rerender."""
     try:
         import streamlit.components.v1 as components
         components.html(
             """<script>
             (() => {
-              try {
-                const w = window.parent;
-                const d = w.document;
+              const w = window.parent;
+              const d = w.document;
 
-                const activeWorkspace = () => {
-                  const nodes = Array.from(d.querySelectorAll('[class*="st-key-ilm_workspace_"]'));
-                  return nodes.find((el) => {
+              function activeWorkspace() {
+                const nodes = Array.from(d.querySelectorAll('[class*="st-key-ilm_workspace_"]'));
+                return nodes.find((el) => {
+                  try {
                     const cs = w.getComputedStyle(el);
                     const r = el.getBoundingClientRect();
                     return cs.display !== 'none' && cs.visibility !== 'hidden' && r.height > 0;
-                  }) || null;
-                };
+                  } catch (_) { return false; }
+                }) || null;
+              }
 
-                const scrollToSelected = () => {
-                  const active = activeWorkspace();
-                  if (active) {
-                    active.scrollIntoView({behavior: 'instant', block: 'start', inline: 'nearest'});
-                  } else {
-                    const main = d.querySelector('[data-testid="stMain"]') || d.querySelector('section.main');
-                    if (main && typeof main.scrollTo === 'function') {
-                      main.scrollTo({top: 0, behavior: 'instant'});
-                    }
-                    try { w.scrollTo({top: 0, behavior: 'instant'}); } catch (_) { w.scrollTo(0, 0); }
-                  }
-                };
+              function scrollMainTop() {
+                const active = activeWorkspace();
+                const main = d.querySelector('[data-testid="stMain"]') || d.querySelector('section.main') || d.querySelector('main');
+                try {
+                  if (main && typeof main.scrollTo === 'function') main.scrollTo({top: 0, left: 0, behavior: 'instant'});
+                } catch (_) {}
+                try { d.documentElement.scrollTop = 0; d.body.scrollTop = 0; } catch (_) {}
+                try { w.scrollTo({top: 0, left: 0, behavior: 'instant'}); } catch (_) { try { w.scrollTo(0,0); } catch(__){} }
+                if (active) {
+                  try { active.scrollIntoView({behavior: 'instant', block: 'start', inline: 'nearest'}); } catch (_) {}
+                }
+              }
 
-                const closeMobileSidebar = () => {
-                  if (w.innerWidth > 768) return;
-                  const sidebar = d.querySelector('section[data-testid="stSidebar"]');
-                  if (!sidebar) return;
-                  const r = sidebar.getBoundingClientRect();
-                  const cs = w.getComputedStyle(sidebar);
-                  const isOpen = cs.visibility !== 'hidden' && cs.display !== 'none' && r.width > 40 && r.right > 24 && r.left < w.innerWidth;
-                  if (!isOpen) return;
-                  const closeButton = sidebar.querySelector(
-                    'button[data-testid="stSidebarCollapseButton"], button[aria-label*="Close sidebar"], button[aria-label*="Collapse sidebar"]'
-                  ) || d.querySelector('button[data-testid="stSidebarCollapseButton"]');
-                  if (closeButton) closeButton.click();
-                };
+              function candidateButtons(sidebar) {
+                const exact = [
+                  d.querySelector('button[data-testid="stSidebarCollapseButton"]'),
+                  d.querySelector('[data-testid="stSidebarCollapseButton"] button'),
+                  d.querySelector('button[aria-label="Close sidebar"]'),
+                  d.querySelector('button[aria-label*="Close sidebar"]'),
+                  d.querySelector('button[title*="Close sidebar"]')
+                ].filter(Boolean);
+                const local = sidebar ? Array.from(sidebar.querySelectorAll('button')) : [];
+                return [...new Set([...exact, ...local])];
+              }
 
-                const finish = () => {
-                  scrollToSelected();
-                  closeMobileSidebar();
-                };
+              function closeSidebar() {
+                if (w.innerWidth > 768) return true;
+                const sidebar = d.querySelector('section[data-testid="stSidebar"]');
+                if (!sidebar) return true;
+                const sr = sidebar.getBoundingClientRect();
+                const cs = w.getComputedStyle(sidebar);
+                const open = cs.display !== 'none' && cs.visibility !== 'hidden' && sr.width > 80 && sr.right > 0 && sr.left < w.innerWidth;
+                if (!open) return true;
 
-                [0, 120, 320, 650, 1100].forEach((delay) => w.setTimeout(finish, delay));
-              } catch (e) {}
+                const buttons = candidateButtons(sidebar);
+                let target = buttons.find((b) => {
+                  const label = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.getAttribute('data-testid') || '')).toLowerCase();
+                  return label.includes('sidebar') && (label.includes('close') || label.includes('collapse'));
+                });
+
+                if (!target) {
+                  target = buttons.find((b) => {
+                    const r = b.getBoundingClientRect();
+                    return r.top >= 45 && r.top <= 190 && r.right >= sr.right - 110 && r.left <= sr.right;
+                  });
+                }
+
+                if (target) {
+                  try { target.click(); return true; } catch (_) {}
+                }
+
+                try {
+                  d.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', code:'Escape', keyCode:27, which:27, bubbles:true}));
+                } catch (_) {}
+                return false;
+              }
+
+              function finish() {
+                closeSidebar();
+                w.setTimeout(scrollMainTop, 70);
+              }
+
+              [0, 100, 250, 500, 900, 1400, 2200].forEach((delay) => w.setTimeout(finish, delay));
             })();
             </script>""",
             height=0,
@@ -448,10 +474,9 @@ if _signed_in_shell and st.session_state.get("ilm_user_role"):
                     use_container_width=True,
                     type="primary" if is_active else "secondary",
                 ):
-                    if not is_active:
-                        st.session_state.ilm_route = route_item
-                        st.session_state.ilm_route_transition = True
-                        st.rerun()
+                    st.session_state.ilm_route = route_item
+                    st.session_state.ilm_route_transition = True
+                    st.rerun()
         st.divider()
         if st.button("Change my role", use_container_width=True, key="ilm_change_role"):
             st.session_state.pop("ilm_user_role", None)
