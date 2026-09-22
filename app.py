@@ -11,7 +11,20 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 
 import streamlit as st
+from streamlit.commands.execution_control import rerun as _ilm_native_rerun
+from streamlit.commands.page_config import set_page_config as _ilm_native_set_page_config
 from cryptography.fernet import Fernet, InvalidToken
+
+# Cold-runtime guard: always restore Streamlit's canonical commands before any
+# application shell or legacy compatibility layer can call them. This avoids
+# wrapper-to-wrapper recursion surviving a Streamlit hot reload.
+st.rerun = _ilm_native_rerun
+st.set_page_config = _ilm_native_set_page_config
+try:
+    st.markdown = st._main.markdown
+    st.tabs = st._main.tabs
+except Exception:
+    pass
 from streamlit_cookies_controller import CookieController, RemoveEmptyElementContainer
 from streamlit.delta_generator import DeltaGenerator
 

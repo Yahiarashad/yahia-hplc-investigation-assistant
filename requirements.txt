@@ -9,3 +9,4 @@ reportlab>=4.2.0
 arabic-reshaper>=3.0.0
 python-bidi>=0.6.0
 matplotlib>=3.8.0
+# streamlit-cloud-cold-restart-2026-09-22-v2
