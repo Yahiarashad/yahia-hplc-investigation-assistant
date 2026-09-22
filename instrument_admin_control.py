@@ -1,6 +1,8 @@
 from __future__ import annotations
 import json
 from urllib import parse as urlparse
+from urllib import request as urlrequest
+from urllib import error as urlerror
 import streamlit as st
 
 MODULES = [
@@ -41,6 +43,19 @@ def _workspace_context():
     membership=next((m for m in mine if str(m["workspace_id"])==active),None)
     return visible,active,membership
 
+def _invite_or_add_member(workspace_id, email, job_role, permissions, reason):
+    token=str((st.session_state.get("_ilm_auth") or {}).get("access_token") or "")
+    base=str(globals().get("SUPABASE_URL") or "").rstrip("/"); key=str(globals().get("SUPABASE_KEY") or "")
+    body=json.dumps({"workspace_id":workspace_id,"email":email,"job_role":job_role,"permissions":permissions,"reason":reason}).encode()
+    req=urlrequest.Request(f"{base}/functions/v1/workspace-member-admin",data=body,headers={"apikey":key,"Authorization":f"Bearer {token}","Content-Type":"application/json"},method="POST")
+    try:
+        with urlrequest.urlopen(req,timeout=25) as r: data=json.loads(r.read().decode())
+        return bool(data.get("ok")),data
+    except urlerror.HTTPError as e:
+        try: return False,json.loads(e.read().decode()).get("error")
+        except Exception: return False,str(e)
+    except Exception as e: return False,str(e)
+
 def render_admin_control_center():
     st.markdown("## 🛡 Admin Control Center")
     st.caption("Workspace members · privileges · accountability")
@@ -51,6 +66,18 @@ def render_admin_control_center():
         st.error("Workspace administrator privilege is required."); return
     ws=next((w for w in workspaces if str(w["id"])==wid),{})
     st.markdown(f"### {ws.get('name','Workspace')}")
+    with st.expander("➕ Add / Invite User", expanded=False):
+        st.caption("Existing account → add to workspace. New email → send invitation.")
+        email=st.text_input("User email",placeholder="name@company.com",key="admin_invite_email")
+        irole=st.selectbox("Initial job role",list(ROLE_PRESETS),key="admin_invite_role")
+        ireason=st.text_input("Reason / onboarding note",placeholder="Required for audit trail",key="admin_invite_reason")
+        if st.button("Add / Send invitation",type="primary",use_container_width=True,key="admin_invite_btn",disabled=not(email.strip() and ireason.strip())):
+            iok,res=_invite_or_add_member(wid,email.strip(),irole,_preset(irole),ireason.strip())
+            if iok:
+                st.success("Invitation sent." if res.get("invited") else "User added to workspace."); st.rerun()
+            else: st.error(str(res or "Could not add user."))
+    st.divider()
+    st.markdown("### Users & privileges")
     members,_,ok=_db_list("qc_workspace_members","workspace_id,user_id,job_role,access_role,account_status,is_admin,permissions,joined_at","joined_at.asc")
     members=[m for m in members if str(m.get("workspace_id"))==wid] if ok else []
     if not members: st.info("No members found."); return
