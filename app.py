@@ -355,6 +355,17 @@ st.markdown(
       .feedback-nudge { margin:1rem 0 .55rem; padding:.85rem 1rem; border-radius:16px; border:1px solid #dfc77c; background:#fffaf0; color:#374151; line-height:1.7; }
       .feedback-nudge-ar { direction:rtl; text-align:right; }
       div[data-baseweb="select"] > div { border-radius:14px; }
+      .primary-nav-anchor { height:0; margin:0; padding:0; }
+      div[data-testid="stHorizontalBlock"]:has(.primary-nav-anchor) {
+        gap:.55rem;
+        margin:.35rem 0 1rem;
+      }
+      div[data-testid="stHorizontalBlock"]:has(.primary-nav-anchor) button {
+        min-height:3.35rem;
+        border-radius:14px;
+        font-weight:800;
+        line-height:1.25;
+      }
       [data-testid="stTextArea"] textarea { border-radius:16px !important; min-height:170px !important; }
       [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] { unicode-bidi:plaintext; }
       [data-testid="stChatMessage"] code { direction:ltr; unicode-bidi:isolate; }
@@ -368,6 +379,20 @@ st.markdown(
         .hero-description { font-size:.84rem; }
         .welcome-title { font-size:1.12rem; }
         .start-grid { grid-template-columns:1fr; }
+        div[data-testid="stHorizontalBlock"]:has(.primary-nav-anchor) {
+          flex-direction:column !important;
+          gap:.5rem !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.primary-nav-anchor) > div[data-testid="stColumn"] {
+          width:100% !important;
+          flex:1 1 100% !important;
+          min-width:100% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.primary-nav-anchor) button {
+          width:100% !important;
+          min-height:3.6rem;
+          font-size:.96rem;
+        }
       }
     </style>
     """,
@@ -442,6 +467,8 @@ if st.query_params.get("lang") != selected_language_code:
 
 # Primary navigation — deliberately visible on the main screen, not hidden in the sidebar.
 nav1, nav2, nav3 = st.columns(3)
+with nav1:
+    st.markdown('<div class="primary-nav-anchor"></div>', unsafe_allow_html=True)
 if nav1.button("ابدأ اختبار فجوة اتخاذ القرار" if is_ar else "Start Decision Gap Assessment", use_container_width=True, key="nav_decision_gap"):
     st.switch_page("pages/01_QC_Decision_Gap.py")
 if nav2.button("ابدأ حل مشكلة جديدة" if is_ar else "Start a New Investigation", use_container_width=True, key="nav_new_case"):
