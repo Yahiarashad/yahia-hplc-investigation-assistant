@@ -23,7 +23,7 @@ TTS_VOICE = "alloy"
 APP_VERSION = "v1.1"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 LINKEDIN_URL = "https://www.linkedin.com/in/yahia-rashad-mohamed"
-PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile.png"
+PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile.jpg"
 
 st.set_page_config(
     page_title=APP_TITLE,
@@ -53,7 +53,7 @@ def contains_arabic(text: str) -> bool:
 def portrait_data_uri():
     if PORTRAIT_PATH.exists():
         encoded = base64.b64encode(PORTRAIT_PATH.read_bytes()).decode("ascii")
-        return f"data:image/png;base64,{encoded}"
+        return f"data:image/jpeg;base64,{encoded}"
     if PORTRAIT_B64:
         return f"data:image/jpeg;base64,{PORTRAIT_B64}"
     return ""
