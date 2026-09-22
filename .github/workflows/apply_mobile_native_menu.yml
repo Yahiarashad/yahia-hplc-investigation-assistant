@@ -1,0 +1,22 @@
+name: Apply stable mobile navigation menu patch
+on:
+  push:
+    branches: [instrument-lifecycle-standalone]
+    paths: [.github/workflows/apply_mobile_native_menu.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - run: python scripts/patch_mobile_native_menu.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git commit -m "Replace mobile sidebar drawer with stable route menu"
+          git push origin HEAD:instrument-lifecycle-standalone
