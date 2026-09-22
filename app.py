@@ -348,7 +348,7 @@ st.markdown(
       .brand-sub { color:#d3deeb; font-size:.92rem; line-height:1.55; max-width:390px; }
       .brand-values { display:flex; gap:.55rem; flex-wrap:wrap; margin-top:1.15rem; }
       .brand-value { padding:.35rem .6rem; border-radius:999px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.07); font-size:.68rem; font-weight:800; }
-      .brand-portrait { position:absolute; z-index:1; right:0; bottom:0; width:48%; height:96%; object-fit:cover; object-position:center 15%; mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); }
+      .brand-portrait { position:absolute; z-index:1; right:0; bottom:0; width:48%; height:96%; background-size:cover; background-position:center 15%; background-repeat:no-repeat; mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); }
       .brand-glow { position:absolute; right:8%; top:7%; width:34%; aspect-ratio:1; border-radius:50%; border:2px solid rgba(35,172,255,.45); box-shadow:0 0 55px rgba(0,148,255,.2); }
       .linkedin-card { margin:1rem 0 1.1rem; padding:1rem; border-radius:18px; border:1px solid #dbe5f0; background:linear-gradient(145deg,#fff,#f5f9ff); box-shadow:0 10px 26px rgba(15,23,42,.06); }
       .linkedin-head { display:flex; align-items:center; gap:.85rem; }
@@ -427,7 +427,7 @@ st.markdown(
         .brand-kicker { font-size:.62rem; }
         .brand-values { max-width:100%; }
         .brand-value { font-size:.6rem; }
-        .brand-portrait { width:48%; height:78%; right:-2%; object-position:center 8%; opacity:1; }
+        .brand-portrait { width:48%; height:78%; right:-2%; background-position:center 8%; opacity:1; }
         .brand-glow { width:55%; right:-2%; top:16%; }
         .linkedin-avatar { width:58px; height:58px; }
         .hero-card { border-radius:19px; padding:1.1rem 1rem; }
@@ -491,7 +491,7 @@ hero_values = (
     if is_ar else
     ("LEARN", "SOLVE", "DECIDE", "A STRONGER QC COMMUNITY")
 )
-portrait_html = f'<img class="brand-portrait" src="{portrait_uri}" alt="Yahia Abdelhalim">' if portrait_uri else ""
+portrait_html = f'<div class="brand-portrait" role="img" aria-label="Yahia Abdelhalim" style="background-image:url({portrait_uri});"></div>' if portrait_uri else ""
 st.markdown(
     f"""
     <section class="brand-hero" dir="{hero_direction}">
