@@ -1,0 +1,46 @@
+name: Fix core bootstrap loop
+
+on:
+  push:
+    branches:
+      - instrument-lifecycle-standalone
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - name: Prevent core from re-entering app shell
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''_core = Path(__file__).resolve().parent / "instrument_supabase_app.py"\ntry:\n    exec(compile(_core.read_text(encoding="utf-8"), str(_core), "exec"), globals(), globals())\n'''
+          new = '''_core = Path(__file__).resolve().parent / "instrument_supabase_app.py"\n# Tell the legacy core it is being executed by the modern app shell. Without\n# this flag, its compatibility bootstrap sees __name__ == "__main__" and\n# executes app.py again, creating duplicate Streamlit widget keys.\nglobals()["_ILM_APP_SHELL_BOOTSTRAPPED"] = True\ntry:\n    exec(compile(_core.read_text(encoding="utf-8"), str(_core), "exec"), globals(), globals())\n'''
+          if 'globals()["_ILM_APP_SHELL_BOOTSTRAPPED"] = True\ntry:\n    exec(compile(_core.read_text' in s:
+              print('Bootstrap guard already present')
+          elif old in s:
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+              print('Patched app.py')
+          else:
+              raise SystemExit('Expected core execution block not found')
+          PY
+      - name: Commit fix
+        run: |
+          if git diff --quiet -- app.py; then
+            echo "No changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git commit -m "Prevent legacy core from re-entering application shell"
+          git push origin HEAD:instrument-lifecycle-standalone
