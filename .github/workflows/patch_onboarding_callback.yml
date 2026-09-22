@@ -1,0 +1,38 @@
+name: Patch onboarding rerun
+
+on:
+  push:
+    branches:
+      - instrument-lifecycle-standalone
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - name: Remove explicit rerun from role onboarding
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''if _signed_in_shell and not st.session_state.get("ilm_user_role"):\n    @st.dialog("Welcome · Set up your workspace")\n    def _ilm_role_onboarding():\n        st.markdown("### What is your role in QC?")\n        st.caption("We will organize the workspace around the decisions you make. This does not change your database permissions.")\n        role = st.selectbox(\n            "Your role",\n            options=ROLE_LABELS,\n            key="ilm_role_onboarding_select",\n        )\n        role_label = str(role or "QC Analyst")\n        role_help = ROLE_HELP.get(role_label, ROLE_HELP["QC Analyst"])\n        st.info(role_help)\n        if st.button("Enter my workspace →", type="primary", use_container_width=True, key="ilm_role_onboarding_go"):\n            st.session_state.ilm_user_role = role_label\n            st.session_state.ilm_route = "🏠 Dashboard"\n            st.rerun()\n    _ilm_role_onboarding()\n'''
+          new = '''def _ilm_complete_role_onboarding():\n    role_label = str(st.session_state.get("ilm_role_onboarding_select") or "QC Analyst")\n    st.session_state.ilm_user_role = role_label\n    st.session_state.ilm_route = "🏠 Dashboard"\n\n\nif _signed_in_shell and not st.session_state.get("ilm_user_role"):\n    @st.dialog("Welcome · Set up your workspace")\n    def _ilm_role_onboarding():\n        st.markdown("### What is your role in QC?")\n        st.caption("We will organize the workspace around the decisions you make. This does not change your database permissions.")\n        role = st.selectbox(\n            "Your role",\n            options=ROLE_LABELS,\n            key="ilm_role_onboarding_select",\n        )\n        role_label = str(role or "QC Analyst")\n        role_help = ROLE_HELP.get(role_label, ROLE_HELP["QC Analyst"])\n        st.info(role_help)\n        st.button(\n            "Enter my workspace →",\n            type="primary",\n            use_container_width=True,\n            key="ilm_role_onboarding_go",\n            on_click=_ilm_complete_role_onboarding,\n        )\n    _ilm_role_onboarding()\n'''
+          if old not in s:
+              raise SystemExit('Onboarding anchor not found; refusing blind edit.')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          rm -f .github/workflows/patch_onboarding_callback.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix role onboarding without explicit rerun"
+          git push origin HEAD:instrument-lifecycle-standalone
