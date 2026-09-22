@@ -1,28 +1,31 @@
-"""Runtime bridge for the legacy direct Streamlit entrypoint.
+"""Compatibility redirect for Streamlit deployments still configured to the legacy core file.
 
-When Streamlit runs instrument_supabase_app.py directly, the newer application shell
-is bypassed. This bridge makes the premium Product/User/Management guide visible in
-the legacy Guide tab as well, so the downloadable PDF is always reachable.
+Python imports usercustomize during interpreter startup. Streamlit parses the target
+script path afterwards, so replacing only the legacy instrument entrypoint here lets
+existing deployments start app.py without changing the Streamlit Cloud setting.
 """
 
-try:
-    import streamlit as st
+from __future__ import annotations
 
-    if not hasattr(st, "_yqii_native_header"):
-        st._yqii_native_header = st.header
+import sys
+from pathlib import Path
 
-    _native_header = st._yqii_native_header
 
-    def _yqii_header(body, *args, **kwargs):
-        result = _native_header(body, *args, **kwargs)
+def _redirect_legacy_streamlit_entrypoint() -> None:
+    for idx, raw in enumerate(list(sys.argv)):
         try:
-            if str(body).strip() == "How to Use | دليل الاستخدام":
-                from instrument_product_guide import render_product_guide_hub
-                render_product_guide_hub()
-        except Exception as exc:
-            st.caption(f"Premium Product Guide is temporarily unavailable ({type(exc).__name__}).")
-        return result
+            arg = str(raw or "")
+            if not arg.endswith("instrument_supabase_app.py"):
+                continue
+            current = Path(arg)
+            candidate = current.with_name("app.py")
+            if not candidate.exists():
+                candidate = Path.cwd() / "app.py"
+            if candidate.exists():
+                sys.argv[idx] = str(candidate)
+            return
+        except Exception:
+            return
 
-    st.header = _yqii_header
-except Exception:
-    pass
+
+_redirect_legacy_streamlit_entrypoint()
