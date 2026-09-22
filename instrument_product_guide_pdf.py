@@ -232,6 +232,8 @@ def build_product_user_guide_pdf() -> bytes:
     _section(story,styles,11,'Admin, Users & Privileges','إدارة الفريق والصلاحيات')
     story.append(Paragraph('Organization Admins can add or invite users, assign job roles, control account status and configure module-level privileges such as View, Add, Edit, Delete and Approve.',styles['body']))
     story.append(RTLBlock('الفكرة الأساسية هي الفصل بين Job Role الذي يرتب تجربة المستخدم وبين Access Privileges التي يجب أن تحكم ما يستطيع المستخدم فعله فعليًا. تغييرات الوصول يجب أن تكون قابلة للتتبع.'))
+    story.append(Paragraph('Secure invitation is enforced server-side: the signed-in caller is validated, workspace-admin authority is checked, and service-role capability remains on the server. Access changes require an accountable reason and are written to the access audit trail.',styles['small']))
+    story.append(RTLBlock('الأمان ليس مجرد زر مخفي في الواجهة: دعوة المستخدم والتحقق من صلاحية مدير الـWorkspace تتم على الخادم، وتغييرات الوصول يجب أن تترك أثرًا واضحًا في Audit Trail.',size=9.2,leading=14,space_after=5))
     story.append(_table([['ACTION','EXAMPLE'],['View','See instrument or report data'],['Add','Create a new record'],['Edit','Modify an existing record'],['Delete / Archive','Remove or retire according to governance'],['Approve','Perform a controlled approval action when implemented']],[48*mm,116*mm])); story.append(PageBreak())
 
     _section(story,styles,12,'Excel Migration & Data Entry','ابدأ من بياناتك الحالية بدون تخمين')

@@ -216,17 +216,64 @@ if not st.session_state.get("_ilm_auth"):
 # Mobile navigation helper: after choosing a route, close the sidebar and
 # return the main viewport to the first line of the newly selected workspace.
 def _ilm_mobile_route_transition():
+    """Finish a route change after the selected workspace has rendered.
+
+    On mobile this closes Streamlit's overlay sidebar. On every device it moves
+    the viewport to the first visible line of the active keyed workspace.
+    """
     try:
         import streamlit.components.v1 as components
         components.html(
             """<script>
-            try {
-              const w = window.parent;
-              w.scrollTo({top: 0, behavior: 'instant'});
-              const sidebar = w.document.querySelector('section[data-testid="stSidebar"]');
-              const collapse = sidebar && sidebar.querySelector('button[data-testid="stSidebarCollapseButton"], button[aria-label*="Close sidebar"], button[aria-label*="Collapse sidebar"]');
-              if (collapse && w.innerWidth <= 768) { collapse.click(); }
-            } catch (e) {}
+            (() => {
+              try {
+                const w = window.parent;
+                const d = w.document;
+
+                const activeWorkspace = () => {
+                  const nodes = Array.from(d.querySelectorAll('[class*="st-key-ilm_workspace_"]'));
+                  return nodes.find((el) => {
+                    const cs = w.getComputedStyle(el);
+                    const r = el.getBoundingClientRect();
+                    return cs.display !== 'none' && cs.visibility !== 'hidden' && r.height > 0;
+                  }) || null;
+                };
+
+                const scrollToSelected = () => {
+                  const active = activeWorkspace();
+                  if (active) {
+                    active.scrollIntoView({behavior: 'instant', block: 'start', inline: 'nearest'});
+                  } else {
+                    const main = d.querySelector('[data-testid="stMain"]') || d.querySelector('section.main');
+                    if (main && typeof main.scrollTo === 'function') {
+                      main.scrollTo({top: 0, behavior: 'instant'});
+                    }
+                    try { w.scrollTo({top: 0, behavior: 'instant'}); } catch (_) { w.scrollTo(0, 0); }
+                  }
+                };
+
+                const closeMobileSidebar = () => {
+                  if (w.innerWidth > 768) return;
+                  const sidebar = d.querySelector('section[data-testid="stSidebar"]');
+                  if (!sidebar) return;
+                  const r = sidebar.getBoundingClientRect();
+                  const cs = w.getComputedStyle(sidebar);
+                  const isOpen = cs.visibility !== 'hidden' && cs.display !== 'none' && r.width > 40 && r.right > 24 && r.left < w.innerWidth;
+                  if (!isOpen) return;
+                  const closeButton = sidebar.querySelector(
+                    'button[data-testid="stSidebarCollapseButton"], button[aria-label*="Close sidebar"], button[aria-label*="Collapse sidebar"]'
+                  ) || d.querySelector('button[data-testid="stSidebarCollapseButton"]');
+                  if (closeButton) closeButton.click();
+                };
+
+                const finish = () => {
+                  scrollToSelected();
+                  closeMobileSidebar();
+                };
+
+                [0, 120, 320, 650, 1100].forEach((delay) => w.setTimeout(finish, delay));
+              } catch (e) {}
+            })();
             </script>""",
             height=0,
             width=0,
@@ -302,6 +349,7 @@ def _ilm_complete_role_onboarding():
     role_label = str(st.session_state.get("ilm_role_onboarding_select") or "QC Analyst")
     st.session_state.ilm_user_role = role_label
     st.session_state.ilm_route = "🏠 Dashboard"
+    st.session_state.ilm_route_transition = True
 
 
 if _signed_in_shell and not st.session_state.get("ilm_user_role"):
@@ -364,8 +412,6 @@ _ROUTE_GROUPS = {name: _ALL_ROUTE_GROUPS[name] for name in _allowed_groups}
 _ROUTE_ITEMS = [item for group in _ROUTE_GROUPS.values() for item in group]
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
-    if st.session_state.pop("ilm_route_transition", False):
-        _ilm_mobile_route_transition()
     with st.sidebar:
         st.markdown("## QC Intelligence")
         st.caption("From data → evidence → decision → action")
@@ -821,3 +867,7 @@ section.main div[data-testid="stMetric"]:not(.v03-dashboard-hero div[data-testid
 """,
     unsafe_allow_html=True,
 )
+
+# Run route transition only after the active keyed workspace has been emitted.
+if st.session_state.pop("ilm_route_transition", False):
+    _ilm_mobile_route_transition()
