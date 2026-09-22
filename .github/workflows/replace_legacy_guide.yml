@@ -1,0 +1,39 @@
+name: Replace legacy Guide with premium Guide
+
+on:
+  push:
+    branches:
+      - instrument-lifecycle-standalone
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - name: Replace legacy Guide renderer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('instrument_supabase_app.py')
+          s = p.read_text(encoding='utf-8')
+          pattern = r'\n# Guide -+\nwith tabs\[5\]:.*?\n\nst\.divider\(\)\n'
+          replacement = '''\n# Guide -----------------------------------------------------------------------\nwith tabs[5]:\n    if callable(globals().get("render_v03_user_guide")):\n        render_v03_user_guide()\n    else:\n        st.header("Guide")\n        st.error("Premium Product & User Guide module could not load.")\n\nst.divider()\n'''
+          new, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit(f'Expected exactly one legacy Guide block, found {n}')
+          p.write_text(new, encoding='utf-8')
+          PY
+      - name: Commit premium Guide routing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_supabase_app.py
+          git commit -m "Route Guide workspace to premium Product and User Guide"
+          git push origin HEAD:instrument-lifecycle-standalone
