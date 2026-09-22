@@ -51,11 +51,19 @@ def contains_arabic(text: str) -> bool:
     return bool(re.search(r"[\u0600-\u06FF]", text or ""))
 
 def portrait_data_uri():
-    if PORTRAIT_PATH.exists():
-        encoded = base64.b64encode(PORTRAIT_PATH.read_bytes()).decode("ascii")
-        return f"data:image/jpeg;base64,{encoded}"
-    if PORTRAIT_B64:
-        return f"data:image/jpeg;base64,{PORTRAIT_B64}"
+    # Use a browser-safe PNG/JPEG data URI only when the asset decodes cleanly.
+    # Fall back to no image rather than showing a broken/corrupted portrait.
+    try:
+        if PORTRAIT_PATH.exists():
+            raw = PORTRAIT_PATH.read_bytes()
+            if raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+                encoded = base64.b64encode(raw).decode("ascii")
+                return f"data:image/png;base64,{encoded}"
+            if raw.startswith(b"\\xff\\xd8") and raw.endswith(b"\\xff\\xd9"):
+                encoded = base64.b64encode(raw).decode("ascii")
+                return f"data:image/jpeg;base64,{encoded}"
+    except Exception:
+        pass
     return ""
 
 
@@ -341,6 +349,7 @@ st.markdown(
       .brand-glow { position:absolute; right:8%; top:7%; width:34%; aspect-ratio:1; border-radius:50%; border:2px solid rgba(35,172,255,.45); box-shadow:0 0 55px rgba(0,148,255,.2); }
       .linkedin-card { margin:1rem 0 1.1rem; padding:1rem; border-radius:18px; border:1px solid #dbe5f0; background:linear-gradient(145deg,#fff,#f5f9ff); box-shadow:0 10px 26px rgba(15,23,42,.06); }
       .linkedin-head { display:flex; align-items:center; gap:.85rem; }
+      .linkedin-avatar-fallback { display:flex; align-items:center; justify-content:center; background:#082b4a; color:#f3c75b; font-weight:900; font-size:1.15rem; }
       .linkedin-avatar { width:68px; height:68px; border-radius:50%; object-fit:cover; border:3px solid #fff; box-shadow:0 4px 16px rgba(15,23,42,.14); }
       .linkedin-name { font-size:1.05rem; font-weight:900; color:#10213e; }
       .linkedin-role { color:#53657c; font-size:.82rem; line-height:1.45; }
