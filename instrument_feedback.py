@@ -73,7 +73,7 @@ def render_instrument_feedback(*, compact: bool = True, language: str = "ar") ->
     # Premium product/user/management guide. It is generated without customer
     # instrument records, so users can safely download and share the brochure.
     try:
-        from instrument_product_guide import render_product_guide_hub
+        from instrument_product_guide_rtl import render_product_guide_hub
         render_product_guide_hub()
     except Exception as exc:
         st.caption(f"Premium Product Guide is temporarily unavailable ({type(exc).__name__}).")
