@@ -2,7 +2,8 @@
 
 Python imports usercustomize during interpreter startup. Streamlit parses the target
 script path afterwards, so replacing only the legacy instrument entrypoint here lets
-existing deployments start app.py without changing the Streamlit Cloud setting.
+existing deployments start the guarded application shell without changing the
+Streamlit Cloud setting.
 """
 
 from __future__ import annotations
@@ -18,9 +19,9 @@ def _redirect_legacy_streamlit_entrypoint() -> None:
             if not arg.endswith("instrument_supabase_app.py"):
                 continue
             current = Path(arg)
-            candidate = current.with_name("app.py")
+            candidate = current.with_name("safe_app.py")
             if not candidate.exists():
-                candidate = Path.cwd() / "app.py"
+                candidate = Path.cwd() / "safe_app.py"
             if candidate.exists():
                 sys.argv[idx] = str(candidate)
             return
