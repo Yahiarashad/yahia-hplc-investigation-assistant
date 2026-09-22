@@ -405,7 +405,7 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
   .v03-flow-main{font-size:.94rem}.v03-flow-sub{font-size:.79rem}
 }
 </style>
-<div class="v03-guide-banner"><b>📘 دليل الاستخدام العملي | <span dir="ltr" style="display:inline;color:inherit;font-size:inherit">Start here</span></b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
+<div class="v03-guide-banner"><b>🚀 Yahia QC Instrument Intelligence™ | <span dir="ltr" style="display:inline;color:inherit;font-size:inherit">Start here</span></b><span>افهم ما يحتويه التطبيق، دورة العمل الصحيحة، وكيف تسجل البيانات يدويًا أو من Excel قبل أن تبدأ.</span></div>
 """,
         unsafe_allow_html=True,
     )
