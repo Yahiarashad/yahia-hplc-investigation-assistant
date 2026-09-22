@@ -195,15 +195,9 @@ if not st.session_state.get("_ilm_auth"):
             pass
 
 
-_real_rerun = st.rerun
-
-
-def _cookie_aware_rerun(*args, **kwargs):
-    _write_auth_cookie()
-    return _real_rerun(*args, **kwargs)
-
-
-st.rerun = _cookie_aware_rerun
+# Keep Streamlit's native rerun untouched.
+# Persisted auth is written at stable auth boundaries and again after the core run.
+# Monkeypatching st.rerun across Streamlit reruns can create wrapper-to-wrapper recursion.
 
 
 # Mobile navigation helper: after choosing a route, close the sidebar and
