@@ -1,0 +1,47 @@
+name: Standardize official product guide
+
+on:
+  push:
+    branches:
+      - instrument-lifecycle-standalone
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - name: Keep one canonical 19-page guide identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          guide = Path('instrument_v03_user_guide.py')
+          s = guide.read_text(encoding='utf-8')
+          s = s.replace('⬇️ Download Premium Product & User Guide (PDF)', '⬇️ Download Official Product & User Guide (PDF)')
+          s = s.replace('Yahia_QC_Instrument_Intelligence_Product_User_Guide.pdf', 'Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf')
+          s = s.replace('نسخة تعريفية وتسويقية وتدريبية قابلة للمشاركة مع المستخدمين والإدارة والعملاء المحتملين — بدون أي بيانات خاصة بالـWorkspace.', 'الدليل الرسمي الموحد للمنتج — نسخة Product + User + Management قابلة للمشاركة، بدون أي بيانات خاصة بالـWorkspace.')
+          guide.write_text(s, encoding='utf-8')
+
+          pdf = Path('instrument_product_guide_pdf.py')
+          p = pdf.read_text(encoding='utf-8')
+          p = p.replace("'Yahia QC Instrument Intelligence - Product & User Guide'", "'Yahia QC Instrument Intelligence - Official Guide v1.0'")
+          p = p.replace("'Decision-support platform. Official GxP records remain in approved company systems.'", "'Official Guide v1.0 · Decision-support platform. Official GxP records remain in approved company systems.'")
+          pdf.write_text(p, encoding='utf-8')
+          PY
+      - name: Commit canonical guide identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_v03_user_guide.py instrument_product_guide_pdf.py
+          if git diff --cached --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git commit -m "Standardize single official 19-page product guide"
+          git push origin HEAD:instrument-lifecycle-standalone
