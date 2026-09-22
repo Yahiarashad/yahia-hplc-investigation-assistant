@@ -285,6 +285,12 @@ ROLE_OPTIONS = [
 ROLE_LABELS = [item[0] for item in ROLE_OPTIONS]
 ROLE_HELP = {item[0]: item[1] for item in ROLE_OPTIONS}
 
+def _ilm_complete_role_onboarding():
+    role_label = str(st.session_state.get("ilm_role_onboarding_select") or "QC Analyst")
+    st.session_state.ilm_user_role = role_label
+    st.session_state.ilm_route = "🏠 Dashboard"
+
+
 if _signed_in_shell and not st.session_state.get("ilm_user_role"):
     @st.dialog("Welcome · Set up your workspace")
     def _ilm_role_onboarding():
@@ -298,10 +304,13 @@ if _signed_in_shell and not st.session_state.get("ilm_user_role"):
         role_label = str(role or "QC Analyst")
         role_help = ROLE_HELP.get(role_label, ROLE_HELP["QC Analyst"])
         st.info(role_help)
-        if st.button("Enter my workspace →", type="primary", use_container_width=True, key="ilm_role_onboarding_go"):
-            st.session_state.ilm_user_role = role_label
-            st.session_state.ilm_route = "🏠 Dashboard"
-            st.rerun()
+        st.button(
+            "Enter my workspace →",
+            type="primary",
+            use_container_width=True,
+            key="ilm_role_onboarding_go",
+            on_click=_ilm_complete_role_onboarding,
+        )
     _ilm_role_onboarding()
 
 _ALL_ROUTE_GROUPS = {
