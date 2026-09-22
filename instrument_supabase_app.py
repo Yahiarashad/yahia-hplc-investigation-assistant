@@ -4,6 +4,18 @@
 
 from __future__ import annotations
 
+# _ILM_APP_SHELL_BOOTSTRAPPED
+# Compatibility bootstrap: if Streamlit Cloud still points directly to this
+# legacy core file, hand execution to app.py so the current application shell,
+# workspace navigation, admin controls and premium Product/User Guide are used.
+if __name__ == "__main__" and not globals().get("_ILM_APP_SHELL_BOOTSTRAPPED"):
+    globals()["_ILM_APP_SHELL_BOOTSTRAPPED"] = True
+    from pathlib import Path as _ILMBootstrapPath
+    import streamlit as _ilm_bootstrap_st
+    _ilm_shell = _ILMBootstrapPath(__file__).resolve().with_name("app.py")
+    exec(compile(_ilm_shell.read_text(encoding="utf-8"), str(_ilm_shell), "exec"), globals(), globals())
+    _ilm_bootstrap_st.stop()
+
 import io
 import json
 from datetime import date, timedelta
