@@ -335,7 +335,7 @@ st.markdown(
     """
     <style>
       .block-container { max-width:900px; padding-top:4.2rem; padding-bottom:4.5rem; }
-      .brand-hero { position:relative; overflow:hidden; min-height:350px; border-radius:26px; padding:2rem 2rem 1.55rem; margin-bottom:1rem; color:#fff; background:radial-gradient(circle at 78% 20%,rgba(16,132,214,.32),transparent 34%),linear-gradient(135deg,#06152b 0%,#082b50 55%,#061425 100%); border:1px solid rgba(214,181,90,.52); box-shadow:0 22px 48px rgba(2,12,27,.22); }
+      .brand-hero { position:relative; overflow:hidden; min-height:350px; border-radius:26px; padding:2rem 2rem 1.55rem; margin-bottom:1rem; color:#fff; background:linear-gradient(90deg,rgba(4,19,39,.98) 0%,rgba(5,35,65,.94) 52%,rgba(4,28,53,.76) 100%),repeating-linear-gradient(90deg,transparent 0 34px,rgba(66,174,235,.035) 35px),linear-gradient(135deg,#06152b 0%,#0a4778 70%,#082b50 100%); border:1px solid rgba(214,181,90,.52); box-shadow:0 22px 48px rgba(2,12,27,.22); }
       .brand-hero:after { content:""; position:absolute; inset:auto -8% -35% 35%; height:65%; background:radial-gradient(circle,rgba(30,144,255,.18),transparent 65%); pointer-events:none; }
       .brand-copy { position:relative; z-index:2; width:55%; }
       .brand-copy[dir="rtl"] { margin-left:auto; text-align:right; }
@@ -348,8 +348,14 @@ st.markdown(
       .brand-sub { color:#d3deeb; font-size:.92rem; line-height:1.55; max-width:390px; }
       .brand-values { display:flex; gap:.55rem; flex-wrap:wrap; margin-top:1.15rem; }
       .brand-value { padding:.35rem .6rem; border-radius:999px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.07); font-size:.68rem; font-weight:800; }
-      .brand-portrait { position:absolute; z-index:1; right:0; bottom:0; width:48%; height:96%; background-size:cover; background-position:center 15%; background-repeat:no-repeat; mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,#000 76%,transparent 100%); }
-      .brand-glow { position:absolute; right:8%; top:7%; width:34%; aspect-ratio:1; border-radius:50%; border:2px solid rgba(35,172,255,.45); box-shadow:0 0 55px rgba(0,148,255,.2); }
+      .brand-hplc-bg { position:absolute; z-index:1; right:-1%; top:8%; width:48%; height:84%; opacity:.22; pointer-events:none; }
+      .brand-hplc-module { position:absolute; right:4%; top:10%; width:54%; height:68%; border:2px solid rgba(128,210,255,.65); border-radius:12px; box-shadow:0 0 26px rgba(35,172,255,.22); }
+      .brand-hplc-module:before,.brand-hplc-module:after { content:""; position:absolute; left:8%; right:8%; height:2px; background:rgba(128,210,255,.5); }
+      .brand-hplc-module:before { top:34%; } .brand-hplc-module:after { top:67%; }
+      .brand-hplc-vial { position:absolute; top:0; width:14%; height:18%; border:2px solid rgba(128,210,255,.62); border-radius:6px 6px 10px 10px; }
+      .brand-hplc-vial.v1 { right:12%; } .brand-hplc-vial.v2 { right:31%; }
+      .brand-chrom { position:absolute; left:0; right:0; bottom:0; height:28%; border-left:2px solid rgba(128,210,255,.45); border-bottom:2px solid rgba(128,210,255,.45); }
+      .brand-chrom:after { content:""; position:absolute; left:8%; right:4%; bottom:8%; height:72%; background:linear-gradient(105deg,transparent 0 18%,rgba(128,210,255,.7) 18.5% 19%,transparent 19.5% 43%,rgba(128,210,255,.8) 43.5% 44.5%,transparent 45% 66%,rgba(128,210,255,.6) 66.5% 67%,transparent 67.5%); clip-path:polygon(0 96%,12% 94%,18% 5%,22% 94%,40% 93%,44% 34%,47% 93%,64% 94%,67% 54%,70% 94%,100% 96%,100% 100%,0 100%); background-color:rgba(128,210,255,.52); }
       .linkedin-card { margin:1rem 0 1.1rem; padding:1rem; border-radius:18px; border:1px solid #dbe5f0; background:linear-gradient(145deg,#fff,#f5f9ff); box-shadow:0 10px 26px rgba(15,23,42,.06); }
       .linkedin-head { display:flex; align-items:center; gap:.85rem; }
       .linkedin-avatar-fallback { display:flex; align-items:center; justify-content:center; background:#082b4a; color:#f3c75b; font-weight:900; font-size:1.15rem; }
@@ -427,8 +433,7 @@ st.markdown(
         .brand-kicker { font-size:.62rem; }
         .brand-values { max-width:100%; }
         .brand-value { font-size:.6rem; }
-        .brand-portrait { width:48%; height:78%; right:-2%; background-position:center 8%; opacity:1; }
-        .brand-glow { width:55%; right:-2%; top:16%; }
+        .brand-hplc-bg { width:48%; height:68%; right:-3%; top:16%; opacity:.18; }
         .linkedin-avatar { width:58px; height:58px; }
         .hero-card { border-radius:19px; padding:1.1rem 1rem; }
         .hero-title { font-size:1.55rem; }
@@ -479,7 +484,6 @@ if is_ar:
         unsafe_allow_html=True,
     )
 
-portrait_uri = portrait_data_uri()
 hero_direction = "rtl" if is_ar else "ltr"
 hero_sub = (
     "أدوات عملية تساعد محللي الرقابة الدوائية على اتخاذ قرارات معملية أفضل."
@@ -491,12 +495,11 @@ hero_values = (
     if is_ar else
     ("LEARN", "SOLVE", "DECIDE", "A STRONGER QC COMMUNITY")
 )
-portrait_html = f'<div class="brand-portrait" role="img" aria-label="Yahia Abdelhalim" style="background-image:url({portrait_uri});"></div>' if portrait_uri else ""
+hplc_bg_html = """<div class="brand-hplc-bg" aria-hidden="true"><div class="brand-hplc-vial v1"></div><div class="brand-hplc-vial v2"></div><div class="brand-hplc-module"></div><div class="brand-chrom"></div></div>"""
 st.markdown(
     f"""
     <section class="brand-hero" dir="{hero_direction}">
-      <div class="brand-glow"></div>
-      {portrait_html}
+      {hplc_bg_html}
       <div class="brand-copy" dir="{hero_direction}">
         <div class="brand-logo">YAHIA <span>QC</span></div>
         <div class="brand-kicker">PHARMACEUTICAL QUALITY CONTROL</div>
