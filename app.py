@@ -440,7 +440,7 @@ def _tabs_v04(labels, *args, **kwargs):
         display_items = [
             "🏠 Dashboard", "↻ Lifecycle", "🪪 Passport", "◎ Cal & PM",
             "📈 Performance", "⚠ Events", "🔎 Investigate", "🔔 Alerts",
-            "▦ Reports", "ⓘ Guide", "🎛 Cockpit",
+            "▦ Reports", "ⓘ Guide", "🎛 Cockpit", "🛡 Admin",
         ]
         selected = st.session_state.get("ilm_route", "🏠 Dashboard")
         if selected not in _ROUTE_ITEMS:
@@ -628,6 +628,23 @@ except Exception as exc:
     try:
         with main_tabs[10]:
             st.error("Email Notification Center could not load completely.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+
+# Workspace Admin Control Center -----------------------------------------------
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 12 and _is_signed_in:
+        with main_tabs[11]:
+            if callable(globals().get("render_admin_control_center")):
+                render_admin_control_center()
+            else:
+                st.error("Admin Control Center could not load.")
+except Exception as exc:
+    try:
+        with main_tabs[11]:
+            st.error("Admin Control Center could not load completely.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass
