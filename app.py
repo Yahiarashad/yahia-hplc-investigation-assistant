@@ -439,6 +439,19 @@ st.selectbox(
 )
 selected_language_code = LANG_OPTIONS[st.session_state.ui_language_label]
 if st.query_params.get("lang") != selected_language_code:
+
+# Primary navigation — deliberately visible on the main screen, not hidden in the sidebar.
+nav1, nav2, nav3 = st.columns(3)
+if nav1.button("ابدأ اختبار فجوة اتخاذ القرار" if is_ar else "Start Decision Gap Assessment", use_container_width=True, key="nav_decision_gap"):
+    st.switch_page("pages/01_QC_Decision_Gap.py")
+if nav2.button("ابدأ حل مشكلة جديدة" if is_ar else "Start a New Investigation", use_container_width=True, key="nav_new_case"):
+    new_case_id = uuid.uuid4().hex[:16]
+    st.query_params["case"] = new_case_id
+    st.session_state.case_id = new_case_id
+    st.session_state.messages = []
+    st.rerun()
+if nav3.button("شاركنا رأيك" if is_ar else "Share Your Feedback", use_container_width=True, key="nav_feedback"):
+    st.switch_page("pages/03_Founding_Beta_Feedback.py")
     st.query_params["lang"] = selected_language_code
 
 AREA_EN = {
@@ -459,28 +472,7 @@ AREA_AR = {
 }
 area_options = AREA_AR if is_ar else AREA_EN
 
-with st.sidebar:
-    st.header(T["setup"])
-    area_label = st.selectbox(T["area"], list(area_options.keys()))
-    area = area_options[area_label]
-    st.markdown("---")
-    st.markdown(f"**{T['scope']}**")
-    st.caption("Pressure · RT · Peak Shape · Baseline · Carryover/Ghost Peaks")
-    if is_ar:
-        st.info("الأداة تدعم القرار ولا تستبدل SOP أو QA أو متطلبات GMP المعتمدة.")
-    else:
-        st.info("Decision-support only. Formal GMP investigations must follow approved SOPs, QA requirements, and applicable regulations.")
-    st.success(f"✓ {T['evidence_on']}")
-    st.caption("Waters · Agilent · Shimadzu · Thermo Fisher · USP · FDA · ICH")
-    st.caption(f"💾 {T['autosave']}")
-    st.caption(f"{T['case']}: `{CASE_ID}`")
-    if st.button(T["new"], use_container_width=True):
-        new_case_id = uuid.uuid4().hex[:16]
-        st.query_params["case"] = new_case_id
-        st.session_state.case_id = new_case_id
-        st.session_state.messages = []
-        st.rerun()
-
+area = "Auto-detect"
 if not API_KEY:
     st.error(T["api_missing"])
     st.stop()
