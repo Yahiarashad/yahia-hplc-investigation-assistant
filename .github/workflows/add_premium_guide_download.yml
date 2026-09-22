@@ -1,0 +1,52 @@
+name: Wire premium guide PDF download
+
+on:
+  push:
+    branches:
+      - instrument-lifecycle-standalone
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - name: Add premium PDF download to Guide
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('instrument_v03_user_guide.py')
+          s = p.read_text(encoding='utf-8')
+
+          import_anchor = 'import pandas as pd\nimport streamlit as st\n'
+          import_replacement = '''import pandas as pd\nimport streamlit as st\nfrom instrument_product_guide_pdf import build_product_user_guide_pdf\n\n\n@st.cache_data(show_spinner=False)\ndef _premium_product_guide_pdf_bytes():\n    return build_product_user_guide_pdf()\n'''
+          if 'from instrument_product_guide_pdf import build_product_user_guide_pdf' not in s:
+              if import_anchor not in s:
+                  raise SystemExit('Import anchor not found')
+              s = s.replace(import_anchor, import_replacement, 1)
+
+          anchor = '''        unsafe_allow_html=True,\n    )\n\n    with st.expander("📘 دليل الاستخدام التفصيلي | \\u2066Practical User Guide\\u2069", expanded=True):\n'''
+          panel = '''        unsafe_allow_html=True,\n    )\n\n    st.markdown(\n        """\n<div style="border:1px solid rgba(201,165,77,.65);border-radius:18px;padding:1rem 1.05rem;margin:.35rem 0 1rem;background:linear-gradient(135deg,#0b1f33,#12324f);color:white;box-shadow:0 8px 24px rgba(0,0,0,.12)">\n  <div style="color:#d8bc68;font-weight:900;letter-spacing:.08em;font-size:.76rem">PRODUCT · USER · MANAGEMENT GUIDE</div>\n  <div style="font-size:1.25rem;font-weight:900;margin:.28rem 0">Yahia QC Instrument Intelligence™</div>\n  <div style="color:#dce5ec;line-height:1.65">From Instrument Data to Evidence-Based Decisions</div>\n  <div style="margin-top:.65rem;font-weight:800">STOP MANAGING INSTRUMENT DATA. START MANAGING INSTRUMENT DECISIONS.</div>\n</div>\n""",\n        unsafe_allow_html=True,\n    )\n    try:\n        st.download_button(\n            "⬇️ Download Premium Product & User Guide (PDF)",\n            data=_premium_product_guide_pdf_bytes(),\n            file_name="Yahia_QC_Instrument_Intelligence_Product_User_Guide.pdf",\n            mime="application/pdf",\n            use_container_width=True,\n            key="v03_download_premium_product_guide",\n        )\n        st.caption("نسخة تعريفية وتسويقية وتدريبية قابلة للمشاركة مع المستخدمين والإدارة والعملاء المحتملين — بدون أي بيانات خاصة بالـWorkspace.")\n    except Exception as exc:\n        st.error("Premium PDF could not be generated on this deployment.")\n        st.caption(f"PDF diagnostic: {type(exc).__name__}")\n\n    with st.expander("📘 دليل الاستخدام التفصيلي | \\u2066Practical User Guide\\u2069", expanded=True):\n'''
+          if 'v03_download_premium_product_guide' not in s:
+              if anchor not in s:
+                  raise SystemExit('Guide render anchor not found')
+              s = s.replace(anchor, panel, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit Guide wiring
+        run: |
+          if git diff --quiet -- instrument_v03_user_guide.py; then
+            echo "No Guide changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_v03_user_guide.py
+          git commit -m "Expose premium Product and User Guide PDF download"
+          git push origin HEAD:instrument-lifecycle-standalone
