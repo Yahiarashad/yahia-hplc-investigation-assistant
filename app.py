@@ -569,6 +569,10 @@ _real_set_page_config = st.set_page_config
 st.set_page_config = lambda *args, **kwargs: None
 
 _core = Path(__file__).resolve().parent / "instrument_supabase_app.py"
+# Tell the legacy core it is being executed by the modern app shell. Without
+# this flag, its compatibility bootstrap sees __name__ == "__main__" and
+# executes app.py again, creating duplicate Streamlit widget keys.
+globals()["_ILM_APP_SHELL_BOOTSTRAPPED"] = True
 try:
     exec(compile(_core.read_text(encoding="utf-8"), str(_core), "exec"), globals(), globals())
 finally:
