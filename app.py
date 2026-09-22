@@ -917,6 +917,14 @@ if st.session_state.messages:
         )
 
     st.markdown("---")
+    if is_ar:
+        st.markdown("### 🔗 تابع تطوير Yahia QC")
+        st.caption("للتواصل، إرسال اقتراحاتك، متابعة التحديثات، والتعرف على التطبيقات والأدوات الجديدة.")
+        st.link_button("تابع وتواصل معي على LinkedIn ↗", "https://www.linkedin.com/in/yahia-rashad-mohamed", use_container_width=True)
+    else:
+        st.markdown("### 🔗 Stay connected with Yahia QC")
+        st.caption("Connect, suggest improvements, follow updates, and discover new QC applications and tools.")
+        st.link_button("Follow & Connect on LinkedIn ↗", "https://www.linkedin.com/in/yahia-rashad-mohamed", use_container_width=True)
     st.markdown(
         f'<div class="small-note">{APP_VERSION} · Yahia HPLC Investigation Assistant · Verified Evidence Engine · Evidence-first bilingual QC decision support</div>',
         unsafe_allow_html=True,
