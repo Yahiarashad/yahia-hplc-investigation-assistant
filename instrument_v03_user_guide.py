@@ -8,6 +8,12 @@ from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
+from instrument_product_guide_pdf import build_product_user_guide_pdf
+
+
+@st.cache_data(show_spinner=False)
+def _premium_product_guide_pdf_bytes():
+    return build_product_user_guide_pdf()
 
 
 # Exact visible application labels -> Supabase instrument columns.
@@ -409,6 +415,31 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 """,
         unsafe_allow_html=True,
     )
+
+    st.markdown(
+        """
+<div style="border:1px solid rgba(201,165,77,.65);border-radius:18px;padding:1rem 1.05rem;margin:.35rem 0 1rem;background:linear-gradient(135deg,#0b1f33,#12324f);color:white;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+  <div style="color:#d8bc68;font-weight:900;letter-spacing:.08em;font-size:.76rem">PRODUCT · USER · MANAGEMENT GUIDE</div>
+  <div style="font-size:1.25rem;font-weight:900;margin:.28rem 0">Yahia QC Instrument Intelligence™</div>
+  <div style="color:#dce5ec;line-height:1.65">From Instrument Data to Evidence-Based Decisions</div>
+  <div style="margin-top:.65rem;font-weight:800">STOP MANAGING INSTRUMENT DATA. START MANAGING INSTRUMENT DECISIONS.</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    try:
+        st.download_button(
+            "⬇️ Download Premium Product & User Guide (PDF)",
+            data=_premium_product_guide_pdf_bytes(),
+            file_name="Yahia_QC_Instrument_Intelligence_Product_User_Guide.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key="v03_download_premium_product_guide",
+        )
+        st.caption("نسخة تعريفية وتسويقية وتدريبية قابلة للمشاركة مع المستخدمين والإدارة والعملاء المحتملين — بدون أي بيانات خاصة بالـWorkspace.")
+    except Exception as exc:
+        st.error("Premium PDF could not be generated on this deployment.")
+        st.caption(f"PDF diagnostic: {type(exc).__name__}")
 
     with st.expander("📘 دليل الاستخدام التفصيلي | \u2066Practical User Guide\u2069", expanded=True):
         guide_tabs = st.tabs([
