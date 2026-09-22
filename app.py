@@ -64,6 +64,9 @@ def portrait_data_uri():
                 return f"data:image/jpeg;base64,{encoded}"
     except Exception:
         pass
+    # Repository-safe fallback: portrait_asset.py is already deployed with the app.
+    if PORTRAIT_B64:
+        return f"data:image/jpeg;base64,{PORTRAIT_B64}"
     return ""
 
 
