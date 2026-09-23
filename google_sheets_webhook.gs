@@ -22,6 +22,10 @@ const EVENT_HEADERS = [
   'created_at', 'session_id', 'source', 'event', 'language', 'metadata_json'
 ];
 
+const INVESTIGATION_MESSAGE_HEADERS = [
+  'created_at', 'session_id', 'source', 'language', 'role', 'sequence', 'content'
+];
+
 const FEEDBACK_HEADERS = [
   'created_at', 'session_id', 'source', 'language', 'rating', 'outcome',
   'accuracy', 'most_useful', 'improvement', 'desired_feature', 'name',
@@ -57,6 +61,35 @@ function doPost(e) {
 
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     if (!ss) return _jsonResponse({ok: false, error: 'spreadsheet_not_found'});
+
+    if (payload.type === 'snapshot') {
+      const eventsSheet = _ensureSheet(ss, 'Events', EVENT_HEADERS);
+      const feedbackSheet = _ensureSheet(ss, 'Feedback', FEEDBACK_HEADERS);
+      const messagesSheet = _ensureSheet(ss, 'InvestigationMessages', INVESTIGATION_MESSAGE_HEADERS);
+      return _jsonResponse({
+        ok: true,
+        events: _sheetObjects(eventsSheet, EVENT_HEADERS),
+        feedback: _sheetObjects(feedbackSheet, FEEDBACK_HEADERS),
+        investigation_messages: _sheetObjects(messagesSheet, INVESTIGATION_MESSAGE_HEADERS)
+      });
+    }
+
+    if (payload.type === 'investigation_message') {
+      const sheet = _ensureSheet(ss, 'InvestigationMessages', INVESTIGATION_MESSAGE_HEADERS);
+      const row = [
+        payload.created_at || new Date().toISOString(),
+        payload.session_id || '',
+        payload.source || 'hplc_assistant',
+        payload.language || '',
+        payload.role || '',
+        payload.sequence == null ? '' : payload.sequence,
+        payload.content || ''
+      ];
+      if (!_isMessageDuplicate(sheet, row[1], row[4], row[5])) {
+        sheet.appendRow(row);
+      }
+      return _jsonResponse({ok: true, stored: 'investigation_message'});
+    }
 
     if (payload.type === 'event') {
       const sheet = _ensureSheet(ss, 'Events', EVENT_HEADERS);
@@ -131,6 +164,31 @@ function _isDuplicate(sheet, createdAt, sessionId, eventKey) {
     const sameSession = String(row[1]) === String(sessionId);
     const thirdKey = String(row[3] || '');
     return sameTime && sameSession && (eventKey === 'feedback' || thirdKey === String(eventKey));
+  });
+}
+
+function _sheetObjects(sheet, headers) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  return values
+    .filter(function(row) { return String(row[1] || '').trim() !== ''; })
+    .map(function(row) {
+      const obj = {};
+      headers.forEach(function(header, i) { obj[header] = row[i]; });
+      return obj;
+    });
+}
+
+function _isMessageDuplicate(sheet, sessionId, role, sequence) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return false;
+  const scanStart = Math.max(2, lastRow - 300);
+  const values = sheet.getRange(scanStart, 1, lastRow - scanStart + 1, 7).getValues();
+  return values.some(function(row) {
+    return String(row[1]) === String(sessionId)
+      && String(row[4]) === String(role)
+      && String(row[5]) === String(sequence);
   });
 }
 
