@@ -10,7 +10,7 @@ from pathlib import Path
 import streamlit as st
 from openai import OpenAI
 
-from beta_feedback import record_event, render_feedback_form
+from beta_feedback import record_event, record_investigation_message, render_feedback_form
 from evidence_engine import format_evidence_context, retrieve_evidence
 from portrait_asset import PORTRAIT_B64
 
@@ -656,7 +656,16 @@ if not st.session_state.messages:
             unsafe_allow_html=True,
         )
 
-    voice_label = "🎙️ أو سجّل المشكلة بصوتك" if is_ar else "🎙️ Or describe the problem by voice"
+    privacy_notice = (
+        "⚠️ لا تضع أي معلومات حساسة أو سرية تخص الشركة، المنتج، المريض، الطريقة التحليلية أو أي بيانات غير مصرح بمشاركتها. "
+        "لأغراض تحسين النسخة التجريبية، يتم حفظ النص الذي ترسله أو النص الناتج عن التسجيل الصوتي بعد إرساله."
+        if is_ar else
+        "⚠️ Do not enter sensitive or confidential company, product, patient, analytical-method, or unauthorized information. "
+        "For founding-beta improvement, text you submit — including reviewed voice transcripts — is stored."
+    )
+    st.warning(privacy_notice)
+
+    voice_label = "🎙️ تسجيل المشكلة صوتيًا" if is_ar else "🎙️ Record the problem by voice"
     audio_case = st.audio_input(voice_label, key=f"initial_voice_{CASE_ID}")
     if audio_case is not None:
         audio_sig = str(len(audio_case.getvalue()))
@@ -762,10 +771,18 @@ else:
         f'<div class="{continue_class}"><strong>{T["your_turn"]}</strong>{T["your_turn_copy"]}</div>',
         unsafe_allow_html=True,
     )
+    privacy_notice = (
+        "⚠️ لا تضع أي معلومات حساسة أو سرية تخص الشركة، المنتج، المريض، الطريقة التحليلية أو أي بيانات غير مصرح بمشاركتها. "
+        "يتم حفظ ما ترسله في هذه المرحلة لأغراض مراجعة وتحسين النسخة التجريبية."
+        if is_ar else
+        "⚠️ Do not enter sensitive or confidential company, product, patient, analytical-method, or unauthorized information. "
+        "What you submit at this stage is stored for founding-beta review and improvement."
+    )
+    st.warning(privacy_notice)
     chat_text = st.chat_input(
         "اكتب ردك هنا لمواصلة التحقيق..." if is_ar else "Type your reply here to continue the investigation..."
     )
-    voice_reply = st.audio_input("🎙️ رد بصوتك" if is_ar else "🎙️ Reply by voice", key=f"reply_voice_{CASE_ID}_{len(st.session_state.messages)}")
+    voice_reply = st.audio_input("🎙️ تسجيل الرد" if is_ar else "🎙️ Record reply", key=f"reply_voice_{CASE_ID}_{len(st.session_state.messages)}")
     if chat_text:
         user_input = chat_text
     elif voice_reply is not None:
@@ -811,6 +828,10 @@ if user_input:
     first_user_message = not any(message["role"] == "user" for message in st.session_state.messages)
     st.session_state.messages.append({"role": "user", "content": user_input})
     save_message(CASE_ID, "user", user_input)
+    record_investigation_message(
+        CASE_ID, "user", user_input, effective_language,
+        sequence=len(st.session_state.messages),
+    )
     if first_user_message:
         record_event(CASE_ID, "hplc_assistant", "investigation_started", effective_language)
 
@@ -892,6 +913,10 @@ if user_input:
 
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
+                record_investigation_message(
+                    CASE_ID, "assistant", visible_answer, response_language,
+                    sequence=len(st.session_state.messages),
+                )
                 try:
                     spoken = synthesize_speech(visible_answer)
                     if spoken:
