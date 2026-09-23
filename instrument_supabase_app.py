@@ -705,9 +705,7 @@ with tabs[1]:
         _status_value = str(inst.get("operational_status") or "Active")
         if _status_value in ("Out of Service", "Restricted", "Under Maintenance") and not open_inst_events:
             st.warning(
-                f"⚠ Management Attention
-
-{_status_value} with no active linked event. "
+                f"⚠ Management Attention\n\n{_status_value} with no active linked event. "
                 "Confirm the reason, reference, and current control decision are documented."
             )
             with st.expander("Why am I seeing this?", expanded=False):
