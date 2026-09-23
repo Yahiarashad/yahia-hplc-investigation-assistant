@@ -25,7 +25,7 @@ except Exception:
 st.title("📊 Founding Beta Dashboard")
 st.caption(
     "Anonymous product analytics + optional feedback. Test traffic is excluded from live funnel metrics. "
-    "No HPLC case text, IP address, or browser fingerprint is stored."
+    "IP addresses and browser fingerprints are not stored. Investigation text is stored only after the in-app privacy notice for founding-beta review."
 )
 
 if not expected_pin:
@@ -62,7 +62,7 @@ else:
 
 st.divider()
 
-events, feedback = dashboard_snapshot()
+events, feedback, investigation_messages = dashboard_snapshot(include_messages=True)
 
 
 def _metadata(row):
@@ -376,6 +376,40 @@ st.caption(
     "Privacy: category and outcome labels are stored, but the HPLC case text is not copied to analytics. "
     "Resolved means the user explicitly confirmed the real-world outcome; a model conclusion alone is not counted as resolved."
 )
+
+st.subheader("Investigation step viewer")
+st.caption(
+    "Submitted case dialogue is shown here so the founding-beta investigation flow can be reviewed step by step. "
+    "Users are warned not to submit sensitive or confidential information."
+)
+if investigation_messages:
+    case_ids = []
+    for row in investigation_messages:
+        sid = str(row.get("session_id") or "").strip()
+        if sid and sid not in case_ids:
+            case_ids.append(sid)
+    selected_case = st.selectbox(
+        "Choose investigation case",
+        list(reversed(case_ids)),
+        format_func=lambda x: f"Case {x[:8]}",
+    )
+    selected_steps = [
+        row for row in investigation_messages
+        if str(row.get("session_id") or "") == selected_case
+    ]
+    selected_steps.sort(key=lambda row: (int(row.get("sequence") or 0), str(row.get("created_at") or "")))
+    step_table = []
+    for row in selected_steps:
+        step_table.append({
+            "Step": int(row.get("sequence") or 0),
+            "Role": str(row.get("role") or "").title(),
+            "Submitted text": str(row.get("content") or ""),
+            "Language": str(row.get("language") or ""),
+            "Time": str(row.get("created_at") or "")[:19],
+        })
+    st.dataframe(step_table, use_container_width=True, hide_index=True)
+else:
+    st.info("No durably stored investigation dialogue yet. New submitted steps will appear here after the updated webhook is deployed.")
 
 st.subheader("Campaign attribution")
 a1, a2 = st.columns(2)
