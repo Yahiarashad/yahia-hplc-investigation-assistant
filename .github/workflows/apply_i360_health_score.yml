@@ -2,7 +2,9 @@ name: Apply Instrument 360 health score fix
 on:
   push:
     branches: [instrument-lifecycle-standalone]
-    paths: [.github/workflows/apply_i360_health_score.yml]
+    paths:
+      - .github/workflows/apply_i360_health_score.yml
+      - tools/patch_i360_health_score.py
 permissions:
   contents: write
 jobs:
