@@ -1,0 +1,23 @@
+name: Apply Instrument 360 health explanation upgrade
+on:
+  push:
+    branches: [instrument-lifecycle-standalone]
+    paths:
+      - .github/workflows/apply_i360_health_explain.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - run: python tools/patch_i360_health_explain.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_supabase_app.py
+          git commit -m "Explain Instrument 360 health score and flag status evidence gaps"
+          git push origin HEAD:instrument-lifecycle-standalone
