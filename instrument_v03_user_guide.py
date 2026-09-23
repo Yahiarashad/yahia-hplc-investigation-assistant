@@ -196,6 +196,46 @@ def _excel_template_bytes():
     return output.getvalue()
 
 
+def _excel_export_bytes(instruments):
+    """Export the current registry using the exact import-template headers.
+
+    This makes the downloaded registry round-trip compatible with the controlled
+    bulk importer: users can export, update approved fields, preview, then
+    re-import without manual header remapping.
+    """
+    columns = list(V03_EXCEL_FIELD_MAP.keys())
+    rows = []
+    for inst in instruments or []:
+        row = {}
+        for header, db_field in V03_EXCEL_FIELD_MAP.items():
+            value = inst.get(db_field)
+            if header in V03_EXCEL_BOOL_FIELDS and value is not None:
+                value = "Yes" if bool(value) else "No"
+            row[header] = "" if value is None else value
+        rows.append(row)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        pd.DataFrame(rows, columns=columns).to_excel(writer, index=False, sheet_name="Instruments")
+        ws = writer.book["Instruments"]
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+        for cell in ws[1]:
+            cell.font = cell.font.copy(bold=True)
+        for column_cells in ws.columns:
+            max_len = max((len(str(c.value)) if c.value is not None else 0) for c in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = min(max(max_len + 2, 12), 32)
+
+        pd.DataFrame([
+            ["Purpose", "Current instrument registry exported with the exact controlled import headers."],
+            ["Round trip", "You may update approved fields in this workbook, then upload it through Instruments → Import Instrument List."],
+            ["Evidence rule", "Do not fill unknown or missing evidence by assumption. Leave unavailable evidence blank."],
+            ["History", "Maintenance, calibration event history, failures and investigations remain in their dedicated modules and are not replaced by this registry export."],
+        ], columns=["Item", "Instruction"]).to_excel(writer, index=False, sheet_name="Read Me")
+    output.seek(0)
+    return output.getvalue()
+
+
 def _render_excel_import():
     st.markdown("#### 📥 إدخال البيانات من Excel | Bulk import")
     st.info(

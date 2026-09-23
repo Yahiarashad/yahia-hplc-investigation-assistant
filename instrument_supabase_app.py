@@ -567,6 +567,7 @@ with tabs[1]:
 
     if instruments:
         with st.expander("📋 سجل الأجهزة الحالي | Current Instrument Registry", expanded=False):
+            st.caption("Search the live registry, then export the complete current list in the same controlled format used by Import Instrument List.")
             registry_rows = [{
                 "Instrument ID": x.get("instrument_code") or "",
                 "Instrument name": x.get("instrument_name") or "",
@@ -576,7 +577,43 @@ with tabs[1]:
                 "Location": x.get("location") or "",
                 "Status": x.get("operational_status") or "",
             } for x in instruments]
-            st.dataframe(pd.DataFrame(registry_rows), use_container_width=True, hide_index=True)
+            registry_df = pd.DataFrame(registry_rows)
+
+            if callable(globals().get("_excel_export_bytes")):
+                st.download_button(
+                    "⬇️ Download Current Instrument List (.xlsx)",
+                    data=_excel_export_bytes(instruments),
+                    file_name="Yahia_QC_Current_Instrument_Registry.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="download_current_instrument_registry",
+                )
+                st.caption("Template-compatible export: edit approved fields, then preview and re-upload through Import Instrument List when needed.")
+
+            q = st.text_input(
+                "Search registry",
+                placeholder="Instrument ID, name, model, manufacturer, location…",
+                key="instrument_registry_search",
+            ).strip().lower()
+            status_values = sorted([str(v) for v in registry_df["Status"].dropna().unique() if str(v).strip()])
+            selected_statuses = st.multiselect(
+                "Status filter",
+                status_values,
+                default=[],
+                key="instrument_registry_status_filter",
+            )
+
+            filtered_df = registry_df.copy()
+            if q:
+                mask = filtered_df.astype(str).apply(
+                    lambda col: col.str.lower().str.contains(q, regex=False)
+                ).any(axis=1)
+                filtered_df = filtered_df[mask]
+            if selected_statuses:
+                filtered_df = filtered_df[filtered_df["Status"].isin(selected_statuses)]
+
+            st.caption(f"Showing {len(filtered_df)} of {len(registry_df)} instruments")
+            st.dataframe(filtered_df, use_container_width=True, hide_index=True)
 
         codes=[str(x.get("instrument_code")) for x in instruments]; default_index=codes.index(deep_code) if deep_code in codes else 0
         selected_code=st.selectbox("Open Instrument Passport",codes,index=default_index,key="passport_selected")
