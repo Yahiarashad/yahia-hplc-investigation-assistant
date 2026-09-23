@@ -1,0 +1,24 @@
+name: Apply compact Instrument 360 attention UX
+on:
+  push:
+    branches: [instrument-lifecycle-standalone]
+    paths:
+      - .github/workflows/apply_i360_attention_compact.yml
+      - tools/patch_i360_attention_compact.py
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - run: python tools/patch_i360_attention_compact.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_supabase_app.py
+          git commit -m "Compact Instrument 360 attention UX"
+          git push origin HEAD:instrument-lifecycle-standalone
