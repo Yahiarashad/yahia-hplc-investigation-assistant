@@ -158,6 +158,48 @@ def _post_webhook(payload):
         return False
 
 
+def _fetch_remote_snapshot():
+    webhook = _secret("BETA_FEEDBACK_WEBHOOK")
+    token = _secret("BETA_FEEDBACK_WEBHOOK_TOKEN", "")
+    if not webhook or not token:
+        return None
+    try:
+        body = json.dumps({"type": "snapshot", "token": str(token)}, ensure_ascii=False).encode("utf-8")
+        req = request.Request(webhook, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with request.urlopen(req, timeout=12) as resp:
+            if not (200 <= int(resp.status) < 300):
+                return None
+            parsed = json.loads(resp.read().decode("utf-8", errors="replace"))
+            if not isinstance(parsed, dict) or parsed.get("ok") is not True:
+                return None
+            return {
+                "events": parsed.get("events") or [],
+                "feedback": parsed.get("feedback") or [],
+                "investigation_messages": parsed.get("investigation_messages") or [],
+            }
+    except Exception:
+        return None
+
+
+def record_investigation_message(session_id, role, content, language="", sequence=0):
+    """Durably mirror beta investigation dialogue after an explicit in-app privacy notice."""
+    text = str(content or "").strip()
+    if not text:
+        return False
+    return _post_webhook(
+        {
+            "type": "investigation_message",
+            "session_id": str(session_id),
+            "source": "hplc_assistant",
+            "language": str(language or ""),
+            "role": str(role or ""),
+            "sequence": int(sequence or 0),
+            "content": text[:12000],
+            "created_at": _now_iso(),
+        }
+    )
+
+
 def test_external_storage():
     if not external_storage_configured():
         return False
@@ -479,12 +521,21 @@ def render_feedback_form(source, session_id, language="en", compact=False):
                 st.rerun()
 
 
-def dashboard_snapshot():
+def dashboard_snapshot(include_messages=False):
+    """Use durable Google Sheets as source of truth; local SQLite is fallback only."""
+    remote = _fetch_remote_snapshot()
+    if remote is not None:
+        if include_messages:
+            return remote["events"], remote["feedback"], remote["investigation_messages"]
+        return remote["events"], remote["feedback"]
+
     init_feedback_db()
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         events = [dict(r) for r in conn.execute("SELECT * FROM beta_events ORDER BY id DESC").fetchall()]
         feedback = [dict(r) for r in conn.execute("SELECT * FROM beta_feedback ORDER BY id DESC").fetchall()]
+    if include_messages:
+        return events, feedback, []
     return events, feedback
 
 
