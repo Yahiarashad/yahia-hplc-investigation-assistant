@@ -527,20 +527,22 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 <h4>المكونات الرئيسية التي ستستخدمها</h4>
 <ul>
 <li><b><span dir="ltr">Dashboard</span></b> — أين توجد المخاطر والمواعيد والـOOC والإشارات التي تحتاج قرارًا الآن.</li>
+<li><b><span dir="ltr">Instruments</span></b> — سجل الأجهزة، إضافة جهاز، استيراد/تصدير القائمة، ثم فتح <span dir="ltr">Instrument 360</span> لأي جهاز.</li>
+<li><b><span dir="ltr">Instrument 360</span></b> — القصة المتصلة للجهاز: <span dir="ltr">Identity → Lifecycle → Control → Performance → Events → Evidence</span> مع <span dir="ltr">Health Score</span> قابل للتفسير.</li>
 <li><b><span dir="ltr">Lifecycle</span></b> — الرحلة الفعلية من <span dir="ltr">Need / URS</span> حتى <span dir="ltr">First Run</span> ثم <span dir="ltr">Performance Review / Retirement</span>.</li>
-<li><b><span dir="ltr">Passport</span></b> — الهوية الرقمية الثابتة للجهاز: ID، النوع، الشركة، الموديل، السيريال، المكان، المسؤول والحالة.</li>
 <li><b><span dir="ltr">Cal & PM</span></b> — <span dir="ltr">Calibration / Qualification / PM / Maintenance / Components</span> وتواريخ الاستحقاق.</li>
 <li><b><span dir="ltr">Events</span></b> — تسجيل العطل أو الحدث كما حدث فعلًا قبل كتابة أي تفسير.</li>
 <li><b><span dir="ltr">Investigation Intelligence</span></b> — ربط المشكلة بتاريخ الجهاز وفصل <span dir="ltr">Observed / Inferred / Unknown</span> وتحديد الخطوة التالية للحصول على دليل.</li>
-<li><b><span dir="ltr">Reports</span></b> — رؤية مجمعة للحالة الحالية والأولويات وتقارير قابلة للمشاركة.</li>
-<li><b><span dir="ltr">Guide / About</span></b> — مرجع للمبادئ، طريقة الاستخدام، وحدود النظام.</li>
+<li><b><span dir="ltr">Performance</span></b> — تسجيل وتحليل <span dir="ltr">Availability / Utilization</span> واتجاه الأداء الشهري.</li>
+<li><b><span dir="ltr">Reports / Cockpit / Alerts</span></b> — التقارير، الرؤية الإدارية، والإشارات التي تحتاج متابعة حسب الدور.</li>
+<li><b><span dir="ltr">Guide</span></b> — مرجع للمبادئ، طريقة الاستخدام، وحدود النظام.</li>
 </ul>
 
-<div class="v03-guide-rule"><b>لإضافة عدة أجهزة دفعة واحدة:</b> استخدم <span dir="ltr">MY INSTRUMENTS → Instruments → Import Instrument List</span>. القالب والرفع والمراجعة موجودة هناك، وليس داخل الدليل.</div>
+<div class="v03-guide-rule"><b>التنقل الحالي:</b><br><span dir="ltr">Desktop</span>: استخدم الـSidebar الثابتة واختر القسم.<br><span dir="ltr">Mobile</span>: اضغط <span dir="ltr">☰ Menu · [Current Page]</span> أعلى الشاشة ثم اختر القسم؛ القائمة تغلق ويُفتح القسم المحدد من أعلى الصفحة.<br><br><b>لإضافة عدة أجهزة:</b> استخدم <span dir="ltr">Instruments → Import Instrument List</span>. ويمكنك تنزيل السجل الحالي من <span dir="ltr">Current Instrument Registry</span> ثم تحديث الحقول المعتمدة وإعادة استيراده بعد المراجعة.</div>
 
 <h3 style="margin-top:1.1rem">أفضل طريقة تبدأ بها</h3>
 <div class="v03-guide-flow">
-  <div class="v03-flow-step"><div class="v03-flow-num">1</div><div><div class="v03-flow-main">أنشئ <span dir="ltr">Passport</span></div><div class="v03-flow-sub">ثبّت هوية الجهاز وبياناته الأساسية أولًا.</div></div></div>
+  <div class="v03-flow-step"><div class="v03-flow-num">1</div><div><div class="v03-flow-main">افتح <span dir="ltr">Instruments</span> وأنشئ الجهاز أو استورد القائمة</div><div class="v03-flow-sub">ثبّت الهوية الأساسية أولًا، ثم افتح <span dir="ltr">Instrument 360</span> للجهاز.</div></div></div>
   <div class="v03-flow-step"><div class="v03-flow-num">2</div><div><div class="v03-flow-main">سجّل <span dir="ltr">Need / URS</span></div><div class="v03-flow-sub">وثّق الحاجة، الاستخدام المقصود، ومتطلبات المستخدم.</div></div></div>
   <div class="v03-flow-step"><div class="v03-flow-num">3</div><div><div class="v03-flow-main"><span dir="ltr">Quotation / PR / PO / Receiving</span></div><div class="v03-flow-sub">تابع رحلة الشراء والاستلام بدون فقد التسلسل.</div></div></div>
   <div class="v03-flow-step"><div class="v03-flow-num">4</div><div><div class="v03-flow-main"><span dir="ltr">Installation / IQ / OQ / PQ</span></div><div class="v03-flow-sub">سجّل التركيب والتأهيل بناءً على الدليل المتاح.</div></div></div>
@@ -584,9 +586,15 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
             st.markdown(
                 """
 **بداية اليوم / بداية الشيفت**
-- افتح **Dashboard** أولًا.
+- افتح **Dashboard** أولًا. على الهاتف: **☰ Menu → Dashboard**. على الكمبيوتر: اختر **Dashboard** من الـSidebar.
 - راجع Calibration overdue، PM overdue، Qualification due، Open OOC، Open Events وPriority Attention Queue.
 - لا تبدأ بالبحث داخل كل جهاز؛ دع الـDashboard يحدد أين تحتاج أن تنظر أولًا.
+
+**عند مراجعة جهاز محدد**
+- اذهب إلى **Instruments → Open Instrument 360** واختر الجهاز.
+- اقرأ أولًا **Health Score + Status + Open Events + Availability + Utilization**.
+- افتح **Why this score?** لفهم العوامل المؤثرة بدون تحويل الإشارة إلى حكم GMP.
+- راجع **Management Attention** إذا ظهر تعارض بين الحالة التشغيلية والدليل المرتبط داخل التطبيق.
 
 **عند عمل Calibration أو PM**
 - سجل الحدث في نفس يوم تنفيذه أو بمجرد اعتماد السجل.
@@ -604,6 +612,11 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 **عند إغلاق المشكلة**
 - اربط Investigation reference / evidence والنتيجة النهائية.
 - حافظ على الفرق بين Confirmed Root Cause وProbable وNot Yet Identified.
+
+**عند تسجيل الأداء الشهري**
+- افتح **Performance**، اختر الجهاز والشهر، ثم أدخل: Scheduled Service Hours، Planned Downtime، Unplanned Downtime، Productive Run Hours.
+- التطبيق يحسب تلقائيًا Planned Operating Time، Available Time، Availability وUtilization.
+- يمكن مراجعة أحدث القيم والاتجاه من داخل **Instrument 360 → PERFORMANCE** لنفس الجهاز.
 """
             )
             st.markdown("<div class='v03-guide-rule'><b>أفضل استفادة:</b> استخدم التطبيق باستمرار كـ instrument memory، وليس فقط عندما تظهر مشكلة. جودة التحقيق غدًا تعتمد على جودة التاريخ الذي تسجله اليوم.</div>", unsafe_allow_html=True)

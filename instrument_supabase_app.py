@@ -686,7 +686,7 @@ with tabs[1]:
             </div>''',
             unsafe_allow_html=True,
         )
-        st.caption("Instrument 360 summarizes connected evidence. Health and performance indicators prioritize attention; they do not determine GMP disposition or root cause.")
+        st.caption("Decision-support signal only — not a GMP disposition or root-cause conclusion.")
 
         # Put score explainability immediately beside the score so users do not
         # need to hunt inside Control to understand why a device needs attention.
@@ -757,9 +757,7 @@ with tabs[1]:
                 control_rows.append({"Control":_label,"Due date":_value or "Missing Evidence","Status":_due_label(_value) if _value else "Missing Evidence"})
             st.dataframe(pd.DataFrame(control_rows),use_container_width=True,hide_index=True)
             if reasons:
-                st.markdown("**Why the current Health Score needs attention**")
-                for reason in reasons:
-                    st.write(f"• {reason}")
+                st.caption("Health Score drivers are shown above under ‘Why this score?’ so the Control view stays focused on current due-date and component control.")
             if inst_components:
                 st.markdown("**Component control**")
                 comp_view=[]

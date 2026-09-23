@@ -195,13 +195,15 @@ def build_product_user_guide_pdf() -> bytes:
 
     _section(story,styles,4,'Role-Aware Workspace','كل مستخدم يرى ما يهم قراره')
     story.append(_table([['ROLE','PRIMARY DECISION VALUE'],['QC Analyst','Due work, events, investigation evidence and next controlled action.'],['QC Supervisor','Restrictions, overdue tasks, open investigations and team workload.'],['QC Manager','Availability, utilization, downtime, compliance, capacity and attention.'],['QC Director / Head','Risk, capacity, asset burden, escalation and investment evidence.'],['QA / Reviewer','Evidence readiness, traceability and quality-signal visibility.'],['Calibration / Maintenance','Due control work, maintenance history and component context.'],['Organization Admin','Users, roles, privileges, status and access audit.']],[44*mm,120*mm]))
-    story.append(RTLBlock('اختلاف الواجهة حسب الدور هدفه ترتيب الأولويات وليس تغيير الحقائق. نفس الجهاز ونفس الدليل، لكن كل مستوى يرى القرارات التي تخص مسؤوليته أولًا.')); story.append(PageBreak())
+    story.append(RTLBlock('اختلاف الواجهة حسب الدور هدفه ترتيب الأولويات وليس تغيير الحقائق. نفس الجهاز ونفس الدليل، لكن كل مستوى يرى القرارات التي تخص مسؤوليته أولًا.'))
+    story.append(Paragraph('NAVIGATION: Desktop uses the persistent sidebar. Mobile uses the compact top menu (Menu · Current Page); selecting a workspace closes the menu and opens the selected page from the top.',styles['small']))
+    story.append(RTLBlock('التنقل متجاوب مع الجهاز: على الكمبيوتر Sidebar ثابتة، وعلى الهاتف قائمة علوية مختصرة. تغيير Job Role يعيد ترتيب تجربة المستخدم ولا يساوي منح صلاحيات أمنية جديدة.',size=9.2,leading=14,space_after=5)); story.append(PageBreak())
 
     _section(story,styles,5,'Instrument 360','قصة الجهاز في مكان واحد')
     story.append(Paragraph('IDENTITY | LIFECYCLE | CONTROL | PERFORMANCE | EVENTS | COMPONENTS | EVIDENCE',styles['quote']))
-    story.append(Paragraph('The Instrument Passport acts as the persistent identity layer: Instrument ID, type, manufacturer, model, serial number, location, responsible team, operational status and key due dates.',styles['body']))
-    story.append(RTLBlock('بدل أن تبدأ كل مشكلة بالبحث عن بيانات الجهاز الأساسية، يصبح للجهاز Passport رقمي ثابت يربط الهوية بالحالة التشغيلية والتواريخ الحرجة وباقي التاريخ.'))
-    story.append(_table([['VIEW','WHAT IT CONNECTS'],['Passport','Identity, ownership, status, due dates'],['Lifecycle','Need, URS, acquisition, qualification, release, first run, retirement'],['Control','Calibration, qualification, PM, maintenance, components'],['Events','Observed failures and operational signals'],['Investigation','Expected, observed, changed, unchanged, evidence and next action'],['Performance','Availability, utilization, downtime and historical trends']],[45*mm,119*mm])); story.append(PageBreak())
+    story.append(Paragraph('Open Instruments, choose an asset, then open Instrument 360. The first layer shows an explainable Health Score, operational status, open events, latest Availability and Utilization before the user drills into evidence.',styles['body']))
+    story.append(RTLBlock('بدل أن تبدأ كل مشكلة بالبحث عن بيانات الجهاز الأساسية، يفتح المستخدم Instrument 360 ليرى القصة المتصلة للجهاز وأهم إشارات القرار أولًا. الـHealth Score إشارة أولوية قابلة للتفسير وليست حكم امتثال أو قرار Release أو Root Cause.'))
+    story.append(_table([['VIEW','WHAT IT CONNECTS'],['Identity','Instrument ID, manufacturer, model, serial, location and ownership'],['Lifecycle','Need, URS, acquisition, qualification, release, first run, retirement'],['Control','Calibration, qualification, PM, maintenance and components'],['Performance','Availability, utilization, available time and monthly trend'],['Events','Observed failures, status and active-event context'],['Evidence','Missing evidence, references, QR passport and traceability']],[45*mm,119*mm])); story.append(PageBreak())
 
     _section(story,styles,6,'Lifecycle Intelligence','من الحاجة إلى التكهين')
     story.append(Paragraph('Need → URS → Quotation → PR → PO → Receiving → Installation → IQ → OQ → PQ → Release / Issuance → First Approved Routine Run → Routine Control → Performance Review → Retirement',styles['quote']))
@@ -220,7 +222,7 @@ def build_product_user_guide_pdf() -> bytes:
     story.append(Paragraph('Expected → Actual → Changed → Unchanged → Objective Evidence → Next Evidence Action',styles['quote'])); story.append(PageBreak())
 
     _section(story,styles,9,'Performance Intelligence','من وقت الجهاز إلى قرار الإدارة')
-    story.append(Paragraph('Performance views connect Scheduled Service Hours, Planned Downtime, Unplanned Downtime and Productive Run Time.',styles['body']))
+    story.append(Paragraph('Performance can be recorded from the Performance workspace and reviewed again inside the selected Instrument 360. The monthly record connects Scheduled Service Hours, Planned Downtime, Unplanned Downtime and Productive Run Time.',styles['body']))
     story.append(_table([['KPI','FORMULA / PURPOSE'],['Planned Operating','Scheduled Service Hours - Planned Downtime'],['Available Time','Planned Operating - Unplanned Downtime'],['Availability','Available Time / Planned Operating × 100'],['Utilization','Productive Run / Available Time × 100']],[48*mm,116*mm]))
     story.append(RTLBlock('الإدارة لا تحتاج رقم Availability فقط. تحتاج أن تعرف لماذا انخفض، هل المشكلة Planned أم Unplanned، وهل هناك سعة غير مستغلة أو جهاز أصبح عبئًا تشغيليًا.')); story.append(PageBreak())
 
@@ -237,12 +239,12 @@ def build_product_user_guide_pdf() -> bytes:
     story.append(_table([['ACTION','EXAMPLE'],['View','See instrument or report data'],['Add','Create a new record'],['Edit','Modify an existing record'],['Delete / Archive','Remove or retire according to governance'],['Approve','Perform a controlled approval action when implemented']],[48*mm,116*mm])); story.append(PageBreak())
 
     _section(story,styles,12,'Excel Migration & Data Entry','ابدأ من بياناتك الحالية بدون تخمين')
-    story.append(Paragraph('The Excel importer follows strict mapping: only recognized headers are imported. Unknown columns are shown and ignored rather than silently guessed. Users can preview recognized fields before import.',styles['body']))
-    story.append(RTLBlock('الفكرة ليست أن نجبر المعمل على إعادة إدخال كل شيء يدويًا. نبدأ من البيانات الموجودة، لكن بدون تخمين في معنى الأعمدة. إذا لم يكن الحقل واضحًا يظل Missing بدل أن نخترع Mapping غير موثوق.'))
+    story.append(Paragraph('The Instruments workspace supports three controlled paths: add one instrument, import an instrument list, or export the current registry using the same recognized headers for a reviewed round trip.',styles['body']))
+    story.append(RTLBlock('الفكرة ليست أن نجبر المعمل على إعادة إدخال كل شيء يدويًا. يمكن تنزيل Current Instrument Registry وتحديث الحقول المعتمدة ثم إعادة الاستيراد بعد Preview. الأعمدة غير المعروفة تظل ignored بدل تخمين معناها، والبيانات غير المتاحة تظل Missing Evidence.'))
     story.append(Paragraph('Camera-assisted entry can reduce transcription errors for manufacturer, model and serial-number information during new instrument registration.',styles['body'])); story.append(PageBreak())
 
     _section(story,styles,13,'One HPLC - One Complete Story','سيناريو عملي لجهاز HPLC')
-    steps=[['1','Open Passport','Confirm exact asset, status and responsibility.'],['2','Review Control','Check calibration, PM, maintenance and component history.'],['3','Create Event','Record pressure fluctuation as an observation - not pump failure.'],['4','Investigate','Compare expected vs actual, changed vs unchanged, and objective evidence.'],['5','Test','Choose one discriminating next evidence action.'],['6','Confirm','Separate pattern from confirmed root cause.'],['7','Learn','Carry the verified outcome into performance review and future investigations.']]
+    steps=[['1','Open Instrument 360','Confirm the exact asset, Health Score, status and responsibility.'],['2','Review Control','Check calibration, PM, maintenance and component history.'],['3','Create Event','Record pressure fluctuation as an observation - not pump failure.'],['4','Investigate','Compare expected vs actual, changed vs unchanged, and objective evidence.'],['5','Test','Choose one discriminating next evidence action.'],['6','Confirm','Separate pattern from confirmed root cause.'],['7','Learn','Carry the verified outcome into performance review and future investigations.']]
     story.append(_table([['#','STEP','DECISION VALUE']]+steps,[12*mm,38*mm,114*mm])); story.append(Spacer(1,5*mm))
     story.append(RTLBlock('القيمة هنا ليست إجابة سريعة. القيمة أن كل خطوة تعتمد على تاريخ متصل، وأن القرار النهائي يمكن الرجوع إلى الدليل الذي دعمه.')); story.append(PageBreak())
 
