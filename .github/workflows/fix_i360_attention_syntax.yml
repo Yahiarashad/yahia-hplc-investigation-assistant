@@ -1,0 +1,25 @@
+name: Fix Instrument 360 attention syntax
+on:
+  push:
+    branches: [instrument-lifecycle-standalone]
+    paths:
+      - .github/workflows/fix_i360_attention_syntax.yml
+      - tools/fix_i360_attention_syntax.py
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: instrument-lifecycle-standalone
+          fetch-depth: 0
+      - run: python tools/fix_i360_attention_syntax.py
+      - run: python -m py_compile instrument_supabase_app.py app.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add instrument_supabase_app.py
+          git commit -m "Fix Instrument 360 attention syntax"
+          git push origin HEAD:instrument-lifecycle-standalone
