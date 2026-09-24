@@ -455,7 +455,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.expander("Why this application matters | لماذا هذا التطبيق مهم؟", expanded=(len(instruments) == 0)):
+with st.expander(_ui_text("Why this application matters", "Why this application matters | لماذا هذا التطبيق مهم؟"), expanded=(len(instruments) == 0)):
     st.markdown("""
 **The problem:** instrument information is often scattered across logbooks, spreadsheets, work orders, emails, and individual memory.
 
