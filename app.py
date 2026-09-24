@@ -566,7 +566,7 @@ def _ilm_route_href(route_item: str) -> str:
         base = str(st.context.url).split("?", 1)[0].split("#", 1)[0]
     except Exception:
         base = ""
-    params = {"route": _ROUTE_SLUGS.get(route_item, "dashboard")}
+    params = {"route": _ROUTE_SLUGS.get(route_item, "dashboard"), "lang": _current_language()}
     try:
         instrument = st.query_params.get("instrument")
         if instrument:
