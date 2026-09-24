@@ -406,14 +406,17 @@ def render_v03_user_guide():
 <style>
 .v03-guide-banner{
   direction:rtl;text-align:right;
+  font-family:Inter,"Segoe UI","Noto Sans Arabic",Tahoma,Arial,sans-serif;
   border:1px solid #d8e2ec;border-right:6px solid #d4af37;border-left:1px solid #d8e2ec;
   border-radius:18px;padding:.9rem 1rem;margin:.25rem 0 .75rem;
   background:linear-gradient(135deg,#ffffff,#f8fafc);box-shadow:0 5px 18px rgba(15,23,42,.045)
 }
-.v03-guide-banner b{color:#0f2742;font-size:1.02rem}.v03-guide-banner span{display:block;color:#64748b;font-size:.86rem;margin-top:.18rem}
-.v03-guide-rtl{direction:rtl;text-align:right;line-height:1.9;unicode-bidi:plaintext}
+.v03-guide-banner b{color:#0f2742;font-size:1.08rem}.v03-guide-banner span{display:block;color:#64748b;font-size:.94rem;margin-top:.22rem;line-height:1.7}
+.v03-guide-rtl{direction:rtl;text-align:right;line-height:1.95;unicode-bidi:plaintext;font-size:1.02rem;font-family:Inter,"Segoe UI","Noto Sans Arabic",Tahoma,Arial,sans-serif}
+.v03-guide-rtl h3{font-size:1.30rem;line-height:1.5;margin:.9rem 0 .45rem;font-weight:850}
+.v03-guide-rtl h4{font-size:1.12rem;line-height:1.55;margin:.8rem 0 .35rem;font-weight:800}
 .v03-guide-rtl ul{padding-right:1.35rem;padding-left:0}
-.v03-guide-rule{direction:rtl;text-align:right;border-right:4px solid #d4af37;border-left:0;background:#fffaf0;border-radius:12px;padding:.75rem .85rem;margin:.6rem 0;line-height:1.85}
+.v03-guide-rule{direction:rtl;text-align:right;border-right:4px solid #d4af37;border-left:0;background:#fffaf0;border-radius:14px;padding:.9rem 1rem;margin:.7rem 0;line-height:1.95;font-size:1rem;font-family:Inter,"Segoe UI","Noto Sans Arabic",Tahoma,Arial,sans-serif}
 .v03-guide-flow{
   direction:rtl;text-align:right;color:#0f2742;background:#f8fafc;border:1px solid #dde5ee;
   border-right:6px solid #d4af37;border-radius:20px;padding:.35rem 1rem;margin:.65rem 0 1rem;
@@ -422,13 +425,13 @@ def render_v03_user_guide():
 .v03-flow-step{display:grid;grid-template-columns:42px 1fr;gap:.75rem;align-items:center;padding:.72rem 0;border-bottom:1px solid #e8edf3}
 .v03-flow-step:last-child{border-bottom:0}
 .v03-flow-num{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0f2742;color:#fff;font-weight:900;font-size:.9rem;box-shadow:0 3px 10px rgba(15,39,66,.18)}
-.v03-flow-main{font-weight:850;color:#102a45;font-size:.98rem;line-height:1.45}
-.v03-flow-sub{color:#66778a;font-size:.81rem;margin-top:.12rem;line-height:1.45}
+.v03-flow-main{font-weight:850;color:#102a45;font-size:1.04rem;line-height:1.55}
+.v03-flow-sub{color:#66778a;font-size:.91rem;margin-top:.16rem;line-height:1.6}
 .v03-flow-main [dir="ltr"],.v03-flow-sub [dir="ltr"]{unicode-bidi:isolate}
 .v03-guide-tip{direction:rtl;text-align:right;border:1px solid #344354;border-radius:16px;background:rgba(255,255,255,.035);padding:.85rem 1rem;line-height:1.9;margin:.7rem 0}
 .v03-guide-tip b{color:inherit}
-.v03-guide-banner-brand{direction:ltr;text-align:left;color:#0f2742;font-weight:900;font-size:1rem;unicode-bidi:isolate}
-.v03-guide-banner-title{direction:rtl;text-align:right;color:#0f2742;font-weight:900;font-size:1.06rem;margin-top:.35rem}
+.v03-guide-banner-brand{direction:ltr;text-align:left;color:#0f2742;font-weight:900;font-size:1.08rem;unicode-bidi:isolate}
+.v03-guide-banner-title{direction:rtl;text-align:right;color:#0f2742;font-weight:900;font-size:1.22rem;margin-top:.42rem}
 
 /* The practical guide is Arabic-first. Keep widgets/data tables native, but
    force narrative markdown and tab labels to read naturally right-to-left. */
@@ -466,12 +469,21 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) ol{
 }
 div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!important;text-align:right!important;unicode-bidi:plaintext!important}
 
+.v03-workflow-card{
+  direction:rtl;text-align:right;border:1px solid rgba(128,128,128,.30);border-radius:16px;
+  padding:.9rem 1rem;margin:.65rem 0;background:var(--secondary-background-color);
+  color:var(--text-color);font-family:Inter,"Segoe UI","Noto Sans Arabic",Tahoma,Arial,sans-serif;line-height:1.9
+}
+.v03-workflow-card b{font-size:1.03rem}
+.v03-workflow-route{display:inline-block;direction:ltr;unicode-bidi:isolate;font-weight:800;color:#c9a54d;margin:.2rem 0}
+.v03-workflow-outcome{margin-top:.45rem;padding:.55rem .7rem;border-radius:10px;background:rgba(201,165,77,.10);border:1px solid rgba(201,165,77,.28)}
+
 @media(max-width:700px){
-  .v03-guide-banner{padding:.78rem .82rem}.v03-guide-banner span{font-size:.82rem}.v03-guide-rtl{line-height:1.78}
+  .v03-guide-banner{padding:.82rem .88rem}.v03-guide-banner span{font-size:.90rem}.v03-guide-rtl{line-height:1.9;font-size:1rem}
   .v03-guide-flow{padding:.28rem .8rem;border-radius:18px}
   .v03-flow-step{grid-template-columns:38px 1fr;gap:.62rem;padding:.66rem 0}
   .v03-flow-num{width:31px;height:31px;font-size:.82rem}
-  .v03-flow-main{font-size:.94rem}.v03-flow-sub{font-size:.79rem}
+  .v03-flow-main{font-size:1rem}.v03-flow-sub{font-size:.88rem}
 }
 </style>
 <div class="v03-guide-banner">
@@ -516,6 +528,7 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
             "🧾 الاستخدام اليومي",
             "🔎 التحقيق",
             "🔐 الحوكمة والخصوصية",
+            "🧭 خطوات العمل الفعلية",
         ])
 
         with guide_tabs[0]:
@@ -648,8 +661,8 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
             st.markdown("### GMP / Data Integrity / Privacy")
             st.markdown(
                 """
-- كل حساب يرى بياناته فقط؛ **Supabase Row Level Security** هو طبقة العزل الأساسية.
-- Excel import يكتب البيانات من خلال جلسة المستخدم الحالية، لذلك تظل الصفوف خاضعة لنفس RLS.
+- البيانات منظمة داخل **Workspaces** منفصلة، و**Supabase Row Level Security** هو أساس طبقة العزل. التطبيق يواصل تقوية enforcement على مستوى كل business action قبل اعتباره Security Authority مكتملة.
+- Excel import يكتب من خلال جلسة المستخدم الحالية وداخل الـWorkspace النشط؛ لا تستخدم الاستيراد كبديل عن مراجعة الصلاحيات والحوكمة.
 - التطبيق **Decision-Support Software** وليس حاليًا نظام GxP validated system of record.
 - احتفظ بالسجلات الرسمية المعتمدة — SOP forms، certificates، deviations، CAPA، approvals، raw data — داخل الأنظمة الرسمية المعتمدة بالشركة.
 - Health Score أو Lifecycle signal لا يساوي تلقائيًا قرار Release / Reject / Fitness for use.
@@ -657,3 +670,51 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 """
             )
             st.markdown("<div class='v03-guide-rule'><b>DON'T GUESS. FOLLOW THE EVIDENCE.</b><br>لو لم يوجد دليل، سجّل أن المعلومة Unknown بدل أن تستنتجها.</div>", unsafe_allow_html=True)
+
+        with guide_tabs[5]:
+            st.markdown("### 🧭 خطوات العمل الفعلية داخل التطبيق")
+            st.caption("اتبع المسار كما هو ظاهر في التطبيق. Desktop: Sidebar. Mobile: ☰ Menu · Current Page.")
+
+            st.markdown("""
+<div class="v03-workflow-card"><b>1) بداية اليوم / بداية الشيفت</b><br><span class="v03-workflow-route">Dashboard</span><br>
+راجع الإشارات ذات الأولوية: overdue controls، open events، OOC، restrictions، والـattention queue المتاحة لدورك.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> تعرف أين تبدأ قبل أن تدخل إلى تفاصيل أي جهاز.</div></div>
+
+<div class="v03-workflow-card"><b>2) إضافة جهاز واحد</b><br><span class="v03-workflow-route">Instruments → Add one instrument</span><br>
+أدخل Instrument ID، الاسم، النوع، الشركة، الموديل، Serial Number، Location، Responsible Team والحالة التشغيلية. استخدم Camera Assist عند الحاجة لتقليل أخطاء النقل. احفظ السجل ثم افتح الجهاز من <span dir="ltr">Open Instrument 360</span>.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> يصبح للجهاز Digital Identity ثابتة يمكن ربط كل التاريخ بها.</div></div>
+
+<div class="v03-workflow-card"><b>3) استيراد أو تحديث قائمة أجهزة</b><br><span class="v03-workflow-route">Instruments → Import Instrument List</span><br>
+حمّل القالب أو نزّل Current Instrument Registry، لا تغيّر أسماء الأعمدة، املأ فقط البيانات المعروفة، ارفع الملف، راجع Recognized / Ignored Columns ثم اختر Create أو Update وبعدها Confirm Import.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> انتقال منظم من Excel بدون تخمين في Mapping أو ملء Evidence غير موجود.</div></div>
+
+<div class="v03-workflow-card"><b>4) مراجعة جهاز محدد</b><br><span class="v03-workflow-route">Instruments → Open Instrument 360</span><br>
+ابدأ بـ Health Score، Status، Open Events، Availability وUtilization. بعد ذلك افتح: Identity → Lifecycle → Control → Performance → Events → Evidence. افتح <span dir="ltr">Why XX/100?</span> لفهم عوامل السكور.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> ترى قصة الجهاز المتصلة قبل اتخاذ أي قرار أو بدء تحقيق.</div></div>
+
+<div class="v03-workflow-card"><b>5) تسجيل Calibration / Qualification / PM / Maintenance</b><br><span class="v03-workflow-route">Cal & PM</span><br>
+اختر الجهاز، سجل نوع العمل وتاريخ التنفيذ ومرجع Certificate / Protocol / Work Order / Service Report، ثم أدخل Next Due المعتمد. عند تغيير Component سجل Part / Serial / Installed Date / Review or Replacement Due إن توفرت.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> Control history يظل مرتبطًا بنفس الجهاز ويظهر أثره في Dashboard وInstrument 360.</div></div>
+
+<div class="v03-workflow-card"><b>6) تسجيل عطل أو Quality Event</b><br><span class="v03-workflow-route">Events</span><br>
+اختر الجهاز وسجل التاريخ، Event Type، Severity، Subsystem، الحالة وObserved Facts. اكتب ما حدث فعلًا؛ لا تحول Pressure fluctuation إلى Pump failure بدون Evidence.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> تبدأ التحقيق من Observation موثق وليس من تشخيص مسبق.</div></div>
+
+<div class="v03-workflow-card"><b>7) تشغيل Investigation Intelligence</b><br><span class="v03-workflow-route">Investigate</span><br>
+رتب الحالة: Expected → Actual / Observed → Changed → Unchanged → Objective Evidence → Next Evidence Action. اختبر متغيرًا discriminating واحدًا عندما يكون ذلك مناسبًا، ثم Confirm قبل رفع الفرضية إلى Root Cause.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> تقل مساحة التخمين وتبقى Unknowns واضحة بدل دفنها داخل narrative.</div></div>
+
+<div class="v03-workflow-card"><b>8) تسجيل Availability & Utilization</b><br><span class="v03-workflow-route">Performance</span><br>
+اختر الجهاز والشهر وأدخل 4 قيم: Scheduled Service Hours، Planned Downtime، Unplanned Downtime، Productive Run Hours. التطبيق يحسب Planned Operating، Available Time، Availability وUtilization ثم يعرض الاتجاه الشهري.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> أحدث القيم تظهر أيضًا داخل Instrument 360 وتدعم capacity / reliability review.</div></div>
+
+<div class="v03-workflow-card"><b>9) التقارير والرؤية الإدارية</b><br><span class="v03-workflow-route">Reports / Cockpit / Alerts</span><br>
+استخدم Reports عندما تحتاج Evidence Pack أو مخرجًا قابلًا للمشاركة، Cockpit للرؤية الإدارية والمخاطر والسعة، وAlerts لمتابعة الإشارات التي تحتاج action حسب الدور.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> تتحول البيانات إلى Attention → Decision → Action بدل قائمة تواريخ فقط.</div></div>
+
+<div class="v03-workflow-card"><b>10) تغيير الدور أو تسجيل الخروج</b><br><span class="v03-workflow-route">Mobile: ☰ Menu → ACCOUNT · Desktop: Sidebar → ACCOUNT</span><br>
+استخدم Change role لتغيير ترتيب الواجهة والأولويات، واستخدم Log out لإنهاء جلسة Supabase ومسح تسجيل الدخول المستمر. Job Role يخص تجربة الاستخدام؛ الصلاحيات الأمنية الفعلية تُدار بشكل منفصل.
+<div class="v03-workflow-outcome"><b>النتيجة:</b> واجهة مناسبة للمسؤولية بدون الخلط بين Role وPrivilege.</div></div>
+""", unsafe_allow_html=True)
+
+            st.info("قاعدة الاستخدام: ENTER LESS. DECIDE BETTER. KEEP THE INSTRUMENT STORY CONNECTED.")

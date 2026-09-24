@@ -60,7 +60,7 @@ def _shape(text: str) -> str:
 
 class RTLBlock(Flowable):
     """Wrap Arabic logically first, then shape each line separately to avoid reversed wrapped lines."""
-    def __init__(self, text, font=AR_FONT, size=10.4, leading=16, color=INK, bold=False, space_after=5):
+    def __init__(self, text, font=AR_FONT, size=10.9, leading=17.2, color=INK, bold=False, space_after=6):
         super().__init__()
         self.text = str(text)
         self.font = AR_BOLD if bold else font
@@ -113,12 +113,12 @@ class GoldRule(Flowable):
 def _styles():
     s = getSampleStyleSheet()
     return {
-        'h1': ParagraphStyle('h1x', parent=s['Heading1'], fontName='Helvetica-Bold', fontSize=18, leading=22, textColor=NAVY, spaceAfter=8),
-        'h2': ParagraphStyle('h2x', parent=s['Heading2'], fontName='Helvetica-Bold', fontSize=11.5, leading=15, textColor=GOLD, spaceBefore=5, spaceAfter=4),
-        'body': ParagraphStyle('bodyx', parent=s['BodyText'], fontName='Helvetica', fontSize=9.5, leading=14.5, textColor=INK, spaceAfter=6),
-        'small': ParagraphStyle('smallx', parent=s['BodyText'], fontName='Helvetica', fontSize=7.8, leading=11, textColor=SLATE, spaceAfter=4),
-        'quote': ParagraphStyle('quotex', parent=s['BodyText'], fontName='Helvetica-Bold', fontSize=13, leading=18, textColor=NAVY, spaceAfter=8),
-        'center': ParagraphStyle('centerx', parent=s['BodyText'], fontName='Helvetica-Bold', fontSize=10.5, leading=15, textColor=NAVY, alignment=TA_CENTER),
+        'h1': ParagraphStyle('h1x', parent=s['Heading1'], fontName=AR_BOLD, fontSize=19, leading=24, textColor=NAVY, spaceAfter=9),
+        'h2': ParagraphStyle('h2x', parent=s['Heading2'], fontName=AR_BOLD, fontSize=12.2, leading=16.5, textColor=GOLD, spaceBefore=6, spaceAfter=5),
+        'body': ParagraphStyle('bodyx', parent=s['BodyText'], fontName=AR_FONT, fontSize=10.3, leading=15.8, textColor=INK, spaceAfter=7),
+        'small': ParagraphStyle('smallx', parent=s['BodyText'], fontName=AR_FONT, fontSize=8.4, leading=12.4, textColor=SLATE, spaceAfter=5),
+        'quote': ParagraphStyle('quotex', parent=s['BodyText'], fontName=AR_BOLD, fontSize=13.4, leading=19, textColor=NAVY, spaceAfter=9),
+        'center': ParagraphStyle('centerx', parent=s['BodyText'], fontName=AR_BOLD, fontSize=11, leading=16, textColor=NAVY, alignment=TA_CENTER),
     }
 
 
@@ -138,21 +138,21 @@ def _cover(canvas, doc):
     canvas.setFillColor(NAVY_2); canvas.circle(w*0.86,h*0.82,74*mm,stroke=0,fill=1)
     canvas.setStrokeColor(GOLD); canvas.setLineWidth(1.2)
     canvas.roundRect(16*mm,18*mm,w-32*mm,h-36*mm,8*mm,stroke=1,fill=0)
-    canvas.setFont('Helvetica-Bold', 9); canvas.setFillColor(GOLD)
+    canvas.setFont(AR_BOLD, 9.4); canvas.setFillColor(GOLD)
     canvas.drawString(22*mm,h-35*mm,'PHARMACEUTICAL QC · INSTRUMENT INTELLIGENCE')
-    canvas.setFont('Helvetica-Bold', 26); canvas.setFillColor(WHITE)
+    canvas.setFont(AR_BOLD, 25); canvas.setFillColor(WHITE)
     canvas.drawString(22*mm,h-58*mm,'YAHIA QC')
     canvas.drawString(22*mm,h-70*mm,'INSTRUMENT INTELLIGENCE™')
-    canvas.setFont('Helvetica', 12); canvas.setFillColor(colors.HexColor('#D8E1E9'))
+    canvas.setFont(AR_FONT, 11.6); canvas.setFillColor(colors.HexColor('#D8E1E9'))
     canvas.drawString(22*mm,h-87*mm,'From Instrument Data to Evidence-Based Decisions')
     canvas.setFillColor(GOLD); canvas.roundRect(22*mm,h-112*mm,132*mm,14*mm,4*mm,stroke=0,fill=1)
-    canvas.setFillColor(NAVY); canvas.setFont('Helvetica-Bold', 10)
+    canvas.setFillColor(NAVY); canvas.setFont(AR_BOLD, 9.8)
     canvas.drawCentredString(88*mm,h-107*mm,"DON'T GUESS. FOLLOW THE EVIDENCE.")
-    canvas.setFillColor(WHITE); canvas.setFont('Helvetica-Bold', 14)
+    canvas.setFillColor(WHITE); canvas.setFont(AR_BOLD, 13.4)
     canvas.drawString(22*mm,55*mm,'PRODUCT · USER · MANAGEMENT GUIDE')
-    canvas.setFont('Helvetica', 9.2); canvas.setFillColor(colors.HexColor('#C9D3DC'))
+    canvas.setFont(AR_FONT, 8.9); canvas.setFillColor(colors.HexColor('#C9D3DC'))
     canvas.drawString(22*mm,44*mm,'Lifecycle · Control · Investigation · Performance · Governance · Evidence')
-    canvas.setFont('Helvetica', 7.4); canvas.setFillColor(colors.HexColor('#92A4B5'))
+    canvas.setFont(AR_FONT, 7.2); canvas.setFillColor(colors.HexColor('#92A4B5'))
     canvas.drawString(22*mm,28*mm,'Official Guide v1.0 · Decision-support platform. Official GxP records remain in approved company systems.')
     canvas.restoreState()
 
@@ -243,10 +243,24 @@ def build_product_user_guide_pdf() -> bytes:
     story.append(RTLBlock('الفكرة ليست أن نجبر المعمل على إعادة إدخال كل شيء يدويًا. يمكن تنزيل Current Instrument Registry وتحديث الحقول المعتمدة ثم إعادة الاستيراد بعد Preview. الأعمدة غير المعروفة تظل ignored بدل تخمين معناها، والبيانات غير المتاحة تظل Missing Evidence.'))
     story.append(Paragraph('Camera-assisted entry can reduce transcription errors for manufacturer, model and serial-number information during new instrument registration.',styles['body'])); story.append(PageBreak())
 
-    _section(story,styles,13,'One HPLC - One Complete Story','سيناريو عملي لجهاز HPLC')
-    steps=[['1','Open Instrument 360','Confirm the exact asset, Health Score, status and responsibility.'],['2','Review Control','Check calibration, PM, maintenance and component history.'],['3','Create Event','Record pressure fluctuation as an observation - not pump failure.'],['4','Investigate','Compare expected vs actual, changed vs unchanged, and objective evidence.'],['5','Test','Choose one discriminating next evidence action.'],['6','Confirm','Separate pattern from confirmed root cause.'],['7','Learn','Carry the verified outcome into performance review and future investigations.']]
-    story.append(_table([['#','STEP','DECISION VALUE']]+steps,[12*mm,38*mm,114*mm])); story.append(Spacer(1,5*mm))
-    story.append(RTLBlock('القيمة هنا ليست إجابة سريعة. القيمة أن كل خطوة تعتمد على تاريخ متصل، وأن القرار النهائي يمكن الرجوع إلى الدليل الذي دعمه.')); story.append(PageBreak())
+    _section(story,styles,13,'Practical App Workflows','خطوات العمل الفعلية داخل التطبيق')
+    workflow_rows=[
+        ['TASK','WHERE TO GO','WHAT TO DO'],
+        ['Start the shift','Dashboard','Review priority signals, overdue controls, restrictions, open events and role-relevant attention.'],
+        ['Add one instrument','Instruments > Add one instrument','Enter identity, status and due-date evidence; save, then open Instrument 360.'],
+        ['Bulk import / update','Instruments > Import Instrument List','Download template or current registry, keep exact headers, upload, preview recognized fields, confirm import.'],
+        ['Review one asset','Instruments > Open Instrument 360','Read Health Score, Status, Open Events, Availability and Utilization; drill into Identity, Lifecycle, Control, Performance, Events and Evidence.'],
+        ['Control work','Cal & PM','Record calibration, qualification, PM, maintenance or component work with approved reference and next due.'],
+        ['Create an event','Events','Record observed facts, severity, subsystem and status before interpreting cause.'],
+        ['Investigate','Investigate','Expected > Observed > Changed > Unchanged > Objective Evidence > Next Evidence Action.'],
+        ['Monthly performance','Performance','Enter Scheduled, Planned Downtime, Unplanned Downtime and Productive Run hours; review calculated KPIs and trend.'],
+        ['Management output','Reports / Cockpit / Alerts','Generate evidence packs, review operational/capacity signals and follow attention according to role.'],
+        ['Account actions','ACCOUNT','Change role for UX priorities or Log out to end the authenticated session.'],
+    ]
+    story.append(_table(workflow_rows,[38*mm,48*mm,78*mm])); story.append(Spacer(1,5*mm))
+    story.append(RTLBlock('المسار العملي ثابت: افتح القسم الصحيح، سجل فقط ما لديك كدليل، راجع ما تغيّر في Instrument 360، ثم انتقل من الإشارة إلى القرار التالي. لا تستخدم الفراغات كدعوة للتخمين.'))
+    story.append(Paragraph('HPLC example: open Instrument 360 > review Control and Performance > create the event as pressure fluctuation, not pump failure > investigate expected vs actual and recent changes > choose one discriminating evidence action > confirm before root-cause disposition > carry the verified outcome into the asset history.',styles['body']))
+    story.append(PageBreak())
 
     _section(story,styles,14,'Inspection Readiness & Evidence Packs','الاستعداد للمراجعة بدون رحلة بحث')
     story.append(Paragraph('The platform can organize evidence views across calibration, qualification, PM, events, investigations, missing evidence, lifecycle status and traceability.',styles['body']))
@@ -258,7 +272,7 @@ def build_product_user_guide_pdf() -> bytes:
     story.append(Paragraph('Missing Evidence remains visible. Inference is never promoted to fact automatically.',styles['quote'])); story.append(PageBreak())
 
     _section(story,styles,16,'Current Product Boundary','ما الذي نبيعه اليوم فعلًا؟')
-    story.append(Paragraph('The guide intentionally distinguishes implemented capability from the target enterprise architecture. Organization workspaces, admin membership and privilege-management foundations are implemented. Full workspace-wide RLS enforcement across every business action is being hardened in phases and should not be represented as complete until verified end-to-end.',styles['body']))
+    story.append(Paragraph('The guide intentionally distinguishes implemented capability from the target enterprise architecture. Organization workspaces, admin membership, role-aware UX and privilege-management foundations are implemented. Workspace-wide RLS and privilege enforcement across every business action continue to be hardened in phases and should not be represented as complete until verified end-to-end.',styles['body']))
     story.append(RTLBlock('البيع القوي لا يحتاج مبالغة. نعرض ما تم تنفيذه فعلًا، ونوضح ما يتم تقويته قبل اعتباره Security Authority كاملة. هذا يزيد الثقة بدل أن يقلل قيمة المنتج.')); story.append(PageBreak())
 
     _section(story,styles,17,'Business Value by Stakeholder','القيمة التي يراها كل مستوى')
