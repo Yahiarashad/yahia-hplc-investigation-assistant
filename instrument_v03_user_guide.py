@@ -9,6 +9,7 @@ from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 from instrument_product_guide_pdf import build_product_user_guide_pdf
+from instrument_guide_visuals import guide_visual_bytes
 
 
 @st.cache_data(show_spinner=False)
@@ -716,5 +717,11 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
 استخدم Change role لتغيير ترتيب الواجهة والأولويات، واستخدم Log out لإنهاء جلسة Supabase ومسح تسجيل الدخول المستمر. Job Role يخص تجربة الاستخدام؛ الصلاحيات الأمنية الفعلية تُدار بشكل منفصل.
 <div class="v03-workflow-outcome"><b>النتيجة:</b> واجهة مناسبة للمسؤولية بدون الخلط بين Role وPrivilege.</div></div>
 """, unsafe_allow_html=True)
+
+            st.markdown("### 📸 Visual walkthrough من التطبيق")
+            st.caption("لقطات Demo نظيفة توضح أين تقرأ الإشارة وكيف تنتقل من Overview إلى Attention. الصور للتدريب ولا تمثل سجل GMP رسمي.")
+            _shot_overview = guide_visual_bytes("instrument_360_overview")
+            if _shot_overview:
+                st.image(_shot_overview, caption="Step 4 · Instruments → Open Instrument 360: اقرأ Health Score وStatus وOpen Events وAvailability وUtilization أولًا.", width=260)
 
             st.info("قاعدة الاستخدام: ENTER LESS. DECIDE BETTER. KEEP THE INSTRUMENT STORY CONNECTED.")

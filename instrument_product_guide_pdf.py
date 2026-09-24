@@ -10,10 +10,11 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Flowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Flowable, Image as RLImage
 
 import arabic_reshaper
 from bidi.algorithm import get_display
+from instrument_guide_visuals import guide_visual_bytes
 
 NAVY = colors.HexColor('#0B1F33')
 NAVY_2 = colors.HexColor('#12324F')
@@ -191,6 +192,20 @@ def _section(story, styles, number, title, arabic_title=None):
         story.append(RTLBlock(arabic_title, size=13, leading=19, color=NAVY, bold=True, space_after=8))
     story.append(GoldRule()); story.append(Spacer(1,4*mm))
 
+def _guide_screenshot(name: str, width=52*mm):
+    data = guide_visual_bytes(name)
+    if not data:
+        return Spacer(1, 0)
+    ratios = {
+        "instrument_360_overview": 367/200,
+        "instrument_360_attention": 370/200,
+    }
+    height = width * ratios.get(name, 1.82)
+    img = RLImage(BytesIO(data), width=width, height=height)
+    img.hAlign = 'CENTER'
+    return img
+
+
 
 def build_product_user_guide_pdf() -> bytes:
     styles=_styles(); out=BytesIO()
@@ -223,7 +238,10 @@ def build_product_user_guide_pdf() -> bytes:
     story.append(Paragraph('IDENTITY | LIFECYCLE | CONTROL | PERFORMANCE | EVENTS | COMPONENTS | EVIDENCE',styles['quote']))
     story.append(Paragraph('Open Instruments, choose an asset, then open Instrument 360. The first layer shows an explainable Health Score, operational status, open events, latest Availability and Utilization before the user drills into evidence.',styles['body']))
     story.append(RTLBlock('بدل أن تبدأ كل مشكلة بالبحث عن بيانات الجهاز الأساسية، يفتح المستخدم Instrument 360 ليرى القصة المتصلة للجهاز وأهم إشارات القرار أولًا. الـHealth Score إشارة أولوية قابلة للتفسير وليست حكم امتثال أو قرار Release أو Root Cause.'))
-    story.append(_table([['VIEW','WHAT IT CONNECTS'],['Identity','Instrument ID, manufacturer, model, serial, location and ownership'],['Lifecycle','Need, URS, acquisition, qualification, release, first run, retirement'],['Control','Calibration, qualification, PM, maintenance and components'],['Performance','Availability, utilization, available time and monthly trend'],['Events','Observed failures, status and active-event context'],['Evidence','Missing evidence, references, QR passport and traceability']],[45*mm,119*mm])); story.append(PageBreak())
+    story.append(_table([['VIEW','WHAT IT CONNECTS'],['Identity','Instrument ID, manufacturer, model, serial, location and ownership'],['Lifecycle','Need, URS, acquisition, qualification, release, first run, retirement'],['Control','Calibration, qualification, PM, maintenance and components'],['Performance','Availability, utilization, available time and monthly trend'],['Events','Observed failures, status and active-event context'],['Evidence','Missing evidence, references, QR passport and traceability']],[45*mm,119*mm]))
+    story.append(Spacer(1,4*mm)); story.append(_guide_screenshot('instrument_360_overview'))
+    story.append(Paragraph('Actual app view - Instrument 360 overview using synthetic demonstration data.', styles['small']))
+    story.append(PageBreak())
 
     _section(story,styles,6,'Lifecycle Intelligence','من الحاجة إلى التكهين')
     story.append(Paragraph('Need → URS → Quotation → PR → PO → Receiving → Installation → IQ → OQ → PQ → Release / Issuance → First Approved Routine Run → Routine Control → Performance Review → Retirement',styles['quote']))

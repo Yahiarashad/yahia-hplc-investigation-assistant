@@ -92,4 +92,7 @@ _GUIDE_VISUALS = {
 
 def guide_visual_bytes(name: str) -> bytes:
     value = _GUIDE_VISUALS.get(name, "")
-    return base64.b64decode(value) if value else b""
+    if not value:
+        return b""
+    value = value + ("=" * (-len(value) % 4))
+    return base64.b64decode(value)
