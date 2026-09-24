@@ -611,13 +611,14 @@ def _load_full_instruments(context):
     return db_list("instruments", V03_REPORT_SELECT, "created_at.asc")
 
 
-_ILM_PDF_REPORT_INSTANCE = 0
-
-
 def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
-    global _ILM_PDF_REPORT_INSTANCE
-    _ILM_PDF_REPORT_INSTANCE += 1
-    _key = lambda name: f"ilm_pdf_report_{name}_{_ILM_PDF_REPORT_INSTANCE}"
+    # This renderer can appear in both Guide and Reports during the same Streamlit
+    # script pass because hidden workspaces are still executed. Use a per-render
+    # token so explicit widget keys cannot collide even if this module is imported
+    # through more than one execution path.
+    import uuid as _uuid
+    _instance_token = _uuid.uuid4().hex[:12]
+    _key = lambda name: f"ilm_pdf_report_{name}_{_instance_token}"
     if colors is None:
         st.warning("PDF export dependency is not installed yet. Install reportlab to enable the Report Center.")
         return
