@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 from datetime import date, datetime
 
 import pandas as pd
@@ -12,9 +13,18 @@ from instrument_product_guide_pdf import build_product_user_guide_pdf
 from instrument_guide_visuals import guide_visual_bytes
 
 
+OFFICIAL_GUIDE_V14 = Path(__file__).resolve().parent / "official_guides" / "Yahia_QC_Instrument_Intelligence_Premium_Guide_v1.4_VISUAL_FIRST.pdf"
+
 @st.cache_data(show_spinner=False)
 def _premium_product_guide_pdf_bytes():
+    """Serve the approved Visual-First v1.4 when deployed; retain the generated
+    guide only as a safe fallback so the Guide page never breaks."""
+    if OFFICIAL_GUIDE_V14.exists():
+        return OFFICIAL_GUIDE_V14.read_bytes()
     return build_product_user_guide_pdf()
+
+def _official_guide_is_v14() -> bool:
+    return OFFICIAL_GUIDE_V14.exists()
 
 
 # Exact visible application labels -> Supabase instrument columns.
@@ -509,14 +519,17 @@ div[data-testid="stExpander"]:has(.ilm-excel-tracker-marker) li{direction:rtl!im
     )
     try:
         st.download_button(
-            "⬇️ Download Official Product & User Guide (PDF)",
+            "⬇️ Download Official Premium Visual-First Guide v1.4 (PDF)" if _official_guide_is_v14() else "⬇️ Download Product & User Guide (fallback PDF)",
             data=_premium_product_guide_pdf_bytes(),
-            file_name="Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf",
+            file_name="Yahia_QC_Instrument_Intelligence_Premium_Guide_v1.4_VISUAL_FIRST.pdf" if _official_guide_is_v14() else "Yahia_QC_Instrument_Intelligence_Official_Guide_fallback.pdf",
             mime="application/pdf",
             use_container_width=True,
             key="v03_download_premium_product_guide",
         )
-        st.caption("الدليل الرسمي الموحد للمنتج — نسخة قابلة للمشاركة بدون أي بيانات خاصة بمساحة العمل.")
+        if _official_guide_is_v14():
+            st.success("Official Guide v1.4 · Premium Visual-First · Navy + Gold · RTL · approved baseline")
+        else:
+            st.warning("Premium Visual-First v1.4 is not present in this deployment yet. The generated fallback guide is available temporarily.")
     except Exception as exc:
         st.error("Premium PDF could not be generated on this deployment.")
         st.caption(f"PDF diagnostic: {type(exc).__name__}")
