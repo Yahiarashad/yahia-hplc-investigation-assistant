@@ -25,6 +25,7 @@ from urllib import request as urlrequest
 
 import pandas as pd
 import streamlit as st
+from instrument_i18n import current_language as _current_language, ui_text as _ui_text
 
 try:
     import qrcode
@@ -542,7 +543,7 @@ with tabs[0]:
 with tabs[1]:
     st.header("Instrument Registry & Passport")
     st.caption("Add one instrument, import an instrument list, then open any asset's Digital Passport.")
-    with st.expander("➕ Add one instrument | إضافة جهاز", expanded=(len(instruments)==0)):
+    with st.expander(_ui_text("➕ Add one instrument", "➕ Add one instrument | إضافة جهاز"), expanded=(len(instruments)==0)):
         with st.form("add_instrument", clear_on_submit=True):
             c1,c2=st.columns(2); code=c1.text_input("Instrument ID *",placeholder="HPLC-001"); name=c2.text_input("Instrument name *",placeholder="Waters Alliance")
             c1,c2,c3=st.columns(3); inst_type=c1.selectbox("Type",["HPLC","UHPLC","GC","LC-MS","LC-MS/MS","UV-Vis","Dissolution","Balance","pH Meter","Other"]); manufacturer=c2.text_input("Manufacturer"); model=c3.text_input("Model")
@@ -559,14 +560,14 @@ with tabs[1]:
                 if ok: st.success(f"{clean} created."); st.rerun()
                 else: st.error(err or "Could not create instrument.")
 
-    with st.expander("📥 إضافة / استيراد قائمة أجهزة | Import Instrument List", expanded=False):
+    with st.expander(_ui_text("📥 Import Instrument List", "📥 إضافة / استيراد قائمة أجهزة | Import Instrument List"), expanded=False):
         if callable(globals().get("_render_excel_import")):
             _render_excel_import()
         else:
             st.error("Instrument list import is temporarily unavailable.")
 
     if instruments:
-        with st.expander("📋 سجل الأجهزة الحالي | Current Instrument Registry", expanded=False):
+        with st.expander(_ui_text("📋 Current Instrument Registry", "📋 سجل الأجهزة الحالي | Current Instrument Registry"), expanded=False):
             st.caption("Search the live registry, then export the complete current list in the same controlled format used by Import Instrument List.")
             registry_rows = [{
                 "Instrument ID": x.get("instrument_code") or "",
@@ -617,6 +618,7 @@ with tabs[1]:
 
         codes=[str(x.get("instrument_code")) for x in instruments]; default_index=codes.index(deep_code) if deep_code in codes else 0
         selected_code=st.selectbox("Open Instrument 360",codes,index=default_index,key="passport_selected")
+        st.caption(_ui_text("🌐 English interface · Instrument 360 pilot", "🌐 Bilingual interface · العربية + English"))
         inst=next(x for x in instruments if str(x.get("instrument_code"))==selected_code); inst_id=str(inst.get("id")); score,reasons=health_score_v2(inst,events,components)
 
         # Instrument 360 assembles the connected story without inventing missing evidence.
@@ -717,7 +719,7 @@ with tabs[1]:
                     "Evidence-consistency signal only — not a GMP compliance conclusion, not proof of a missing record, and not a root-cause determination."
                 )
 
-        with st.expander("🪪 IDENTITY | الهوية", expanded=True):
+        with st.expander(_ui_text("🪪 IDENTITY", "🪪 IDENTITY | الهوية"), expanded=True):
             identity_rows=[
                 {"Field":"Instrument ID","Value":selected_code},
                 {"Field":"Instrument name","Value":inst.get("instrument_name") or "Missing Evidence"},
@@ -730,7 +732,7 @@ with tabs[1]:
             ]
             st.dataframe(pd.DataFrame(identity_rows),use_container_width=True,hide_index=True)
 
-        with st.expander("↻ LIFECYCLE | دورة حياة الجهاز", expanded=False):
+        with st.expander(_ui_text("↻ LIFECYCLE", "↻ LIFECYCLE | دورة حياة الجهاز"), expanded=False):
             l1,l2,l3=st.columns(3)
             l1.metric("Maintenance records",len(inst_maintenance))
             l2.metric("Calibration / Qualification",len(inst_lifecycle))
@@ -750,7 +752,7 @@ with tabs[1]:
             if not inst_maintenance and not inst_lifecycle:
                 st.info("No maintenance / calibration / qualification history has been recorded for this instrument yet.")
 
-        with st.expander("◎ CONTROL | حالة التحكم الحالية", expanded=False):
+        with st.expander(_ui_text("◎ CONTROL", "◎ CONTROL | حالة التحكم الحالية"), expanded=False):
             control_rows=[]
             for _label,_field in [("Qualification","qualification_due"),("Preventive Maintenance","pm_due"),("Calibration","calibration_due")]:
                 _value=inst.get(_field)
@@ -789,7 +791,7 @@ with tabs[1]:
             if callable(globals().get("_ilm_route_href")):
                 st.markdown(f'<a href="{_ilm_route_href("📈 Performance")}#ilm-top" style="display:block;text-align:center;padding:.7rem;border:1px solid #c9a54d;border-radius:14px;text-decoration:none;font-weight:800">Open full Performance Intelligence →</a>',unsafe_allow_html=True)
 
-        with st.expander("⚠ EVENTS | الأعطال والإشارات", expanded=False):
+        with st.expander(_ui_text("⚠ EVENTS", "⚠ EVENTS | الأعطال والإشارات"), expanded=False):
             e1,e2=st.columns(2)
             e1.metric("All events",len(inst_events))
             e2.metric("Open / active",len(open_inst_events))

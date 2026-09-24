@@ -14,6 +14,7 @@ import streamlit as st
 from streamlit.commands.execution_control import rerun as _ilm_native_rerun
 from streamlit.commands.page_config import set_page_config as _ilm_native_set_page_config
 from cryptography.fernet import Fernet, InvalidToken
+from instrument_i18n import current_language as _current_language, ui_text as _ui_text, render_language_selector as _render_language_selector
 
 # Cold-runtime guard: always restore Streamlit's canonical commands before any
 # application shell or legacy compatibility layer can call them. This avoids
@@ -578,6 +579,9 @@ def _ilm_route_href(route_item: str) -> str:
 
 if _signed_in_shell and st.session_state.get("ilm_user_role"):
     st.markdown('<div id="ilm-top" style="height:0;overflow:hidden"></div>', unsafe_allow_html=True)
+    _lang_left, _lang_right = st.columns([3.2, 1])
+    with _lang_right:
+        _render_language_selector(key="global")
     with st.sidebar:
         st.markdown("## QC Intelligence")
         st.caption("From data → evidence → decision → action")
