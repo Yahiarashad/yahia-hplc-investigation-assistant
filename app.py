@@ -1011,7 +1011,7 @@ try:
         with main_tabs[0]:
             st.divider()
             if callable(globals().get("render_pdf_report_center")):
-                render_pdf_report_center(globals(), ui_lang="ar")
+                render_pdf_report_center(globals(), ui_lang=_current_language())
             if callable(globals().get("render_executive_performance_report")):
                 render_executive_performance_report()
 except Exception as exc:

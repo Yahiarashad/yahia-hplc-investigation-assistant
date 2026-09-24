@@ -611,7 +611,13 @@ def _load_full_instruments(context):
     return db_list("instruments", V03_REPORT_SELECT, "created_at.asc")
 
 
+_ILM_PDF_REPORT_INSTANCE = 0
+
+
 def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
+    global _ILM_PDF_REPORT_INSTANCE
+    _ILM_PDF_REPORT_INSTANCE += 1
+    _key = lambda name: f"ilm_pdf_report_{name}_{_ILM_PDF_REPORT_INSTANCE}"
     if colors is None:
         st.warning("PDF export dependency is not installed yet. Install reportlab to enable the Report Center.")
         return
@@ -640,15 +646,15 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
         report_kind = c1.selectbox(
             "نوع التقرير | Report type" if ui_lang == "ar" else "Report type",
             ["Instrument Lifecycle Evidence Report", "Portfolio Management Snapshot"],
-            key="ilm_pdf_report_kind",
+            key=_key("kind"),
         )
         report_lang_label = c2.selectbox(
             "لغة التقرير | Report language" if ui_lang == "ar" else "Report language",
-            ["English", "العربية"],
+            (["English", "Arabic"] if ui_lang == "en" else ["English", "العربية"]),
             index=1 if ui_lang == "ar" else 0,
-            key="ilm_pdf_report_language",
+            key=_key("language"),
         )
-        report_lang = "ar" if report_lang_label == "العربية" else "en"
+        report_lang = "ar" if report_lang_label in ("العربية", "Arabic") else "en"
 
         selected = None
         if report_kind.startswith("Instrument"):
@@ -659,7 +665,7 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
             label = st.selectbox(
                 "الجهاز | Instrument" if ui_lang == "ar" else "Instrument",
                 list(options.keys()),
-                key="ilm_pdf_instrument",
+                key=_key("instrument"),
             )
             selected = options[label]
             completion, current, missing, next_action = _stage_summary(selected)
@@ -696,7 +702,7 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
         if st.button(
             "⚡ إنشاء التقرير | Generate PDF" if ui_lang == "ar" else "⚡ Generate PDF",
             use_container_width=True,
-            key="ilm_generate_pdf",
+            key=_key("generate"),
         ):
             with st.spinner("Generating evidence-first PDF…"):
                 if report_kind.startswith("Instrument"):
@@ -715,7 +721,7 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
             elif report_lang == "ar" and (arabic_reshaper is None or bidi_get_display is None):
                 st.warning("Arabic shaping dependency is missing. Rebuild the app before using Arabic PDF output.")
             else:
-                st.success("PDF ready · التقرير جاهز.")
+                st.success("PDF ready." if ui_lang == "en" else "PDF ready · التقرير جاهز.")
 
         pdf_bytes = st.session_state.get("ilm_last_pdf")
         if pdf_bytes:
@@ -725,6 +731,6 @@ def render_pdf_report_center(context: dict, ui_lang: str = "ar") -> None:
                 file_name=st.session_state.get("ilm_last_pdf_name") or "Instrument_Lifecycle_Report.pdf",
                 mime="application/pdf",
                 use_container_width=True,
-                key="ilm_download_pdf",
+                key=_key("download"),
             )
             st.caption("Recorded evidence stays recorded; missing evidence stays visible. The PDF does not silently complete missing lifecycle gates.")

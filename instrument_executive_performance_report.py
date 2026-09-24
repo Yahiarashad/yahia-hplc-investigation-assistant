@@ -10,6 +10,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 import pandas as pd
 import streamlit as st
+from instrument_i18n import current_language as _current_language
 
 try:
     from reportlab.lib import colors
@@ -724,8 +725,7 @@ def _build_pdf(instruments, perf_rows, events, calibrations, selected_month, lan
 def render_executive_performance_report():
     st.divider()
 
-    language = st.radio("العربية | English", ["العربية", "English"], horizontal=True, key="exec_v2_ui_language", label_visibility="collapsed")
-    lang = "ar" if language == "العربية" else "en"
+    lang = _current_language()
     direction = "rtl" if lang == "ar" else "ltr"
     align = "right" if lang == "ar" else "left"
 
