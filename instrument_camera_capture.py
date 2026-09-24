@@ -263,6 +263,35 @@ _existing_user_guide = globals().get("render_v03_user_guide")
 if callable(_existing_user_guide):
     def render_v03_user_guide():
         _existing_user_guide()
+        from instrument_i18n import current_language as _current_language
+        if _current_language() == "en":
+            with st.expander("⭐ I already have an Excel Tracker — what does this app add?", expanded=False):
+                st.markdown(
+                    """
+### Excel stores rows. The application turns instrument history into a decision-ready story.
+
+If you already have a good Excel Tracker, **keep it**. Use it as a controlled input, then let the application add the decision-support layer.
+
+- **Next Action, not just a row** — Current Stage, Missing Evidence and the Next Controlled Milestone.
+- **One connected lifecycle** — Need → URS → Quotation → PR → PO → Receiving → Installation → IQ/OQ/PQ → Release → First Run → Routine Control → Performance Review → Retirement.
+- **Priority Attention Queue** — combines overdue controls, OOC, open events, receiving delays and missing lifecycle evidence by priority.
+- **Instrument Memory** — maintenance, calibration, components, failures and investigations remain connected to the same asset.
+- **Investigation Intelligence** — separates Observed / Inferred / Unknown and supports the next evidence action instead of trial-and-error.
+- **Camera-assisted entry** — reduces Manufacturer / Model / S/N transcription errors with user review before saving.
+- **Multi-user isolation** — workspace data remains protected through Supabase Row Level Security.
+
+**Recommended workflow:** Existing Excel Tracker → Import → Lifecycle Intelligence → Priorities / Decisions → Investigation Memory / Reports.
+
+> **Excel tracks instruments. Yahia QC Instrument Intelligence helps you decide what needs attention next — and why.**
+"""
+                )
+                st.info("Decision quality depends on the quality of the recorded evidence. Keep Passport, Lifecycle, Calibration/PM, Components and Events current.")
+            try:
+                from instrument_feedback import render_instrument_feedback
+                render_instrument_feedback(compact=True, language="en")
+            except Exception as exc:
+                st.caption(f"Feedback module is temporarily unavailable ({type(exc).__name__}).")
+            return
         with st.expander("⭐ عندي Excel Tracker بالفعل — لماذا أستخدم التطبيق؟", expanded=False):
             st.markdown(
                 """

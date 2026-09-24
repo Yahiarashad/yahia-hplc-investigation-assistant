@@ -725,7 +725,7 @@ def _build_pdf(instruments, perf_rows, events, calibrations, selected_month, lan
 def render_executive_performance_report():
     st.divider()
 
-    lang = _current_language()
+    lang = "en" if _current_language() == "en" else "ar"
     direction = "rtl" if lang == "ar" else "ltr"
     align = "right" if lang == "ar" else "left"
 

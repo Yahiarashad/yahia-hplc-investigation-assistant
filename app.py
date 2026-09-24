@@ -724,8 +724,7 @@ def _exec_extension(filename: str, error_key: str | None = None):
 _exec_extension("instrument_v03_user_guide.py", "_ilm_guide_module_error")
 _exec_extension("instrument_camera_capture.py", "_ilm_camera_module_error")
 _exec_extension("instrument_monthly_performance.py", "_ilm_performance_module_error")
-_exec_extension("instrument_pdf_reports.py", "_ilm_pdf_module_error")
-_exec_extension("instrument_executive_performance_report.py", "_ilm_exec_report_module_error")
+# Report engines are imported in isolated module namespaces after the core loads.
 _exec_extension("instrument_notification_center.py", "_ilm_notification_module_error")
 _exec_extension("instrument_admin_control.py", "_ilm_admin_module_error")
 
@@ -1010,14 +1009,29 @@ try:
     if isinstance(main_tabs, list) and len(main_tabs) >= 1 and _is_signed_in:
         with main_tabs[0]:
             st.divider()
-            if callable(globals().get("render_pdf_report_center")):
-                render_pdf_report_center(globals(), ui_lang=_current_language())
-            if callable(globals().get("render_executive_performance_report")):
-                render_executive_performance_report()
+            import instrument_pdf_reports as _ilm_pdf_reports_mod
+            _ilm_pdf_reports_mod._find_arabic_font = _ilm_pdf_font_paths
+            _ilm_report_lang = "en" if _current_language() == "en" else "ar"
+            _ilm_pdf_reports_mod.render_pdf_report_center(globals(), ui_lang=_ilm_report_lang)
 except Exception as exc:
     try:
         with main_tabs[0]:
-            st.error("Advanced Report Center could not load completely.")
+            st.error("PDF Report Center could not load completely.")
+            st.caption(f"Diagnostic: {type(exc).__name__}")
+    except Exception:
+        pass
+
+try:
+    if isinstance(main_tabs, list) and len(main_tabs) >= 1 and _is_signed_in:
+        with main_tabs[0]:
+            import instrument_executive_performance_report as _ilm_exec_reports_mod
+            _ilm_exec_reports_mod._db_list = globals().get("_db_list")
+            _ilm_exec_reports_mod._font_paths = _ilm_pdf_font_paths
+            _ilm_exec_reports_mod.render_executive_performance_report()
+except Exception as exc:
+    try:
+        with main_tabs[0]:
+            st.error("Executive Performance Intelligence could not load completely.")
             st.caption(f"Diagnostic: {type(exc).__name__}")
     except Exception:
         pass

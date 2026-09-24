@@ -368,6 +368,29 @@ if callable(_existing_perf_guide) and not globals().get("_ilm_perf_guide_wrapped
 
     def render_v03_user_guide():
         _existing_perf_guide()
+        from instrument_i18n import current_language as _current_language
+        if _current_language() == "en":
+            with st.expander("📈 Instrument Utilization & Monthly Availability | Calculation method", expanded=False):
+                st.markdown(
+                    """
+### Why both metrics?
+**Availability %** asks whether the instrument was ready during the time it was planned to be available.  
+**Utilization %** asks how much of the actually available time was used productively.
+
+**Planned Operating Time** = Scheduled Service Hours − Planned Downtime Hours  
+**Available Time** = Planned Operating Time − Unplanned Downtime Hours  
+**Availability %** = Available Time ÷ Planned Operating Time × 100  
+**Utilization %** = Productive Run Hours ÷ Available Time × 100
+
+**Example:** Scheduled 176 h, Planned Downtime 8 h, Unplanned Downtime 12 h, Productive Run 100 h → Planned Operating Time 168 h → Available Time 156 h → Availability **92.9%** → Utilization **64.1%**.
+
+Targets are instrument-specific management inputs. The app does not invent a universal target. **Target Gap = Actual % − Target %**, shown in percentage points (pp).
+
+When Availability is below target while Utilization is on/above target, **Capacity Risk** means demand is strong while reliability/downtime is compressing available capacity. It is a review signal, not a confirmed root cause.
+"""
+                )
+                st.warning("Portfolio Availability and Utilization are weighted by hours, not a simple average. Targets are operational / management indicators, not GMP release criteria.")
+            return
         with st.expander("📈 Instrument Utilization & Monthly Availability | طريقة الحساب", expanded=False):
             st.markdown(
                 """

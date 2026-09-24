@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 import inspect
 import streamlit as st
+from instrument_i18n import current_language as _current_language
 from beta_feedback import external_storage_configured, save_feedback
 
 _SESSION_KEY = "_ilm_product_feedback_session"
@@ -66,17 +67,19 @@ div.element-container:has(.v03-guide-banner) + div.element-container div[data-te
     )
 
 
-def render_instrument_feedback(*, compact: bool = True, language: str = "ar") -> None:
-    ar = language == "ar"
-    _apply_guide_rtl_css()
+def render_instrument_feedback(*, compact: bool = True, language: str | None = None) -> None:
+    resolved_language = language or ("en" if _current_language() == "en" else "ar")
+    ar = resolved_language == "ar"
+    if ar:
+        _apply_guide_rtl_css()
 
-    # Premium product/user/management guide. It is generated without customer
-    # instrument records, so users can safely download and share the brochure.
-    try:
-        from instrument_product_guide_rtl import render_product_guide_hub
-        render_product_guide_hub()
-    except Exception as exc:
-        st.caption(f"Premium Product Guide is temporarily unavailable ({type(exc).__name__}).")
+    # The current premium brochure hub is RTL; keep it out of English mode.
+    if ar:
+        try:
+            from instrument_product_guide_rtl import render_product_guide_hub
+            render_product_guide_hub()
+        except Exception as exc:
+            st.caption(f"Premium Product Guide is temporarily unavailable ({type(exc).__name__}).")
 
     # Report Center is intentionally shown before the feedback step so the user
     # can export a real lifecycle report, review it, then comment on the workflow.
