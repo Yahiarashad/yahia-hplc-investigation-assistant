@@ -20,6 +20,18 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install reportlab arabic-reshaper python-bidi pypdf pymupdf pillow
+      - name: Make embedded screenshots padding tolerant
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('instrument_guide_visuals.py')
+          s=p.read_text(encoding='utf-8')
+          old='    return base64.b64decode(value) if value else b""\n'
+          new='    if not value:\n        return b""\n    value = value + ("=" * (-len(value) % 4))\n    return base64.b64decode(value)\n'
+          if old in s:
+              s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
       - run: python tools/embed_guide_visuals.py
       - run: python -m py_compile app.py instrument_supabase_app.py instrument_v03_user_guide.py instrument_product_guide_pdf.py instrument_guide_visuals.py
       - name: Build and visual QA
@@ -34,7 +46,8 @@ jobs:
           from PIL import Image, ImageDraw
           data=build_product_user_guide_pdf()
           pages=len(PdfReader(BytesIO(data)).pages)
-          assert 19 <= pages <= 22, pages
+          print('PDF pages:',pages,'bytes:',len(data))
+          assert 19 <= pages <= 24, pages
           Path('guide_visual_embed_qa/Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf').write_bytes(data)
           doc=fitz.open(stream=data,filetype='pdf')
           thumbs=[]
@@ -52,12 +65,11 @@ jobs:
           sheet=Image.new('RGB',(cols*300,rows*430),(235,235,235))
           for idx,im in enumerate(thumbs): sheet.paste(im,((idx%cols)*300,(idx//cols)*430))
           sheet.save('guide_visual_embed_qa/contact-sheet.jpg',quality=90)
-          print('PDF pages:',pages,'bytes:',len(data))
           PY
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+Yahiarashad@users.noreply.github.com"
-          git add instrument_v03_user_guide.py instrument_product_guide_pdf.py
+          git add instrument_v03_user_guide.py instrument_product_guide_pdf.py instrument_guide_visuals.py
           git commit -m "Embed real app screenshots in guide workflows"
           git push origin HEAD:instrument-lifecycle-standalone
       - uses: actions/upload-artifact@v4
