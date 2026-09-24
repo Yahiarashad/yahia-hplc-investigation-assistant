@@ -33,6 +33,22 @@ jobs:
           p.write_text(s,encoding='utf-8')
           PY
       - run: python tools/embed_guide_visuals.py
+      - name: Keep only verified screenshot asset
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          g=Path('instrument_v03_user_guide.py')
+          s=g.read_text(encoding='utf-8')
+          block='''            _shot_attention = guide_visual_bytes("instrument_360_attention")\n            if _shot_attention:\n                st.image(_shot_attention, caption="Management Attention: إشارة اتساق Evidence تحتاج مراجعة، وليست حكم Compliance أو Root Cause.", width=260)\n'''
+          s=s.replace(block,'')
+          g.write_text(s,encoding='utf-8')
+
+          p=Path('instrument_product_guide_pdf.py')
+          t=p.read_text(encoding='utf-8')
+          block2="    story.append(Spacer(1,4*mm)); story.append(_guide_screenshot('instrument_360_attention'))\n    story.append(Paragraph('Actual app view - explainable Health Score and Management Attention signal. Decision-support only.', styles['small']))\n"
+          t=t.replace(block2,'')
+          p.write_text(t,encoding='utf-8')
+          PY
       - run: python -m py_compile app.py instrument_supabase_app.py instrument_v03_user_guide.py instrument_product_guide_pdf.py instrument_guide_visuals.py
       - name: Build and visual QA
         run: |
@@ -47,7 +63,7 @@ jobs:
           data=build_product_user_guide_pdf()
           pages=len(PdfReader(BytesIO(data)).pages)
           print('PDF pages:',pages,'bytes:',len(data))
-          assert 19 <= pages <= 24, pages
+          assert 19 <= pages <= 23, pages
           Path('guide_visual_embed_qa/Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf').write_bytes(data)
           doc=fitz.open(stream=data,filetype='pdf')
           thumbs=[]
@@ -70,7 +86,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+Yahiarashad@users.noreply.github.com"
           git add instrument_v03_user_guide.py instrument_product_guide_pdf.py instrument_guide_visuals.py
-          git commit -m "Embed real app screenshots in guide workflows"
+          git commit -m "Embed verified app screenshot in guide workflows"
           git push origin HEAD:instrument-lifecycle-standalone
       - uses: actions/upload-artifact@v4
         with:
