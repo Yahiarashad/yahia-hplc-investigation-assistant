@@ -23,24 +23,19 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          # 1) Hide the final Arabic summary line when English is selected.
           p = Path('instrument_supabase_app.py')
           s = p.read_text(encoding='utf-8')
-          old = '''**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.
-""")'''
-          new = '''""")
-    if _current_language() != "en":
-        st.markdown("**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.")'''
+          old = "**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.\n\"\"\")"
+          new = "\"\"\")\n    if _current_language() != \"en\":\n        st.markdown(\"**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.\")"
           if old not in s:
               raise SystemExit('Expected bilingual summary block not found in instrument_supabase_app.py')
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
-          # 2) Make the Excel bulk-import helper obey the selected language.
           p = Path('instrument_v03_user_guide.py')
           s = p.read_text(encoding='utf-8')
-          import_anchor = 'import streamlit as st\n'
-          import_line = 'from instrument_i18n import ui_text as _ui_text\n'
+          import_anchor = "import streamlit as st\n"
+          import_line = "from instrument_i18n import ui_text as _ui_text\n"
           if import_line not in s:
               if import_anchor not in s:
                   raise SystemExit('Streamlit import anchor not found in instrument_v03_user_guide.py')
@@ -52,30 +47,17 @@ jobs:
               raise SystemExit('Bulk import heading not found')
           s = s.replace(old_heading, new_heading, 1)
 
-          old_info = '''    st.info(
-        "قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. "
-        "أي عمود آخر يتم تجاهله ولا يتم تخمين معناه."
-    )'''
-          new_info = '''    st.info(_ui_text(
-        "Import rule: the app reads only columns whose headers exactly match the visible field names used in the application. Any other column is ignored; its meaning is never guessed.",
-        "قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. أي عمود آخر يتم تجاهله ولا يتم تخمين معناه."
-    ))'''
+          old_info = "    st.info(\n        \"قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. \"\n        \"أي عمود آخر يتم تجاهله ولا يتم تخمين معناه.\"\n    )"
+          new_info = "    st.info(_ui_text(\n        \"Import rule: the app reads only columns whose headers exactly match the visible field names used in the application. Any other column is ignored; its meaning is never guessed.\",\n        \"قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. أي عمود آخر يتم تجاهله ولا يتم تخمين معناه.\"\n    ))"
           if old_info not in s:
               raise SystemExit('Bulk import info block not found')
           s = s.replace(old_info, new_info, 1)
 
-          old_caption = '''    st.caption(
-        "أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. "
-        "الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة."
-    )'''
-          new_caption = '''    st.caption(_ui_text(
-        "Best practice: download the template, keep the column names unchanged, fill only the evidence you have, then upload the file. Blank cells do not mean the app will invent missing data.",
-        "أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة."
-    ))'''
+          old_caption = "    st.caption(\n        \"أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. \"\n        \"الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة.\"\n    )"
+          new_caption = "    st.caption(_ui_text(\n        \"Best practice: download the template, keep the column names unchanged, fill only the evidence you have, then upload the file. Blank cells do not mean the app will invent missing data.\",\n        \"أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة.\"\n    ))"
           if old_caption not in s:
               raise SystemExit('Bulk import caption block not found')
           s = s.replace(old_caption, new_caption, 1)
-
           p.write_text(s, encoding='utf-8')
           PY
 
