@@ -16,14 +16,14 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install reportlab arabic-reshaper python-bidi pymupdf pillow
-      - name: Build and render
+      - name: Build and render final wrapped guide
         run: |
           mkdir -p guide_qa/pages
           python - <<'PY'
           from instrument_product_guide_pdf import build_product_user_guide_pdf
           from pathlib import Path
           import fitz
-          from PIL import Image, ImageOps, ImageDraw
+          from PIL import Image, ImageDraw
           pdf=build_product_user_guide_pdf()
           Path('guide_qa/Yahia_QC_Instrument_Intelligence_Official_Guide_v1.0.pdf').write_bytes(pdf)
           doc=fitz.open(stream=pdf,filetype='pdf')
@@ -36,8 +36,7 @@ jobs:
               im.thumbnail((280,396))
               canvas=Image.new('RGB',(300,430),'white')
               canvas.paste(im,((300-im.width)//2,20))
-              d=ImageDraw.Draw(canvas)
-              d.text((12,405),f'Page {i+1}',fill='black')
+              ImageDraw.Draw(canvas).text((12,405),f'Page {i+1}',fill='black')
               thumbs.append(canvas)
           cols=4
           rows=(len(thumbs)+cols-1)//cols
@@ -49,6 +48,6 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: guide-visual-qa
+          name: guide-visual-qa-final
           path: guide_qa
           retention-days: 1
