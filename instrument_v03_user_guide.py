@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
+from instrument_i18n import ui_text as _ui_text
 from instrument_product_guide_pdf import build_product_user_guide_pdf
 from instrument_guide_visuals import guide_visual_bytes
 
@@ -248,11 +249,11 @@ def _excel_export_bytes(instruments):
 
 
 def _render_excel_import():
-    st.markdown("#### 📥 إدخال البيانات من Excel | Bulk import")
-    st.info(
-        "قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. "
-        "أي عمود آخر يتم تجاهله ولا يتم تخمين معناه."
-    )
+    st.markdown(_ui_text("#### 📥 Bulk import from Excel", "#### 📥 إدخال البيانات من Excel | Bulk import"))
+    st.info(_ui_text(
+        "Import rule: the app reads only columns whose headers exactly match the visible field names used in the application. Any other column is ignored; its meaning is never guessed.",
+        "قاعدة الاستيراد متعمدة وبسيطة: التطبيق يقرأ فقط الأعمدة التي يحمل عنوانها **نفس اسم الحقل الظاهر داخل التطبيق**. أي عمود آخر يتم تجاهله ولا يتم تخمين معناه."
+    ))
     st.download_button(
         "⬇️ Download exact Excel template",
         data=_excel_template_bytes(),
@@ -261,10 +262,10 @@ def _render_excel_import():
         use_container_width=True,
         key="v03_download_excel_template",
     )
-    st.caption(
-        "أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. "
-        "الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة."
-    )
+    st.caption(_ui_text(
+        "Best practice: download the template, keep the column names unchanged, fill only the evidence you have, then upload the file. Blank cells do not mean the app will invent missing data.",
+        "أفضل طريقة: حمّل القالب، لا تغيّر أسماء الأعمدة، املأ ما لديك فقط، ثم ارفع الملف. الخلايا الفارغة لا تعني أن التطبيق سيخترع بيانات مفقودة."
+    ))
 
     uploaded = st.file_uploader(
         "Upload .xlsx file",

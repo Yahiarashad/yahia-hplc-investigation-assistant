@@ -469,8 +469,9 @@ with st.expander(_ui_text("Why this application matters", "Why this application 
 
 **Important:** this is decision-support software, not a validated GxP system of record. Official GMP records remain in your approved systems and SOP-controlled forms.
 
-**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.
 """)
+    if _current_language() != "en":
+        st.markdown("**ببساطة:** الهدف ليس تخزين بيانات أكثر؛ الهدف أن تصبح بيانات الجهاز مفيدة عند اتخاذ القرار.")
 
 open_events = [e for e in events if str(e.get("event_status")) != "Closed"]
 overdue_items = 0
