@@ -1,0 +1,33 @@
+name: Refine v1.2 Compact Rendering
+
+on:
+  push:
+    branches:
+      - v1.2-investigation-ux
+    paths:
+      - .github/workflows/refine-v12.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v1.2-investigation-ux
+
+      - name: Apply compact-render refinements
+        run: python scripts/refine_v12_patch.py
+
+      - name: Validate Python syntax
+        run: python -m py_compile app.py investigation_report.py
+
+      - name: Commit refinements
+        run: |
+          git config user.name "Yahia QC v1.2 Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.py
+          git commit -m "Refine compact v1.2 investigation rendering"
+          git push origin HEAD:v1.2-investigation-ux
