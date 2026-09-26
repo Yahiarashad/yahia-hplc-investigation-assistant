@@ -1,5 +1,6 @@
 import os
 import re
+import html as html_lib
 import base64
 import sqlite3
 import tempfile
@@ -12,6 +13,7 @@ from openai import OpenAI
 
 from beta_feedback import record_event, record_investigation_message, render_feedback_form
 from evidence_engine import format_evidence_context, retrieve_evidence
+from investigation_report import build_investigation_pdf
 from portrait_asset import PORTRAIT_B64
 
 APP_TITLE = "Yahia HPLC Investigation Assistant"
@@ -20,7 +22,7 @@ MODEL = "gpt-5.6-terra"
 TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"
-APP_VERSION = "v1.1"
+APP_VERSION = "v1.2"
 DB_PATH = Path("/tmp/yahia_hplc_investigations.db")
 LINKEDIN_URL = "https://www.linkedin.com/in/yahia-rashad-mohamed"
 PORTRAIT_PATH = Path(__file__).with_name("assets") / "yahia_profile_420.jpg"
@@ -125,19 +127,8 @@ def _assistant_turn_count(messages):
 
 
 def _conclusion_detected(messages):
-    last_answer = next(
-        (message.get("content", "") for message in reversed(messages) if message.get("role") == "assistant"),
-        "",
-    )
-    text = last_answer.casefold()
-    markers = (
-        "root cause confirmed",
-        "root cause probable",
-        "السبب الجذري مؤكد",
-        "السبب الجذري المرجح",
-        "السبب الجذري محتمل",
-    )
-    return bool(last_answer) and any(marker.casefold() in text for marker in markers)
+    return _investigation_status(messages) in ("PROBABLE", "CONFIRMED")
+
 
 def _last_assistant_answer(messages):
     return next(
@@ -152,13 +143,101 @@ def _investigation_status(messages):
     return match.group(1).upper() if match else "INVESTIGATING"
 
 
-def _display_answer(answer):
-    return re.sub(
-        r"\n?INVESTIGATION_STATUS\s*:\s*(?:INVESTIGATING|AWAITING_USER|AWAITING_TEST|PROBABLE|CONFIRMED)\s*$",
-        "",
+def _evidence_stage_from_answer(answer):
+    match = re.search(
+        r"EVIDENCE_STAGE\s*:\s*(OBSERVED|HYPOTHESIS|LOCALIZED|IMMEDIATE_CAUSE_CONFIRMED|ROOT_CAUSE_PROBABLE|ROOT_CAUSE_CONFIRMED)",
         answer or "",
-        flags=re.I,
-    ).strip()
+        re.I,
+    )
+    return match.group(1).upper() if match else "OBSERVED"
+
+
+def _evidence_stage(messages):
+    return _evidence_stage_from_answer(_last_assistant_answer(messages))
+
+
+def _response_sections(answer):
+    raw = answer or ""
+    what_match = re.search(r"(?im)^\s*WHAT_NEXT\s*:\s*(.*)$", raw)
+    turn_match = re.search(r"(?im)^\s*YOUR_TURN\s*:\s*(.*)$", raw)
+    what_next = what_match.group(1).strip() if what_match else ""
+    your_turn = turn_match.group(1).strip() if turn_match else ""
+
+    clean = re.sub(
+        r"(?im)^\s*(?:INVESTIGATION_STATUS|EVIDENCE_STAGE)\s*:\s*[^\n]+\s*$",
+        "",
+        raw,
+    )
+    clean = re.sub(r"(?im)^\s*(?:WHAT_NEXT|YOUR_TURN)\s*:\s*[^\n]*\s*$", "", clean)
+    clean = re.sub(r"(?im)^\s*EXPLANATION\s*:\s*$", "", clean)
+    explanation = re.sub(r"\n{3,}", "\n\n", clean).strip()
+    return {
+        "what_next": what_next,
+        "your_turn": your_turn,
+        "explanation": explanation,
+    }
+
+
+def _is_none_value(value):
+    return (value or "").strip().casefold() in {"", "none", "n/a", "not applicable", "لا يوجد", "لا شيء"}
+
+
+def _render_assistant_turn(answer, is_ar):
+    sections = _response_sections(answer)
+    stage = _evidence_stage_from_answer(answer)
+    what_next = sections["what_next"]
+    explanation = sections["explanation"]
+
+    stage_label = stage.replace("_", " ")
+    st.caption(("مرحلة الدليل: " if is_ar else "Evidence stage: ") + stage_label)
+
+    if not _is_none_value(what_next):
+        st.markdown("### 🎯 المطلوب التالي" if is_ar else "### 🎯 What next?")
+        st.markdown(what_next)
+    elif stage in {"ROOT_CAUSE_PROBABLE", "ROOT_CAUSE_CONFIRMED"}:
+        st.markdown("### ✅ الخلاصة الحالية" if is_ar else "### ✅ Current conclusion")
+
+    if explanation:
+        expander_label = (
+            "لماذا هذه الخطوة؟ · الأدلة والتفسير"
+            if is_ar
+            else "Why this step? · Evidence & explanation"
+        )
+        with st.expander(expander_label, expanded=False):
+            st.markdown(explanation)
+
+
+def _turn_prompt(messages, is_ar):
+    status = _investigation_status(messages)
+    sections = _response_sections(_last_assistant_answer(messages))
+    requested = sections["your_turn"]
+
+    if is_ar:
+        if status == "AWAITING_TEST":
+            title = "دورك الآن — نفّذ الفحص المطلوب"
+            fallback = "نفّذ الفحص المحدد أعلاه واكتب النتيجة كما لاحظتها، من غير افتراض للسبب."
+        elif status == "AWAITING_USER":
+            title = "دورك الآن — جاوب على السؤال أعلاه"
+            fallback = "اكتب المعلومة المطلوبة أعلاه حتى نحدد الخطوة التالية."
+        else:
+            title = "دورك الآن — كمّل التحقيق"
+            fallback = "اكتب المعلومة أو النتيجة المطلوبة أعلاه لمواصلة التحقيق."
+    else:
+        if status == "AWAITING_TEST":
+            title = "Your turn — run the requested check"
+            fallback = "Perform the check above and report exactly what you observed, without assuming the cause."
+        elif status == "AWAITING_USER":
+            title = "Your turn — answer the question above"
+            fallback = "Provide the requested information so the investigation can choose the next step."
+        else:
+            title = "Your turn — continue the investigation"
+            fallback = "Provide the requested information or result above to continue the investigation."
+
+    return title, (fallback if _is_none_value(requested) else requested)
+
+
+def _display_answer(answer):
+    return _response_sections(answer)["explanation"]
 
 
 def _resolution_check_ready(messages):
@@ -765,20 +844,22 @@ Already checked: two independently prepared mobile phases produced the same resu
 else:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(_display_answer(message["content"]))
+            if message["role"] == "assistant":
+                _render_assistant_turn(message["content"], is_ar)
+            else:
+                st.markdown(message["content"])
     continue_class = "continue-card continue-card-ar" if is_ar else "continue-card"
+    turn_title, turn_copy = _turn_prompt(st.session_state.messages, is_ar)
+    safe_turn_title = html_lib.escape(turn_title)
+    safe_turn_copy = html_lib.escape(turn_copy)
     st.markdown(
-        f'<div class="{continue_class}"><strong>{T["your_turn"]}</strong>{T["your_turn_copy"]}</div>',
+        f'<div class="{continue_class}"><strong>{safe_turn_title}</strong>{safe_turn_copy}</div>',
         unsafe_allow_html=True,
     )
-    privacy_notice = (
-        "⚠️ لا تضع أي معلومات حساسة أو سرية تخص الشركة، المنتج، المريض، الطريقة التحليلية أو أي بيانات غير مصرح بمشاركتها. "
-        "يتم حفظ ما ترسله في هذه المرحلة لأغراض مراجعة وتحسين النسخة التجريبية."
-        if is_ar else
-        "⚠️ Do not enter sensitive or confidential company, product, patient, analytical-method, or unauthorized information. "
-        "What you submit at this stage is stored for founding-beta review and improvement."
+    st.caption(
+        "🔒 لا تضع معلومات سرية أو بيانات غير مصرح بمشاركتها." if is_ar
+        else "🔒 Do not enter confidential or unauthorized information."
     )
-    st.warning(privacy_notice)
     chat_text = st.chat_input(
         "اكتب ردك هنا لمواصلة التحقيق..." if is_ar else "Type your reply here to continue the investigation..."
     )
@@ -880,7 +961,8 @@ if user_input:
         + "Treat this selected area only as a hint. If the evidence points to another area, say so.\n"
         + f"LANGUAGE BEHAVIOR: {language_instruction}\n"
         + f"VISIBLE INVESTIGATION SUMMARY: {reasoning_summary_instruction}\n"
-        + "STATE CONTRACT: End every reply with exactly one machine-readable line: INVESTIGATION_STATUS: INVESTIGATING, AWAITING_USER, AWAITING_TEST, PROBABLE, or CONFIRMED. Use AWAITING_USER when one answer is needed; AWAITING_TEST when one test/check result is needed; PROBABLE only when a probable root cause is supported and no further investigation step is requested; CONFIRMED only after discriminating evidence confirms the root cause and no further investigation step is requested. Never use PROBABLE or CONFIRMED in a reply that asks the user for another investigative action. Do not explain this status line.\n\n"
+        + "UI RESPONSE CONTRACT: Every reply must contain these literal keys, each on its own line: WHAT_NEXT: <one concise action or NONE>; YOUR_TURN: <one precise thing the user should report/do next or NONE>; EXPLANATION: followed by the full evidence-based explanation. Keep WHAT_NEXT and YOUR_TURN short and mobile-first. Put reasoning summary, what we know, unknowns, hypotheses, interpretation branches, cautions, and supporting evidence under EXPLANATION so the UI can keep them collapsed by default. Use the user's language for the values, but keep the literal keys in English exactly as written.\n"
+        + "STATE CONTRACT: End every reply with exactly two machine-readable lines. First: EVIDENCE_STAGE: OBSERVED, HYPOTHESIS, LOCALIZED, IMMEDIATE_CAUSE_CONFIRMED, ROOT_CAUSE_PROBABLE, or ROOT_CAUSE_CONFIRMED. Second: INVESTIGATION_STATUS: INVESTIGATING, AWAITING_USER, AWAITING_TEST, PROBABLE, or CONFIRMED. EVIDENCE_STAGE describes scientific confidence; INVESTIGATION_STATUS describes conversation/action state. AWAITING_USER means one answer is needed. AWAITING_TEST means one test/check result is needed. PROBABLE is allowed only for a probable underlying root cause with no further investigative action requested. CONFIRMED is allowed only for an underlying root cause confirmed by targeted evidence with reasonable competing explanations materially weakened/excluded. Never call fault localization or an immediate failure mode ROOT_CAUSE_CONFIRMED. Never use PROBABLE or CONFIRMED in a reply that requests another investigative action. Do not explain either machine line.\n\n"
         + evidence_context
     )
 
@@ -902,14 +984,15 @@ if user_input:
                     answer = TEXT[response_language]["no_text"]
 
                 visible_answer = _display_answer(answer)
-                placeholder = st.empty()
-                rendered = ""
-                chunks = re.findall(r"\S+\s*", visible_answer)
-                for i, chunk in enumerate(chunks):
-                    rendered += chunk
-                    placeholder.markdown(rendered + ("▌" if i < len(chunks) - 1 else ""))
-                    time.sleep(0.018)
-                placeholder.markdown(visible_answer)
+                # The main screen is intentionally decision-first. Do not stream the
+                # long explanation into the primary view; it will live in the collapsed
+                # evidence/explanation panel after the immediate rerun below.
+                compact_sections = _response_sections(answer)
+                if not _is_none_value(compact_sections["what_next"]):
+                    st.markdown("### 🎯 المطلوب التالي" if response_language == "ar" else "### 🎯 What next?")
+                    st.markdown(compact_sections["what_next"])
+                else:
+                    st.success("تم تحديث حالة التحقيق." if response_language == "ar" else "Investigation state updated.")
 
                 st.session_state.messages.append({"role": "assistant", "content": answer})
                 save_message(CASE_ID, "assistant", answer)
@@ -932,8 +1015,9 @@ if user_input:
                     response_language,
                     {"assistant_turn": _assistant_turn_count(st.session_state.messages)},
                 )
-                if first_user_message:
-                    st.rerun()
+                # Rebuild the page after every completed assistant turn so the
+                # current WHAT NEXT / YOUR TURN state appears immediately.
+                st.rerun()
             except Exception as exc:
                 answer = format_api_error(exc, response_language)
                 st.markdown(answer)
@@ -942,6 +1026,37 @@ if st.session_state.messages:
     feedback_ready_key = f"_hplc_feedback_ready_{CASE_ID}"
     feedback_logged_key = f"_hplc_feedback_prompt_logged_{CASE_ID}"
     assistant_turns = _assistant_turn_count(st.session_state.messages)
+
+    # Documentation-ready PDF snapshot. The integrity fingerprint changes if the
+    # recorded case content changes, while formal GMP approval remains in the QMS.
+    try:
+        pdf_bytes, report_id, report_status = build_investigation_pdf(
+            case_id=CASE_ID,
+            app_version=APP_VERSION,
+            category=_case_category(st.session_state.messages, area),
+            messages=st.session_state.messages,
+            status=_investigation_status(st.session_state.messages),
+            evidence_stage=_evidence_stage(st.session_state.messages),
+        )
+        report_label = (
+            f"📄 تنزيل تقرير التحقيق ({report_status})"
+            if is_ar else
+            f"📄 Download Investigation Report ({report_status})"
+        )
+        st.download_button(
+            report_label,
+            data=pdf_bytes,
+            file_name=f"Yahia_QC_HPLC_Investigation_{CASE_ID}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"download_report_{CASE_ID}",
+        )
+        st.caption(("رقم التقرير: " if is_ar else "Report ID: ") + report_id)
+    except Exception as exc:
+        st.caption(
+            ("تعذر تجهيز تقرير PDF حاليًا: " if is_ar else "PDF report is temporarily unavailable: ")
+            + str(exc)
+        )
 
     if _conclusion_detected(st.session_state.messages):
         if _resolution_check_ready(st.session_state.messages):
